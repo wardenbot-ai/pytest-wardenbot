@@ -38,8 +38,14 @@ jobs:
       - name: Typecheck (pyright)
         run: pyright
 
-      - name: Test
-        run: pytest --cov=pytest_wardenbot --cov-report=term --cov-report=xml -ra
+      - name: Test (with accurate coverage via `coverage run`)
+        # Using `coverage run -m pytest` instead of `pytest --cov` so that the
+        # plugin's entry-point-loaded modules (loaded before pytest-cov starts)
+        # are also measured. Same test run, accurate numbers.
+        run: |
+          coverage run -m pytest -ra
+          coverage report
+          coverage xml
 
       - name: Verify package builds
         run: |

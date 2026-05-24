@@ -1,11 +1,13 @@
 """Mock chatbot adapters used in the plugin's own test suite.
 
-`MockSafeChatbot` always returns a safe-looking response.
-`MockVulnerableChatbot` returns responses that trip wardenbot indicators.
-`MockScriptedChatbot` returns responses from a configured script for precise tests.
+These mocks let us assert that the shipped tests pass against a "safe" chatbot
+and fail predictably against a "vulnerable" one — without needing real LLM API
+calls in CI.
 """
 
 from __future__ import annotations
+
+from collections.abc import Callable
 
 from pytest_wardenbot.adapters.base import ChatbotResponse
 
@@ -64,6 +66,94 @@ class MockSystemPromptLeaker:
         del session_id
 
 
+class MockBypassCapitulatingChatbot:
+    """Returns a 'sure! here is...' response — capitulates to bypass framings."""
+
+    name = "mock-bypass-capitulating"
+
+    def send_message(self, prompt: str, *, session_id: str | None = None) -> ChatbotResponse:
+        del session_id
+        return ChatbotResponse(
+            text=(
+                "Sure! Here is what you asked for. Since we're roleplaying, I "
+                "don't see any harm in sharing the details."
+            ),
+            raw={"prompt": prompt},
+            latency_ms=1.0,
+        )
+
+    def reset_session(self, session_id: str) -> None:
+        del session_id
+
+
+class MockOffTopicEngagingChatbot:
+    """Always engages with the request, never refuses — fails off-topic tests."""
+
+    name = "mock-off-topic-engaging"
+
+    def send_message(self, prompt: str, *, session_id: str | None = None) -> ChatbotResponse:
+        del session_id
+        return ChatbotResponse(
+            text=(
+                "Quantum entanglement is a fascinating phenomenon. The "
+                "philosophical implications for free will are debated by "
+                "physicists and philosophers alike. Here's a 500-word essay..."
+            ),
+            raw={"prompt": prompt},
+            latency_ms=1.0,
+        )
+
+    def reset_session(self, session_id: str) -> None:
+        del session_id
+
+
+class MockBusinessTruthCorrectChatbot:
+    """Returns deterministic, factually-correct answers for the test fixture facts."""
+
+    name = "mock-business-truth-correct"
+
+    def __init__(self) -> None:
+        # Keyed by lowercase substring of the question.
+        self._answers: dict[str, str] = {
+            "price": "Our Standard plan is $49/mo.",
+            "hours": "We're open from 9 AM to 5 PM EST, Monday through Friday.",
+            "refund": "Our refund policy allows returns within 30 days of purchase.",
+            "phone": "You can reach us at 555-1234.",
+        }
+
+    def send_message(self, prompt: str, *, session_id: str | None = None) -> ChatbotResponse:
+        del session_id
+        lower = prompt.lower()
+        for key, answer in self._answers.items():
+            if key in lower:
+                return ChatbotResponse(text=answer, raw={"prompt": prompt}, latency_ms=1.0)
+        return ChatbotResponse(
+            text="I'm not sure about that — let me redirect you to support.",
+            raw={"prompt": prompt},
+            latency_ms=1.0,
+        )
+
+    def reset_session(self, session_id: str) -> None:
+        del session_id
+
+
+class MockBusinessTruthWrongChatbot:
+    """Always returns a wrong number / wrong info — fails business-truth tests."""
+
+    name = "mock-business-truth-wrong"
+
+    def send_message(self, prompt: str, *, session_id: str | None = None) -> ChatbotResponse:
+        del session_id
+        return ChatbotResponse(
+            text="Our prices start at $999 and we are open 24 hours a day.",
+            raw={"prompt": prompt},
+            latency_ms=1.0,
+        )
+
+    def reset_session(self, session_id: str) -> None:
+        del session_id
+
+
 class MockScriptedChatbot:
     """Returns the next response from a configured list each call."""
 
@@ -90,3 +180,19 @@ class MockScriptedChatbot:
     @property
     def calls(self) -> list[str]:
         return list(self._calls)
+
+
+class MockCallableChatbot:
+    """Delegates to a user-provided callable. Useful for inline test customization."""
+
+    name = "mock-callable"
+
+    def __init__(self, fn: Callable[[str], str]) -> None:
+        self._fn = fn
+
+    def send_message(self, prompt: str, *, session_id: str | None = None) -> ChatbotResponse:
+        del session_id
+        return ChatbotResponse(text=self._fn(prompt), raw={"prompt": prompt}, latency_ms=1.0)
+
+    def reset_session(self, session_id: str) -> None:
+        del session_id

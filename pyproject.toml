@@ -106,8 +106,10 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["src/pytest_wardenbot"]
+source_pkgs = ["pytest_wardenbot"]
 branch = true
+# Cover entry-point-loaded modules that are imported before pytest-cov starts.
+parallel = false
 
 [tool.coverage.report]
 exclude_lines = [
