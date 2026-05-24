@@ -68,9 +68,9 @@ pip install "pytest-wardenbot[anthropic]"    # adds Anthropic Messages adapter
 | Refusal-bypass (roleplay / pretext / hypothetical framings) | 3 | deterministic | no |
 | Off-topic deflection | 2 | deterministic | no |
 | Business-truth verification (parametrized over your facts) | user-supplied | deterministic | no |
-| Optional semantic checks via DeepEval | 5 (landing later in v0.1 cycle) | LLM-judge | yes |
+| Semantic checks via DeepEval (5 factories: equivalence, brand, hallucination, off-policy, refusal quality) | user-supplied | LLM-judge | yes, with `[judge]` extra |
 
-That's **18 deterministic tests** out-of-the-box plus your business-truth list, all running in under a second against a real chatbot with zero LLM API spend.
+That's **18 deterministic tests** out-of-the-box plus your business-truth + judge lists, all running in under a second against a real chatbot with zero LLM API spend (unless you've opted into the `[judge]` extra).
 
 ## How it's different from related tools
 

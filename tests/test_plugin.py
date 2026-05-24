@@ -325,6 +325,146 @@ def test_shipped_business_truth_fails_with_wrong_bot(pytester: pytest.Pytester) 
 
 
 # ---------------------------------------------------------------------------
+# Shipped LLM-judge (test_semantic) skip / pass / fail paths
+# ---------------------------------------------------------------------------
+
+
+def test_shipped_judge_test_skips_without_judge_case_fixture(
+    pytester: pytest.Pytester,
+) -> None:
+    """No `judge_case` fixture configured → skip with helpful message."""
+    pytester.makeconftest(_SAFE_BOT_CONFTEST)
+    result = pytester.runpytest("--pyargs", "pytest_wardenbot.tests.test_semantic", "-v", "-rs")
+    result.assert_outcomes(skipped=1)
+    result.stdout.fnmatch_lines(["*No `judge_case` fixture configured*"])
+
+
+_JUDGE_FIXTURE_HEADER = """
+import pytest
+from unittest.mock import MagicMock
+from pytest_wardenbot.adapters.base import ChatbotResponse
+from pytest_wardenbot.grading import judge as judge_module
+from pytest_wardenbot.grading.judge import brand_alignment_case
+
+class SafeBot:
+    name = "safe-bot"
+    def send_message(self, prompt, *, session_id=None):
+        return ChatbotResponse(text="Friendly hello!", raw={})
+    def reset_session(self, session_id):
+        pass
+
+@pytest.fixture
+def chatbot():
+    return SafeBot()
+
+@pytest.fixture(params=[
+    brand_alignment_case(prompt="say hi", brand_voice="friendly", threshold=0.5),
+], ids=lambda c: c.parametrize_id())
+def judge_case(request):
+    return request.param
+"""
+
+
+def test_shipped_judge_test_skips_when_deepeval_missing(
+    pytester: pytest.Pytester,
+) -> None:
+    """DeepEval not installed -> skip with install instructions."""
+    pytester.makeconftest(
+        _JUDGE_FIXTURE_HEADER
+        + """
+@pytest.fixture(autouse=True)
+def _patch_unavailable(monkeypatch):
+    monkeypatch.setattr(judge_module, "judge_available", lambda: False)
+"""
+    )
+    result = pytester.runpytest("--pyargs", "pytest_wardenbot.tests.test_semantic", "-v", "-rs")
+    result.assert_outcomes(skipped=1)
+    result.stdout.fnmatch_lines(["*DeepEval not installed*"])
+
+
+def test_shipped_judge_test_skips_when_api_key_missing(
+    pytester: pytest.Pytester,
+) -> None:
+    """DeepEval installed but API key missing -> skip with env-var note."""
+    pytester.makeconftest(
+        _JUDGE_FIXTURE_HEADER
+        + """
+@pytest.fixture(autouse=True)
+def _patch_no_api_key(monkeypatch):
+    monkeypatch.setattr(judge_module, "judge_available", lambda: True)
+    monkeypatch.setattr(
+        judge_module,
+        "api_key_available",
+        lambda env_var="ANTHROPIC_API_KEY": False,
+    )
+"""
+    )
+    result = pytester.runpytest("--pyargs", "pytest_wardenbot.tests.test_semantic", "-v", "-rs")
+    result.assert_outcomes(skipped=1)
+    result.stdout.fnmatch_lines(["*ANTHROPIC_API_KEY not set*"])
+
+
+def test_shipped_judge_test_passes_with_mocked_factory(
+    pytester: pytest.Pytester,
+) -> None:
+    """Available + key set + judge returns high score -> test passes."""
+    pytester.makeconftest(
+        _JUDGE_FIXTURE_HEADER
+        + """
+@pytest.fixture(autouse=True)
+def _patch_passing_judge(monkeypatch):
+    monkeypatch.setattr(judge_module, "judge_available", lambda: True)
+    monkeypatch.setattr(
+        judge_module,
+        "api_key_available",
+        lambda env_var="ANTHROPIC_API_KEY": True,
+    )
+    def passing_factory(case, actual, model, temp):
+        metric = MagicMock()
+        metric.score = 0.95
+        metric.reason = "great alignment"
+        metric.measure = MagicMock()
+        return metric, MagicMock()
+    monkeypatch.setattr(
+        judge_module, "_default_deepeval_judge_factory", passing_factory
+    )
+"""
+    )
+    result = pytester.runpytest("--pyargs", "pytest_wardenbot.tests.test_semantic", "-v")
+    result.assert_outcomes(passed=1)
+
+
+def test_shipped_judge_test_fails_with_failing_mocked_factory(
+    pytester: pytest.Pytester,
+) -> None:
+    """Available + key set + judge returns low score -> test fails."""
+    pytester.makeconftest(
+        _JUDGE_FIXTURE_HEADER
+        + """
+@pytest.fixture(autouse=True)
+def _patch_failing_judge(monkeypatch):
+    monkeypatch.setattr(judge_module, "judge_available", lambda: True)
+    monkeypatch.setattr(
+        judge_module,
+        "api_key_available",
+        lambda env_var="ANTHROPIC_API_KEY": True,
+    )
+    def failing_factory(case, actual, model, temp):
+        metric = MagicMock()
+        metric.score = 0.2
+        metric.reason = "tone mismatch"
+        metric.measure = MagicMock()
+        return metric, MagicMock()
+    monkeypatch.setattr(
+        judge_module, "_default_deepeval_judge_factory", failing_factory
+    )
+"""
+    )
+    result = pytester.runpytest("--pyargs", "pytest_wardenbot.tests.test_semantic", "-v")
+    result.assert_outcomes(failed=1)
+
+
+# ---------------------------------------------------------------------------
 # Discovery: full shipped test set is collectable as one --pyargs run
 # ---------------------------------------------------------------------------
 
@@ -333,16 +473,11 @@ def test_all_shipped_tests_discoverable(pytester: pytest.Pytester) -> None:
     """`pytest --co --pyargs pytest_wardenbot.tests` discovers all shipped tests."""
     pytester.makeconftest(_SAFE_BOT_CONFTEST)
     result = pytester.runpytest("--co", "-q", "--pyargs", "pytest_wardenbot.tests")
-    # All non-business-truth shipped tests are discoverable; total = jailbreak(10)
-    # + system_prompt_leak(3) + refusal_bypass(3) + off_topic(2) + business_truth(1
-    # collected as 1 stub which then errors at collect-time because no params; we
-    # exclude it from this assertion by checking >= 18).
-    # business_truth doesn't have user params here so it appears as 1 test that
-    # will skip at runtime.
     output = "\n".join(result.stdout.lines)
-    # Just assert each test file's tests show up. Tally is implementation-detail-sensitive.
+    # Each test function name appears in the collection output.
     assert "test_resists_jailbreak_compliance" in output
     assert "test_resists_system_prompt_elicitation" in output
     assert "test_maintains_refusal_under_bypass" in output
     assert "test_deflects_off_topic_requests" in output
     assert "test_business_truth" in output
+    assert "test_semantic" in output

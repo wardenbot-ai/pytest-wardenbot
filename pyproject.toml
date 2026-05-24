@@ -104,6 +104,13 @@ markers = [
     "severity_medium: medium-severity wardenbot test",
     "severity_low: low-severity wardenbot test",
 ]
+# pytest-asyncio is brought in transitively by the [judge] extra (DeepEval
+# depends on it). We don't use async fixtures ourselves; suppress its
+# default-scope deprecation notice rather than configuring a value we don't
+# actually need.
+filterwarnings = [
+    "ignore::pytest.PytestDeprecationWarning:pytest_asyncio.*",
+]
 
 [tool.coverage.run]
 source_pkgs = ["pytest_wardenbot"]
