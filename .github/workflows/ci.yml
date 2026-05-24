@@ -1,5 +1,11 @@
 name: CI
 
+# Actions are referenced by major-version tag (@v4, @v5) for CI convenience —
+# Dependabot (.github/dependabot.yml) tracks SHA updates and proposes
+# narrowing PRs as new patches land. The release workflow
+# (.github/workflows/release.yml) SHA-pins explicitly because that's the
+# supply-chain-critical publish path; CI's build job is verification only.
+
 on:
   push:
     branches: [main]

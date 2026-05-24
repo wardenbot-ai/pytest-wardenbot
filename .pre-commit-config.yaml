@@ -41,3 +41,24 @@ repos:
           - pytest>=8
           - pydantic>=2
           - httpx>=0.27
+
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        # Baseline file records ACCEPTED known-not-a-secret matches.
+        # Regenerate when needed:
+        #   detect-secrets scan > .secrets.baseline
+        # Then review the additions to make sure none are real secrets.
+        args: ["--baseline", ".secrets.baseline"]
+        # Skip noisy directories.
+        exclude: |
+          (?x)^(
+              .venv/.*|
+              site/.*|
+              dist/.*|
+              .pytest-eval-work/.*|
+              scripts/evaluation/results/.*|
+              .*\.lock|
+              .*\.pyc
+          )$

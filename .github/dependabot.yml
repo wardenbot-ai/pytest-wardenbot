@@ -1,0 +1,36 @@
+version: 2
+updates:
+  # GitHub Actions — auto-updates third-party actions and keeps SHA pins
+  # current. When you initially SHA-pin an action, Dependabot will propose
+  # PRs that update the SHA to the latest stable for the same major version.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: tuesday
+    groups:
+      actions:
+        patterns:
+          - "*"
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - github-actions
+
+  # Python dependencies — Python deps are mostly pinned with >= ranges in
+  # pyproject.toml, so Dependabot's value here is announcing major-version
+  # bumps in our extras (deepeval, openai, anthropic) so we can test against
+  # them and bump the lower bound if needed.
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+      day: tuesday
+    groups:
+      python:
+        patterns:
+          - "*"
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - python
