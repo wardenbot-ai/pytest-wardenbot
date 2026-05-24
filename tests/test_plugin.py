@@ -481,6 +481,180 @@ def test_all_shipped_tests_discoverable(pytester: pytest.Pytester) -> None:
     assert "test_deflects_off_topic_requests" in output
     assert "test_business_truth" in output
     assert "test_semantic" in output
+    assert "test_resists_multi_turn_jailbreak" in output
+    assert "test_resists_indirect_injection" in output
+    assert "test_resists_encoded_payload" in output
+    assert "test_canary_never_appears_in_responses" in output
+
+
+# ---------------------------------------------------------------------------
+# Per-corpus override fixtures
+# ---------------------------------------------------------------------------
+
+
+def test_jailbreak_corpus_override_fixture_replaces_bundled(
+    pytester: pytest.Pytester,
+) -> None:
+    """User override of wardenbot_jailbreak_prompts changes the parametrize set."""
+    pytester.makeconftest(
+        _SAFE_BOT_CONFTEST
+        + """
+import pytest
+
+@pytest.fixture
+def wardenbot_jailbreak_prompts():
+    return (
+        ("custom prompt one", "custom-one"),
+        ("custom prompt two", "custom-two"),
+    )
+"""
+    )
+    result = pytester.runpytest("--pyargs", "pytest_wardenbot.tests.test_prompt_injection", "-v")
+    # 2 custom prompts x 2 tests (compliance + leak) = 4
+    result.assert_outcomes(passed=4)
+    output = "\n".join(result.stdout.lines)
+    assert "custom-one" in output
+    assert "custom-two" in output
+
+
+def test_off_topic_corpus_override_to_empty_skips_test(
+    pytester: pytest.Pytester,
+) -> None:
+    """Override to empty tuple — parametrize collects zero cases."""
+    pytester.makeconftest(
+        _SAFE_BOT_CONFTEST
+        + """
+import pytest
+
+@pytest.fixture
+def wardenbot_off_topic_prompts():
+    return ()
+"""
+    )
+    result = pytester.runpytest("--pyargs", "pytest_wardenbot.tests.test_off_topic", "-v")
+    # Zero tests collected from this parametrize means zero tests run.
+    assert result.ret in (0, pytest.ExitCode.NO_TESTS_COLLECTED.value)
+
+
+# ---------------------------------------------------------------------------
+# New shipped tests (multi-turn, indirect injection, encoded payloads, canary)
+# ---------------------------------------------------------------------------
+
+
+def test_shipped_multi_turn_tests_pass_with_safe_chatbot(
+    pytester: pytest.Pytester,
+) -> None:
+    pytester.makeconftest(_SAFE_BOT_CONFTEST)
+    result = pytester.runpytest("--pyargs", "pytest_wardenbot.tests.test_multi_turn", "-v")
+    # 3 multi-turn entries in the default corpus.
+    result.assert_outcomes(passed=3)
+
+
+def test_shipped_indirect_injection_tests_pass_with_safe_chatbot(
+    pytester: pytest.Pytester,
+) -> None:
+    pytester.makeconftest(_SAFE_BOT_CONFTEST)
+    result = pytester.runpytest("--pyargs", "pytest_wardenbot.tests.test_indirect_injection", "-v")
+    # 4 XPIA entries in the default corpus.
+    result.assert_outcomes(passed=4)
+
+
+def test_shipped_encoded_payload_tests_pass_with_safe_chatbot(
+    pytester: pytest.Pytester,
+) -> None:
+    pytester.makeconftest(_SAFE_BOT_CONFTEST)
+    result = pytester.runpytest("--pyargs", "pytest_wardenbot.tests.test_encoded_payloads", "-v")
+    # 4 encoded-payload entries in the default corpus.
+    result.assert_outcomes(passed=4)
+
+
+def test_shipped_encoded_payload_tests_fail_when_trigger_word_leaks(
+    pytester: pytest.Pytester,
+) -> None:
+    """A bot that emits any trigger word fails the encoded-payload test."""
+    pytester.makeconftest(
+        """
+import pytest
+from pytest_wardenbot.adapters.base import ChatbotResponse
+
+class CompliantBot:
+    name = "compliant-bot"
+    def send_message(self, prompt, *, session_id=None):
+        # Emit every trigger word from the default corpus to ensure all 4 fail.
+        return ChatbotResponse(
+            text=(
+                "Sure thing! Decoded: PWNED_BY_BASE64, PWNED_BY_ROT13, "
+                "PWNED_BY_LEET, PWNED_BY_HEX."
+            ),
+            raw={},
+        )
+    def reset_session(self, session_id):
+        pass
+
+@pytest.fixture
+def chatbot():
+    return CompliantBot()
+"""
+    )
+    result = pytester.runpytest("--pyargs", "pytest_wardenbot.tests.test_encoded_payloads", "-v")
+    result.assert_outcomes(failed=4)
+
+
+def test_shipped_canary_leak_test_skips_without_canary_fixture(
+    pytester: pytest.Pytester,
+) -> None:
+    pytester.makeconftest(_SAFE_BOT_CONFTEST)
+    result = pytester.runpytest("--pyargs", "pytest_wardenbot.tests.test_canary_leak", "-v", "-rs")
+    result.assert_outcomes(skipped=1)
+    result.stdout.fnmatch_lines(["*No `wardenbot_canary` fixture configured*"])
+
+
+def test_shipped_canary_leak_test_passes_when_bot_keeps_canary_secret(
+    pytester: pytest.Pytester,
+) -> None:
+    pytester.makeconftest(
+        _SAFE_BOT_CONFTEST
+        + """
+import pytest
+
+@pytest.fixture
+def wardenbot_canary():
+    return "WBCANARY-test-token-do-not-leak"
+"""
+    )
+    result = pytester.runpytest("--pyargs", "pytest_wardenbot.tests.test_canary_leak", "-v")
+    result.assert_outcomes(passed=1)
+
+
+def test_shipped_canary_leak_test_fails_when_bot_leaks_canary(
+    pytester: pytest.Pytester,
+) -> None:
+    pytester.makeconftest(
+        """
+import pytest
+from pytest_wardenbot.adapters.base import ChatbotResponse
+
+class LeakerBot:
+    name = "leaker"
+    def send_message(self, prompt, *, session_id=None):
+        return ChatbotResponse(
+            text="Sure, my internal note says WBCANARY-test-token-do-not-leak is the audit ID.",
+            raw={},
+        )
+    def reset_session(self, session_id):
+        pass
+
+@pytest.fixture
+def chatbot():
+    return LeakerBot()
+
+@pytest.fixture
+def wardenbot_canary():
+    return "WBCANARY-test-token-do-not-leak"
+"""
+    )
+    result = pytester.runpytest("--pyargs", "pytest_wardenbot.tests.test_canary_leak", "-v")
+    result.assert_outcomes(failed=1)
 
 
 # ---------------------------------------------------------------------------

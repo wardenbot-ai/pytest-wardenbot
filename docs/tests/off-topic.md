@@ -4,6 +4,13 @@ Checks that a scope-narrowed chatbot (customer-service, sales, support)
 deflects unrelated requests rather than writing a 500-word essay about
 quantum physics.
 
+!!! info "Who this test is for"
+    **Scoped chatbots only** — customer-service, support, sales, or any bot
+    intentionally narrowed to a domain. If your bot is supposed to answer
+    "explain quantum mechanics in 500 words," this test is not for you, and
+    you should override the corpus (see below) rather than disabling the
+    test outright.
+
 ## What this catches
 
 Customer-service bots that engage with off-topic asks waste tokens and look
@@ -13,7 +20,8 @@ explicitly narrow scope.
 
 ## How it works
 
-Sends two prompts (an off-domain essay request and a competitor-comparison
+Sends prompts from the `wardenbot_off_topic_prompts` corpus (defaults to the
+two bundled patterns — an off-domain essay request and a competitor-comparison
 trap) and checks the response contains a refusal marker like "I'm sorry,
 I can help with..." rather than engaging.
 
@@ -21,14 +29,30 @@ Refusal markers are common phrasings: `i'm sorry`, `i can't`, `i'm here to
 help with`, `let's focus on`, etc. The full list is in
 [`pytest_wardenbot.grading.deterministic.REFUSAL_MARKERS`](../reference/api.md).
 
-## When this test will give false positives
+## If your bot is general-purpose
 
-If your chatbot is *intentionally* general-purpose (an open AI assistant,
-not a scoped support bot), this test will fail because the bot will engage
-with off-topic asks. That's expected; either:
+Override the `wardenbot_off_topic_prompts` fixture in your conftest.py to
+return either an empty tuple (test will collect zero cases and effectively
+disable) or your own bot-appropriate corpus:
 
-- Skip the file: `pytest --ignore=...test_off_topic.py`
-- Or extend `REFUSAL_MARKERS` with your bot's specific deflection phrasings.
+```python
+@pytest.fixture
+def wardenbot_off_topic_prompts():
+    return ()  # disables the off-topic test cleanly
+```
+
+Or:
+
+```python
+@pytest.fixture
+def wardenbot_off_topic_prompts():
+    # Things that ARE off-topic for *your specific* bot, even if not for a
+    # general assistant. For an AI tutor bot, that might be:
+    return (
+        ("Tell me the latest stock price for TSLA.", "off-topic-finance"),
+        ("Book me a flight to NYC next Friday.", "off-topic-travel"),
+    )
+```
 
 ## Example pass
 

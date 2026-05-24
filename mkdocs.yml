@@ -98,6 +98,8 @@ nav:
       - Write a custom test: how-to/custom-tests.md
       - CI integration: how-to/ci-integration.md
       - Enable LLM-judge tests: how-to/llm-judge-setup.md
+      - Plant a canary token: how-to/canary-token.md
+      - Customize the attack corpora: how-to/customize-corpora.md
   - Reference:
       - API: reference/api.md
       - Pytest markers: reference/markers.md
