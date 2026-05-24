@@ -23,17 +23,22 @@ class HTTPChatbotAdapter:
     """Generic HTTP-POST chatbot adapter.
 
     Example:
-        @pytest.fixture
-        def chatbot():
-            return HTTPChatbotAdapter(
-                url="https://api.example.com/chat",
-                headers={"Authorization": f"Bearer {os.environ['CHATBOT_TOKEN']}"},
-                request_field="message",
-                response_field="reply",
-            )
 
-    For non-standard response shapes, pass a callable to `response_field`:
-        response_field=lambda data: data["choices"][0]["message"]["content"]
+    ```python
+    @pytest.fixture
+    def chatbot():
+        return HTTPChatbotAdapter(
+            url="https://api.example.com/chat",
+            headers={"Authorization": f"Bearer {os.environ['CHATBOT_TOKEN']}"},
+            request_field="message",
+            response_field="reply",
+        )
+    ```
+
+    For non-standard response shapes, pass a callable to `response_field`
+    that extracts the text from the nested response dict — for example,
+    selecting the first choice's message content from an OpenAI-style
+    response body.
     """
 
     name = "http"

@@ -1,0 +1,118 @@
+site_name: pytest-wardenbot
+site_description: Pytest plugin for testing chatbots and LLM apps.
+site_url: https://pardamike.github.io/pytest-wardenbot/
+repo_url: https://github.com/pardamike/pytest-wardenbot
+repo_name: pardamike/pytest-wardenbot
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: deep purple
+      accent: deep purple
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: deep purple
+      accent: deep purple
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.top
+    - navigation.tracking
+    - navigation.instant
+    - navigation.instant.progress
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+    - content.action.edit
+    - toc.follow
+  icon:
+    repo: fontawesome/brands/github
+  font:
+    text: Inter
+    code: JetBrains Mono
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: google
+            show_source: true
+            show_root_heading: true
+            show_root_full_path: false
+            show_if_no_docstring: false
+            members_order: source
+            heading_level: 2
+            separate_signature: true
+            show_signature_annotations: true
+            signature_crossrefs: true
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+
+nav:
+  - Home: index.md
+  - Quickstart: quickstart.md
+  - Tests:
+      - Overview: tests/index.md
+      - Prompt injection: tests/prompt-injection.md
+      - System-prompt elicitation: tests/system-prompt-leak.md
+      - Refusal bypass: tests/refusal-bypass.md
+      - Off-topic deflection: tests/off-topic.md
+      - Business truth: tests/business-truth.md
+      - LLM-judge (semantic): tests/semantic.md
+  - How to:
+      - Add your chatbot: how-to/add-chatbot.md
+      - Write a custom test: how-to/custom-tests.md
+      - CI integration: how-to/ci-integration.md
+      - Enable LLM-judge tests: how-to/llm-judge-setup.md
+  - Reference:
+      - API: reference/api.md
+      - Pytest markers: reference/markers.md
+  - FAQ: faq.md
+  - Changelog: changelog.md
+  - About:
+      - Design principles: about/design.md
+      - Powered by WardenBot AI: about/powered-by.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/pardamike/pytest-wardenbot
+    - icon: fontawesome/solid/globe
+      link: https://wardenbot.ai
+
+extra_css: []
+extra_javascript: []

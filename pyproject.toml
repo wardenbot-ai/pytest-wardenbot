@@ -43,6 +43,12 @@ dependencies = [
 openai = ["openai>=1.0"]
 anthropic = ["anthropic>=0.30"]
 judge = ["deepeval>=2.0"]
+docs = [
+    "mkdocs>=1.6",
+    "mkdocs-material>=9.5",
+    "mkdocstrings[python]>=0.26",
+    "pymdown-extensions>=10",
+]
 dev = [
     "ruff>=0.6",
     "pyright>=1.1.380",
