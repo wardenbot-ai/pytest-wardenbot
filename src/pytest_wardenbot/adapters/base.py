@@ -1,14 +1,21 @@
-"""Chatbot adapter Protocol and shared response model.
+"""Chatbot adapter Protocols and shared response model.
 
-A `ChatbotAdapter` is anything with a `name` attribute, a `send_message` method,
-and a `reset_session` method. Users connect their own chatbots by either:
+Two Protocols are exposed: `ChatbotAdapter` (sync) and `AsyncChatbotAdapter`
+(async). Users connect their own chatbots by either:
 
-1. Using one of the bundled adapters (`HTTPChatbotAdapter`, optionally
-   `OpenAIChatAdapter` or `AnthropicMessagesAdapter` via extras).
-2. Writing a small class that satisfies the Protocol.
+1. Using one of the bundled adapters: `HTTPChatbotAdapter` /
+   `AsyncHTTPChatbotAdapter`, or `OpenAIChatAdapter` /
+   `AsyncOpenAIChatAdapter` / `AnthropicMessagesAdapter` /
+   `AsyncAnthropicMessagesAdapter` (the vendor adapters require the
+   `[openai]` or `[anthropic]` extra).
+2. Writing a small class that satisfies one of the Protocols.
 
-Adapters are sync. Async chatbot transports should wrap their async calls with
-`asyncio.run(...)` inside `send_message`. Async-native support lands in v0.2.
+The shipped tests in v0.1 are synchronous and consume a `ChatbotAdapter`.
+Users with an `AsyncChatbotAdapter` (their bot is behind an async-only API,
+or they prefer `httpx.AsyncClient` for parallel fan-out in their own tests)
+can wrap it with `pytest_wardenbot.adapters.to_sync(...)` to satisfy the
+sync fixture contract. v0.2 will ship native-async shipped tests so async
+adapters can run their probes in parallel.
 """
 
 from __future__ import annotations
@@ -39,7 +46,7 @@ class ChatbotResponse(BaseModel):
 
 @runtime_checkable
 class ChatbotAdapter(Protocol):
-    """Protocol for chatbot adapters.
+    """Protocol for synchronous chatbot adapters.
 
     Any object with these attributes satisfies the contract. Adapters must NOT
     persist user data beyond what the underlying transport requires.
@@ -54,6 +61,9 @@ class ChatbotAdapter(Protocol):
         If `session_id` is provided, the adapter should attempt to maintain
         conversation context for that session ID. If the underlying chatbot is
         stateless, the adapter may ignore `session_id`.
+
+        Adapters raise `WardenBotInfraError` for transport / status / shape
+        failures so they surface as pytest ERRORs (not FAILUREs).
         """
         ...
 
@@ -62,4 +72,29 @@ class ChatbotAdapter(Protocol):
 
         Stateless adapters may implement this as a no-op.
         """
+        ...
+
+
+@runtime_checkable
+class AsyncChatbotAdapter(Protocol):
+    """Protocol for asynchronous chatbot adapters.
+
+    Mirrors `ChatbotAdapter` but with awaitable methods. Use for chatbots
+    behind async-only transports or when you want parallel fan-out in your
+    own async test suite.
+
+    The shipped tests in v0.1 are synchronous; pass an async adapter through
+    `pytest_wardenbot.adapters.to_sync(...)` to consume it from the shipped
+    `chatbot` fixture. Native-async shipped tests land in v0.2.
+    """
+
+    name: str
+    """Short identifier for the adapter, e.g. 'async-http', 'async-openai-chat'."""
+
+    async def send_message(self, prompt: str, *, session_id: str | None = None) -> ChatbotResponse:
+        """Async counterpart to `ChatbotAdapter.send_message`."""
+        ...
+
+    async def reset_session(self, session_id: str) -> None:
+        """Async counterpart to `ChatbotAdapter.reset_session`."""
         ...

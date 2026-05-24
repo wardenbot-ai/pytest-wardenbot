@@ -54,6 +54,13 @@ dev = [
     "pyright>=1.1.380",
     "pytest-cov>=5.0",
     "build>=1.0",
+    # Required to run the async adapter tests directly; pytest-asyncio is
+    # transitively present via [judge] (DeepEval depends on it), but contributors
+    # working without [judge] still need it.
+    "pytest-asyncio>=0.24",
+    # Stub OpenAI + Anthropic clients in tests live in tests/fixtures/, but
+    # AsyncHTTPChatbotAdapter tests exercise httpx.MockTransport with AsyncClient
+    # which is part of httpx itself — no extra dep needed there.
 ]
 
 [project.entry-points.pytest11]

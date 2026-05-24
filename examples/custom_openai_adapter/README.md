@@ -1,12 +1,15 @@
-# Example: custom OpenAI Chat adapter
+# Example: custom OpenAI Chat adapter (template for any vendor SDK)
 
 How to write your own `ChatbotAdapter` for any vendor SDK. This example uses
 the OpenAI Python SDK against the Chat Completions endpoint, but the same
-pattern applies to Anthropic, LangChain, MCP, or anything else with a Python
-client.
+pattern applies to LangChain, MCP, or anything else with a Python client.
 
-> A built-in `OpenAIChatAdapter` lands in v0.2 of pytest-wardenbot. Until then,
-> this is the recipe.
+> **If your chatbot just IS an OpenAI Chat model**, use the bundled
+> `OpenAIChatAdapter` instead — see [`../openai_chat/`](../openai_chat/).
+> Same for Anthropic — see [`../anthropic_messages/`](../anthropic_messages/).
+> This example is the template for cases where you have middleware between
+> the user and the model (RAG, function calling with custom side effects,
+> prompt rewriting, etc.) and you want to test the whole pipeline as one bot.
 
 ## Run
 
