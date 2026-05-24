@@ -32,7 +32,8 @@ Recurring external monitoring of customer-facing chatbots:
 ## How this plugin relates
 
 The plugin is **the free, open-source slice of the Continuous Monitoring
-test corpus**. About 30 curated tests that you run locally in your own
+test corpus**. 30 curated tests (plus an opt-in canary-leak test, plus
+your business-truth and judge lists) that you run locally in your own
 pytest suite.
 
 The managed Continuous Monitoring service runs roughly 1000+ tests on a
@@ -70,5 +71,5 @@ Two reasons:
 
 ## Want the managed service?
 
-[Join the waitlist](https://wardenbot.ai/waitlist). We open invites in
-small batches.
+[Tell us about your setup](https://wardenbot.ai/intake/). We open invites
+in small batches.

@@ -6,7 +6,6 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](./LICENSE.md)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit)
-[![Powered by WardenBot AI](https://img.shields.io/badge/Powered_by-WardenBot_AI-purple)](https://wardenbot.ai)
 
 Pytest plugin for testing chatbots and LLM apps — prompt injection, jailbreaks, system-prompt leaks, hallucinations, brand drift.
 
@@ -21,8 +20,14 @@ Pytest plugin for testing chatbots and LLM apps — prompt injection, jailbreaks
 Run pytest against your chatbot and find out if it leaks its system prompt, complies with known jailbreaks, hallucinates business facts, or drifts from your brand voice.
 
 - **Black-box.** Tests run against your live chatbot via HTTP, OpenAI API, Anthropic API, or any object you write a small adapter for.
-- **Deterministic-first.** v0.1 ships tests that need zero LLM API spend — regex, substring, and schema checks. Optional LLM-judge tests (DeepEval) ship as an extra for semantic checks.
+- **Deterministic-first.** v0.1 ships 30 tests that need zero LLM API spend — regex, substring, and schema checks. Optional LLM-judge tests (DeepEval) ship as an extra for semantic checks.
 - **Agent-ready failures.** When a test fails, the failure message includes a structured Markdown remediation prompt you can paste into Cursor or Claude Code.
+
+### What "passing" means (and doesn't)
+
+A green run means your chatbot didn't fail any of the bundled 30 attacks in the most overt way. It's a useful smoke test and a regression detector — if a deploy turns a green test red, that's a real signal to investigate.
+
+A green run does **not** mean your chatbot is secure. Frontier-grade attacks are multi-turn, novel, and adapted to your specific bot — no fixed corpus catches all of them. Treat the shipped suite as a starter set: pair it with periodic red-team exercises (or our [Continuous Monitoring](https://wardenbot.ai/intake/) service) for the always-on adversarial coverage CI alone can't provide.
 
 ## Install
 
@@ -34,8 +39,8 @@ Optional extras for LLM-judge tests or vendor-native adapters:
 
 ```bash
 pip install "pytest-wardenbot[judge]"        # adds DeepEval for semantic checks
-pip install "pytest-wardenbot[openai]"       # adds OpenAI Chat adapter
-pip install "pytest-wardenbot[anthropic]"    # adds Anthropic Messages adapter
+pip install "pytest-wardenbot[openai]"       # adds OpenAIChatAdapter + AsyncOpenAIChatAdapter
+pip install "pytest-wardenbot[anthropic]"    # adds AnthropicMessagesAdapter + AsyncAnthropicMessagesAdapter
 ```
 
 ## Quickstart (under 60 seconds)
@@ -85,22 +90,26 @@ Then run the shipped tests with `pytest --pyargs pytest_wardenbot.tests`.
 When a test fails, read the failure message, paste the agent-ready Markdown
 into Cursor / Claude Code, ship the fix.
 
-## What's in v0.1 (so far)
+## What's in v0.1
 
 | Category | Count | Grading | Requires API key? |
 |---|---|---|---|
-| Prompt-injection / jailbreak resistance | 5 prompts × 2 checks | deterministic | no |
+| Prompt-injection / jailbreak resistance | 5 prompts × 2 checks = 10 | deterministic | no |
 | System-prompt leak elicitation (dedicated extraction prompts) | 3 | deterministic | no |
 | Refusal-bypass (roleplay / pretext / hypothetical framings) | 3 | deterministic | no |
-| Off-topic deflection | 2 | deterministic | no |
+| Off-topic deflection (scoped bots) | 2 | deterministic | no |
+| Indirect / cross-prompt injection (XPIA) | 4 | deterministic | no |
+| Encoded-payload jailbreak (Base64 / ROT13 / leet / hex) | 4 | deterministic | no |
+| Multi-turn jailbreak (priming + payload, needs session-aware adapter) | 3 | deterministic | no |
+| Canary-token leak (opt-in; you plant the token) | 1 | deterministic | no |
 | Business-truth verification (parametrized over your facts) | user-supplied | deterministic | no |
 | Semantic checks via DeepEval (5 factories: equivalence, brand, hallucination, off-policy, refusal quality) | user-supplied | LLM-judge | yes, with `[judge]` extra |
 
-That's **18 deterministic tests** out-of-the-box plus your business-truth + judge lists, all running in under a second against a real chatbot with zero LLM API spend (unless you've opted into the `[judge]` extra).
+That's **30 deterministic tests** out-of-the-box (plus the opt-in canary leak test, plus your business-truth and judge lists). Tests run in under a second against a real chatbot with zero LLM API spend unless you've opted into the `[judge]` extra.
 
 ## How it's different from related tools
 
-- **vs Promptfoo (now OpenAI):** Promptfoo is a developer testing CLI. We're a pytest plugin — same tool your existing test suite uses, same CI integration you already have.
+- **vs Promptfoo ([acquired by OpenAI in Feb 2026](https://openai.com/index/openai-to-acquire-promptfoo/)):** Promptfoo is a developer testing CLI. We're a pytest plugin — same tool your existing test suite uses, same CI integration you already have.
 - **vs DeepEval:** DeepEval focuses on evaluation metrics (faithfulness, relevancy). We focus on adversarial security probes (jailbreak, system-prompt leak, refusal-bypass) — different problem, complementary tool. (We use DeepEval under the hood for our optional semantic checks.)
 - **vs Garak / PyRIT:** Garak and PyRIT are research-grade attack libraries. We package a curated subset as everyday pytest tests with clear failure messages.
 
@@ -110,4 +119,6 @@ Apache 2.0. See [LICENSE.md](./LICENSE.md).
 
 ## Powered by
 
-[WardenBot AI](https://wardenbot.ai) — continuous external monitoring for AI chatbots. The pytest plugin is the free, open-source slice of our test corpus. Want continuous monitoring across all your bots with daily probes and a dashboard? [Join the waitlist](https://wardenbot.ai/waitlist) for our managed service.
+[WardenBot AI](https://wardenbot.ai) — continuous external monitoring for AI chatbots. ![Powered by WardenBot AI](https://img.shields.io/badge/Powered_by-WardenBot_AI-purple)
+
+The pytest plugin is the free, open-source slice of our test corpus. Want continuous monitoring across all your bots with daily probes and a dashboard? [Tell us about your setup](https://wardenbot.ai/intake/) — we open invites in small batches.

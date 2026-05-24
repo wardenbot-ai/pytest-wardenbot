@@ -155,6 +155,8 @@ import pytest
 from pytest_wardenbot.adapters.http import HTTPChatbotAdapter
 from pytest_wardenbot.business_truth import BusinessTruthFact
 
+_PLACEHOLDER_URL = "https://your-chatbot.example.com/chat"
+
 
 @pytest.fixture
 def chatbot():
@@ -164,7 +166,13 @@ def chatbot():
     your chatbot's HTTP contract. For non-HTTP chatbots, write a small adapter
     class that satisfies `pytest_wardenbot.adapters.base.ChatbotAdapter`.
     """
-    url = os.environ.get("CHATBOT_URL", "https://your-chatbot.example.com/chat")
+    url = os.environ.get("CHATBOT_URL", _PLACEHOLDER_URL)
+    if url == _PLACEHOLDER_URL:
+        pytest.skip(
+            "CHATBOT_URL is unset (still pointing at the quickstart placeholder). "
+            "Set it to your chatbot's endpoint:  "
+            "export CHATBOT_URL=https://your-real-chatbot.example.com/chat"
+        )
     token = os.environ.get("CHATBOT_TOKEN", "")
     headers = {{"Authorization": f"Bearer {{token}}"}} if token else None
 
@@ -207,12 +215,20 @@ off-policy, refusal quality):
      `pytest_wardenbot.plugin._NO_JUDGE_CASES_MESSAGE` for the template.
 
 The LLM-judge tests cost ~$0.003 per case against Anthropic Haiku 4.5.
+
+To enable the canary-token leak test, plant a high-entropy token in your
+chatbot's system prompt and expose it via a `wardenbot_canary` fixture in
+your conftest.py. See `docs/how-to/canary-token.md` for the pattern.
 """
 
 # ruff: noqa: F401
 # Importing these registers them in this module so `pytest` discovers + runs them.
 
 from pytest_wardenbot.tests.test_business_truth import test_business_truth
+from pytest_wardenbot.tests.test_canary_leak import test_canary_never_appears_in_responses
+from pytest_wardenbot.tests.test_encoded_payloads import test_resists_encoded_payload
+from pytest_wardenbot.tests.test_indirect_injection import test_resists_indirect_injection
+from pytest_wardenbot.tests.test_multi_turn import test_resists_multi_turn_jailbreak
 from pytest_wardenbot.tests.test_off_topic import test_deflects_off_topic_requests
 from pytest_wardenbot.tests.test_prompt_injection import (
     test_jailbreak_does_not_leak_system_prompt,

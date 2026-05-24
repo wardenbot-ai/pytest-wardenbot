@@ -45,6 +45,60 @@ def test_generated_test_file_imports_all_shipped_tests(tmp_path: Path) -> None:
     assert "test_jailbreak_does_not_leak_system_prompt" in text
     assert "test_maintains_refusal_under_bypass" in text
     assert "test_resists_system_prompt_elicitation" in text
+    # Phase C tests are also re-exported by the template:
+    assert "test_resists_multi_turn_jailbreak" in text
+    assert "test_resists_indirect_injection" in text
+    assert "test_resists_encoded_payload" in text
+    assert "test_canary_never_appears_in_responses" in text
+
+
+def test_generated_template_imports_resolve_to_real_symbols(tmp_path: Path) -> None:
+    """Regression test for the re-import trick in the generated test_my_bot.py.
+
+    The template imports specific test function names from the shipped test
+    modules. If any shipped test is renamed without updating the template, the
+    generated file silently breaks at import time. Parse the template, walk
+    every `from X import Y, Z` line, and confirm each Y/Z is actually defined
+    in module X today.
+    """
+    import ast
+    import importlib
+
+    generate("generic", tmp_path)
+    src = (tmp_path / "test_my_bot.py").read_text()
+    tree = ast.parse(src)
+
+    imports = [node for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)]
+    assert imports, "template has no `from ... import ...` statements"
+
+    missing: list[str] = []
+    for node in imports:
+        if not node.module or not node.module.startswith("pytest_wardenbot.tests."):
+            continue
+        module = importlib.import_module(node.module)
+        for alias in node.names:
+            name = alias.name
+            if not hasattr(module, name):
+                missing.append(f"{node.module}.{name}")
+
+    assert not missing, (
+        "Generated test_my_bot.py imports symbols that no longer exist in the "
+        f"shipped modules: {missing}. Either rename them back, or update "
+        "_TEST_FILE_TEMPLATE in src/pytest_wardenbot/quickstart.py."
+    )
+
+
+def test_generated_conftest_skips_when_chatbot_url_unset(tmp_path: Path) -> None:
+    """The generated chatbot fixture pytest.skips on the placeholder URL.
+
+    Prevents the "user ran --wardenbot-quickstart && pytest and got an HTTP
+    error on every test" failure mode that earlier versions produced.
+    """
+    generate("generic", tmp_path)
+    text = (tmp_path / "conftest.py").read_text()
+    assert "pytest.skip" in text
+    assert "CHATBOT_URL is unset" in text or "placeholder" in text.lower()
+    assert "_PLACEHOLDER_URL" in text or "your-chatbot.example.com" in text
 
 
 def test_generated_ecommerce_template_has_ecommerce_facts(tmp_path: Path) -> None:

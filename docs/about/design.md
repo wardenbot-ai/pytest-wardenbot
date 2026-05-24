@@ -67,7 +67,7 @@ in the managed [WardenBot AI](https://wardenbot.ai) service.
 
 This split is explicit so we don't accept PRs that drift the plugin into
 "a small version of the managed service." If your idea is in the second
-bucket, the right home is the managed-service waitlist.
+bucket, the right home is the managed-service [intake form](https://wardenbot.ai/intake/).
 
 This also means:
 

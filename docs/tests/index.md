@@ -1,8 +1,9 @@
 # Test catalog
 
-`pytest-wardenbot` v0.1 ships 18 deterministic tests + 1 user-parametrized
-business-truth test + 1 user-parametrized LLM-judge test. Total: 20 test
-functions, all discoverable via `pytest --pyargs pytest_wardenbot.tests`.
+`pytest-wardenbot` v0.1 ships **30 deterministic tests** out of the box,
+plus an opt-in canary-token leak test, plus user-parametrized business-truth
+and LLM-judge tests. All discoverable via
+`pytest --pyargs pytest_wardenbot.tests`.
 
 ## At a glance
 
@@ -12,8 +13,23 @@ functions, all discoverable via `pytest --pyargs pytest_wardenbot.tests`.
 | [System-prompt elicitation](system-prompt-leak.md) | 3 | deterministic | no |
 | [Refusal bypass](refusal-bypass.md) | 3 | deterministic | no |
 | [Off-topic deflection](off-topic.md) | 2 | deterministic | no |
+| Indirect / cross-prompt injection (XPIA) | 4 | deterministic | no |
+| Encoded-payload jailbreak (Base64 / ROT13 / leet / hex) | 4 | deterministic | no |
+| Multi-turn jailbreak (priming + payload) | 3 | deterministic | no |
+| Canary-token leak (opt-in; you plant the token) | 1 | deterministic | no |
 | [Business truth](business-truth.md) | user-supplied | deterministic | no |
 | [LLM-judge (semantic)](semantic.md) | user-supplied | LLM-judge | yes, with `[judge]` extra |
+
+## What "passing" means (and doesn't)
+
+A green run means your chatbot didn't fail any of the bundled 30 attacks
+in the most overt way. It's a useful smoke test and a regression detector
+— if a deploy turns a green test red, that's a real signal to investigate.
+
+A green run does **not** mean your chatbot is secure. Frontier-grade
+attacks are multi-turn, novel, and adapted to your specific bot — no fixed
+corpus catches all of them. Treat the shipped suite as a starter set, not
+a security audit.
 
 ## How the suite is graded
 

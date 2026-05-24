@@ -53,7 +53,7 @@ will be politely declined:
 - Anything that requires a server we run
 
 If your idea is in the second bucket, the right home is
-https://wardenbot.ai/waitlist for the managed service.
+https://wardenbot.ai/intake/ for the managed service.
 
 ## Code style
 

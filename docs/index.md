@@ -36,11 +36,25 @@ Markdown into your IDE, iterate.
 [Full quickstart →](quickstart.md){ .md-button .md-button--primary }
 [See what's tested →](tests/index.md){ .md-button }
 
+## What "passing" means (and doesn't)
+
+A green run means your chatbot didn't fail any of the bundled 30 attacks
+in the most overt way. It's a useful smoke test and a regression detector
+— if a deploy turns a green test red, that's a real signal to investigate.
+
+A green run does **not** mean your chatbot is secure. Frontier-grade
+attacks are multi-turn, novel, and adapted to your specific bot — no fixed
+corpus catches all of them. Treat the shipped suite as a starter set: pair
+it with periodic red-team exercises (or our
+[Continuous Monitoring](https://wardenbot.ai/intake/) service) for the
+always-on adversarial coverage CI alone can't provide.
+
 ## How it compares
 
-- **vs Promptfoo (now OpenAI):** Promptfoo is a developer testing CLI.
-  We're a pytest plugin — same test runner your existing suite uses, same
-  CI integration you already have. Same idea, different shape.
+- **vs Promptfoo ([acquired by OpenAI in Feb 2026](https://openai.com/index/openai-to-acquire-promptfoo/)):**
+  Promptfoo is a developer testing CLI. We're a pytest plugin — same test
+  runner your existing suite uses, same CI integration you already have.
+  Same idea, different shape.
 
 - **vs DeepEval:** DeepEval focuses on evaluation metrics (faithfulness,
   relevancy). We focus on behavior testing (jailbreak resistance,
@@ -55,4 +69,5 @@ Markdown into your IDE, iterate.
 [WardenBot AI](https://wardenbot.ai) — continuous external monitoring for
 AI chatbots. The pytest plugin is the free, open-source slice of our test
 corpus. Want continuous monitoring across all your bots with daily probes,
-a dashboard, and alerts? [Join the waitlist](https://wardenbot.ai/waitlist).
+a dashboard, and alerts?
+[Tell us about your setup](https://wardenbot.ai/intake/).

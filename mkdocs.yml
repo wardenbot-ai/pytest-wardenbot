@@ -107,6 +107,7 @@ nav:
   - Changelog: changelog.md
   - About:
       - Design principles: about/design.md
+      - Evaluation: about/evaluation.md
       - Powered by WardenBot AI: about/powered-by.md
 
 extra:

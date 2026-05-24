@@ -18,7 +18,7 @@ body:
         - Scheduled / recurring runs against your chatbot
         - LLM-judge result aggregation across customers
 
-        If your idea lands in the second bucket, see https://wardenbot.ai/waitlist instead.
+        If your idea lands in the second bucket, see https://wardenbot.ai/intake/ instead.
 
   - type: textarea
     id: problem

@@ -14,7 +14,10 @@ pytest -v
 
 ## What it tests
 
-The 18 deterministic shipped tests, plus 3 user-supplied business-truth facts.
+The 30 deterministic shipped tests, plus 3 user-supplied business-truth facts.
+(Multi-turn jailbreak tests run but session memory is per-request on the
+default `HTTPChatbotAdapter` — for true multi-turn, write an adapter that
+honors `session_id`, or use the bundled OpenAI/Anthropic adapters.)
 
 ## Edit before running for real
 

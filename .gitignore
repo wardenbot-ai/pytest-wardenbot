@@ -61,3 +61,7 @@ Thumbs.db
 # Docs build
 site/
 _site/
+
+# Evaluation harness output (per-user, model-version-specific)
+scripts/evaluation/results/
+.pytest-eval-work/
