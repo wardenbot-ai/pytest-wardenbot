@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/pardamike/pytest-wardenbot/security/policy
+    about: Don't open a public issue for security reports. See SECURITY.md for the private disclosure path.
+  - name: WardenBot AI managed monitoring
+    url: https://wardenbot.ai/waitlist
+    about: The pytest plugin is the free, OSS slice. Continuous monitoring across all your bots with alerts + a dashboard is the managed service.

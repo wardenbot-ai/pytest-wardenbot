@@ -1,0 +1,61 @@
+name: New shipped test request
+description: Suggest a specific probe or test pattern to add to the shipped corpus.
+labels: ["enhancement", "new-test"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template when you have a specific test you'd like added to the
+        shipped corpus (the tests under `pytest_wardenbot.tests.*`).
+
+        Good new tests are:
+        - **Specific** — target one identifiable vulnerability class.
+        - **Deterministic** — graded by regex / substring / schema where possible.
+        - **Conservative** — false positives erode trust faster than false negatives.
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Test category
+      options:
+        - Prompt injection / jailbreak
+        - System-prompt extraction
+        - Refusal-bypass framing
+        - Off-topic deflection
+        - Hallucination / accuracy
+        - PII / secret extraction
+        - Tool / function-call abuse (agentic)
+        - New category — describe below
+    validations:
+      required: true
+
+  - type: textarea
+    id: prompt
+    attributes:
+      label: Attack prompt(s)
+      description: The actual prompt text(s) you want the test to send.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: detection
+    attributes:
+      label: How should the failure be detected?
+      description: What regex/substring/schema pattern signals the bot is vulnerable? Or describe the semantic check if a deterministic one doesn't apply.
+    validations:
+      required: true
+
+  - type: textarea
+    id: rationale
+    attributes:
+      label: Why this matters
+      description: Real-world impact if a bot fails this. References to OWASP LLM Top 10, CVEs, or public incidents welcome.
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Are you willing to send the PR?
+      options:
+        - label: Yes, I can submit the PR myself.
+        - label: I need help — happy to discuss the implementation in the PR review.

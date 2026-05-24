@@ -1,0 +1,76 @@
+name: Bug report
+description: A test produces wrong results, the plugin crashes, or behavior diverges from docs.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Before filing, please check open issues to see if this is already known.
+
+        Security issues should follow `SECURITY.md`, not this template.
+
+  - type: input
+    id: version
+    attributes:
+      label: pytest-wardenbot version
+      description: Output of `pip show pytest-wardenbot | grep Version`
+      placeholder: "0.1.0.dev0"
+    validations:
+      required: true
+
+  - type: input
+    id: python
+    attributes:
+      label: Python version
+      placeholder: "3.12.5"
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: OS
+      placeholder: "macOS 14 / Ubuntu 24.04 / Windows 11"
+    validations:
+      required: true
+
+  - type: textarea
+    id: describe
+    attributes:
+      label: What happened?
+      description: Describe the bug. What command did you run? What did pytest output?
+      placeholder: "When I run `pytest --pyargs pytest_wardenbot.tests` with my custom HTTP adapter, the system-prompt-leak test fails with X but my bot actually returned Y."
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproducer
+    attributes:
+      label: Minimal reproducer
+      description: A small `conftest.py` + test command that reproduces the issue. Mock adapters are fine; real API calls aren't required.
+      render: python
+      placeholder: |
+        import pytest
+        from pytest_wardenbot.adapters.base import ChatbotResponse
+
+        class StubBot:
+            name = "stub"
+            def send_message(self, prompt, *, session_id=None):
+                return ChatbotResponse(text="...", raw={})
+            def reset_session(self, session_id): pass
+
+        @pytest.fixture
+        def chatbot():
+            return StubBot()
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+      placeholder: "I expected the test to pass because my bot's response does not actually contain a system-prompt leak."
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Additional context
+      placeholder: "Anything else — logs, traceback, screenshots."

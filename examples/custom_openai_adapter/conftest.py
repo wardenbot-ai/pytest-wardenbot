@@ -38,7 +38,7 @@ class OpenAIChatAdapter:
 
     def __init__(self, model: str = "gpt-4o-mini", system_prompt: str = SYSTEM_PROMPT) -> None:
         # Lazy import so the wardenbot install doesn't force `openai`.
-        from openai import OpenAI
+        from openai import OpenAI  # type: ignore[import-not-found]
 
         self._client = OpenAI()
         self._model = model

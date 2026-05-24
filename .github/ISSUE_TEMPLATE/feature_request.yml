@@ -1,0 +1,56 @@
+name: Feature request
+description: Suggest a feature or enhancement that fits the OSS plugin's scope.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the suggestion. Quick scope check before you file:
+
+        **In scope** for this OSS plugin:
+        - New shipped tests (more probes, better detection patterns)
+        - New chatbot adapters
+        - Better DX for local pytest runs
+
+        **Out of scope** (these live in the managed WardenBot AI service, not the plugin):
+        - Cross-run history / dashboards
+        - Alert routing (Slack / webhook on regression)
+        - Scheduled / recurring runs against your chatbot
+        - LLM-judge result aggregation across customers
+
+        If your idea lands in the second bucket, see https://wardenbot.ai/waitlist instead.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the pain. What's hard to do today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What would the API / UX look like? Code sample if it helps.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Scope category
+      options:
+        - New shipped test / probe
+        - New chatbot adapter
+        - Grading helper
+        - DX / CLI improvement
+        - Documentation
+        - Other
+    validations:
+      required: true

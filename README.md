@@ -1,5 +1,13 @@
 # pytest-wardenbot
 
+[![CI](https://github.com/pardamike/pytest-wardenbot/actions/workflows/ci.yml/badge.svg)](https://github.com/pardamike/pytest-wardenbot/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/pardamike/pytest-wardenbot/branch/main/graph/badge.svg)](https://codecov.io/gh/pardamike/pytest-wardenbot)
+[![Python versions](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue)](https://pypi.org/project/pytest-wardenbot/)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](./LICENSE.md)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit)
+[![Powered by WardenBot AI](https://img.shields.io/badge/Powered_by-WardenBot_AI-purple)](https://wardenbot.ai)
+
 Pytest plugin for testing chatbots and LLM apps — prompt injection, jailbreaks, system-prompt leaks, hallucinations, brand drift.
 
 > **Status: pre-release.** v0.1.0 is in active development. APIs may change before the first stable release.
