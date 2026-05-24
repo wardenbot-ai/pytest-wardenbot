@@ -4,8 +4,12 @@ Posts a JSON payload to a chatbot endpoint. The request and response shapes are
 configurable so this works with most homegrown chatbot APIs without writing a
 custom adapter.
 
-For OpenAI / Anthropic / LangChain / MCP, prefer the dedicated adapters (when
-they ship in v0.2) or the corresponding optional-extras adapters.
+For OpenAI / Anthropic, prefer the dedicated adapters
+(`pytest_wardenbot.adapters.openai_chat`, `pytest_wardenbot.adapters.anthropic_msgs`).
+
+All transport, status, and shape errors are wrapped in `WardenBotInfraError`
+so they propagate as pytest ERRORs (not FAILUREs) — distinguishing "your bot
+is unreachable" from "your bot failed a security check".
 """
 
 from __future__ import annotations
@@ -16,6 +20,8 @@ from typing import Any
 
 import httpx
 
+from pytest_wardenbot._errors import WardenBotInfraError
+from pytest_wardenbot._redaction import redact_response_payload
 from pytest_wardenbot.adapters.base import ChatbotResponse
 
 
@@ -39,6 +45,11 @@ class HTTPChatbotAdapter:
     that extracts the text from the nested response dict — for example,
     selecting the first choice's message content from an OpenAI-style
     response body.
+
+    Response payloads stored in `ChatbotResponse.raw` are redacted by default:
+    any dict key containing `authorization`, `api-key`, `cookie`, etc. has its
+    value replaced with `[REDACTED]`. Pass `keep_sensitive_response_fields=True`
+    to disable (debugging a vendor response shape, etc.).
     """
 
     name = "http"
@@ -52,6 +63,7 @@ class HTTPChatbotAdapter:
         response_field: str | Callable[[dict[str, Any]], str] = "response",
         extra_request_fields: dict[str, Any] | None = None,
         timeout: float = 30.0,
+        keep_sensitive_response_fields: bool = False,
     ) -> None:
         self._url = url
         self._headers = dict(headers or {})
@@ -59,6 +71,7 @@ class HTTPChatbotAdapter:
         self._response_field = response_field
         self._extra_request_fields = dict(extra_request_fields or {})
         self._timeout = timeout
+        self._keep_sensitive_response_fields = keep_sensitive_response_fields
         self._client = httpx.Client(timeout=timeout)
 
     def send_message(self, prompt: str, *, session_id: str | None = None) -> ChatbotResponse:
@@ -70,26 +83,48 @@ class HTTPChatbotAdapter:
             payload["session_id"] = session_id
 
         start = time.perf_counter()
-        response = self._client.post(self._url, json=payload, headers=self._headers)
+        try:
+            response = self._client.post(self._url, json=payload, headers=self._headers)
+        except httpx.TimeoutException as exc:
+            raise WardenBotInfraError(
+                f"Chatbot at {self._url} timed out after {self._timeout}s"
+            ) from exc
+        except httpx.RequestError as exc:
+            raise WardenBotInfraError(
+                f"Network error reaching chatbot at {self._url}: {exc}"
+            ) from exc
         elapsed_ms = (time.perf_counter() - start) * 1000
 
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            raise WardenBotInfraError(
+                f"Chatbot at {self._url} returned HTTP {response.status_code}. "
+                f"body[:200]={response.text[:200]!r}"
+            ) from exc
+
         try:
             data = response.json()
         except ValueError as exc:
-            raise ValueError(
+            raise WardenBotInfraError(
                 f"Chatbot at {self._url} returned non-JSON response. "
                 f"Status {response.status_code}; body[:200]={response.text[:200]!r}"
             ) from exc
 
         if not isinstance(data, dict):
-            raise ValueError(
-                f"Chatbot at {self._url} returned non-object JSON ({type(data).__name__}). "
-                "Wrap your response in a JSON object or supply a custom `response_field` callable."
+            raise WardenBotInfraError(
+                f"Chatbot at {self._url} returned non-object JSON "
+                f"({type(data).__name__}). Wrap your response in a JSON object or "
+                "supply a custom `response_field` callable."
             )
 
-        text = self._extract_text(data)
-        return ChatbotResponse(text=text, raw=data, latency_ms=elapsed_ms)
+        try:
+            text = self._extract_text(data)
+        except (KeyError, TypeError) as exc:
+            raise WardenBotInfraError(str(exc)) from exc
+
+        stored_raw = data if self._keep_sensitive_response_fields else redact_response_payload(data)
+        return ChatbotResponse(text=text, raw=stored_raw, latency_ms=elapsed_ms)
 
     def reset_session(self, session_id: str) -> None:
         # Stateless by default. Subclass or wrap to add real session reset behavior.

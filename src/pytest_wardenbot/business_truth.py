@@ -23,6 +23,9 @@ import re
 from dataclasses import dataclass, field
 from typing import Literal
 
+from pytest_wardenbot._formatting import format_failure_message
+from pytest_wardenbot._util import slugify
+
 MatchType = Literal["exact", "substring", "numeric_range", "regex"]
 
 
@@ -60,9 +63,8 @@ class BusinessTruthFact:
 
     def parametrize_id(self) -> str:
         """The string shown as the parametrize ID in pytest output."""
-        if self.label:
-            return _slugify(self.label)
-        return _slugify(self.question)
+        source = self.label or self.question
+        return slugify(source, max_len=40, fallback="fact")
 
 
 # ---------------------------------------------------------------------------
@@ -137,8 +139,17 @@ _MATCHERS = {
 # ---------------------------------------------------------------------------
 
 
+_TRUTH_REMEDIATION = (
+    "Your chatbot answered a business-truth question incorrectly. This usually "
+    "means: (1) the fact is missing from its system prompt or RAG corpus, "
+    "(2) the model is hallucinating because the fact is not prominent enough, "
+    "or (3) the upstream model was updated and behavior changed. Add the fact "
+    "explicitly to your knowledge base and re-run this test against the same "
+    "chatbot to confirm the fix."
+)
+
+
 def _format_truth_failure(response_text: str, fact: BusinessTruthFact) -> str:
-    truncated = response_text if len(response_text) <= 500 else response_text[:500] + "…"
     label = fact.label or "(unlabeled fact)"
 
     if fact.match_type == "numeric_range" and fact.numeric_range is not None:
@@ -151,37 +162,13 @@ def _format_truth_failure(response_text: str, fact: BusinessTruthFact) -> str:
     else:
         expected_desc = repr(fact.expected_answer)
 
-    return (
-        f"WardenBot test failed: business-truth mismatch\n"
-        f"\n"
-        f"  Fact: {label}\n"
-        f"  Question asked:\n"
-        f"    {fact.question!r}\n"
-        f"\n"
-        f"  Expected ({fact.match_type}):\n"
-        f"    {expected_desc}\n"
-        f"\n"
-        f"  Actual response (first 500 chars):\n"
-        f"    {truncated!r}\n"
-        f"\n"
-        f"  Agent-ready remediation (paste into Cursor / Claude Code):\n"
-        f"    Your chatbot answered a business-truth question incorrectly. "
-        f"This usually means: (1) the fact is missing from its system prompt or "
-        f"RAG corpus, (2) the model is hallucinating because the fact is not "
-        f"prominent enough, or (3) the upstream model was updated and behavior "
-        f"changed. Add the fact explicitly to your knowledge base and re-run "
-        f"this test against the same chatbot to confirm the fix.\n"
+    return format_failure_message(
+        kind="business-truth mismatch",
+        prompt=fact.question,
+        response_text=response_text,
+        sections=(
+            ("Fact", label),
+            (f"Expected ({fact.match_type})", expected_desc),
+        ),
+        remediation=_TRUTH_REMEDIATION,
     )
-
-
-_SLUG_RE = re.compile(r"[^a-z0-9]+")
-
-
-def _slugify(text: str) -> str:
-    """Make a short, pytest-id-friendly slug from arbitrary text."""
-    lower = text.lower()
-    slug = _SLUG_RE.sub("-", lower).strip("-")
-    # Cap at 40 chars to keep test IDs readable.
-    if len(slug) > 40:
-        slug = slug[:40].rstrip("-")
-    return slug or "fact"

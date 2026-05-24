@@ -8,6 +8,7 @@ from typing import Any
 import httpx
 import pytest
 
+from pytest_wardenbot import WardenBotInfraError
 from pytest_wardenbot.adapters.base import ChatbotAdapter, ChatbotResponse
 from pytest_wardenbot.adapters.http import HTTPChatbotAdapter
 from tests.fixtures.mock_chatbot import (
@@ -155,7 +156,7 @@ def test_http_adapter_raises_on_missing_response_field_with_helpful_message() ->
         return httpx.Response(200, json={"unexpected_key": "value"})
 
     adapter = _make_http_adapter(httpx.MockTransport(handler))
-    with pytest.raises(KeyError, match=r"response.*not found"):
+    with pytest.raises(WardenBotInfraError, match=r"response.*not found"):
         adapter.send_message("hi")
 
 
@@ -168,7 +169,7 @@ def test_http_adapter_raises_on_non_json_response() -> None:
         )
 
     adapter = _make_http_adapter(httpx.MockTransport(handler))
-    with pytest.raises(ValueError, match="non-JSON"):
+    with pytest.raises(WardenBotInfraError, match="non-JSON"):
         adapter.send_message("hi")
 
 
@@ -177,14 +178,82 @@ def test_http_adapter_raises_on_non_object_json_response() -> None:
         return httpx.Response(200, json=["a", "b", "c"])
 
     adapter = _make_http_adapter(httpx.MockTransport(handler))
-    with pytest.raises(ValueError, match="non-object JSON"):
+    with pytest.raises(WardenBotInfraError, match="non-object JSON"):
         adapter.send_message("hi")
 
 
-def test_http_adapter_propagates_http_errors() -> None:
+def test_http_adapter_wraps_http_errors_in_infra_error() -> None:
     def handler(_: httpx.Request) -> httpx.Response:
         return httpx.Response(500, json={"error": "boom"})
 
     adapter = _make_http_adapter(httpx.MockTransport(handler))
-    with pytest.raises(httpx.HTTPStatusError):
+    with pytest.raises(WardenBotInfraError, match="HTTP 500") as exc_info:
         adapter.send_message("hi")
+    # Original exception is preserved as the cause for debugging.
+    assert isinstance(exc_info.value.__cause__, httpx.HTTPStatusError)
+
+
+def test_http_adapter_wraps_timeout_in_infra_error() -> None:
+    def handler(_: httpx.Request) -> httpx.Response:
+        raise httpx.TimeoutException("simulated timeout")
+
+    adapter = _make_http_adapter(httpx.MockTransport(handler))
+    with pytest.raises(WardenBotInfraError, match="timed out") as exc_info:
+        adapter.send_message("hi")
+    assert isinstance(exc_info.value.__cause__, httpx.TimeoutException)
+
+
+def test_http_adapter_wraps_connect_error_in_infra_error() -> None:
+    def handler(_: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("simulated connect failure")
+
+    adapter = _make_http_adapter(httpx.MockTransport(handler))
+    with pytest.raises(WardenBotInfraError, match="Network error") as exc_info:
+        adapter.send_message("hi")
+    assert isinstance(exc_info.value.__cause__, httpx.ConnectError)
+
+
+# ---------------------------------------------------------------------------
+# Response payload redaction
+# ---------------------------------------------------------------------------
+
+
+def test_http_adapter_redacts_sensitive_response_fields_by_default() -> None:
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "response": "ok",
+                "authorization": "Bearer secret-token-do-not-log",
+                "user": {"api_key": "sk-also-secret", "name": "alice"},
+                "debug": {"set-cookie": "session=ZZZ", "request_id": "req-1"},
+            },
+        )
+
+    adapter = _make_http_adapter(httpx.MockTransport(handler))
+    result = adapter.send_message("hi")
+
+    assert result.raw is not None
+    assert result.raw["authorization"] == "[REDACTED]"
+    assert result.raw["user"]["api_key"] == "[REDACTED]"
+    assert result.raw["user"]["name"] == "alice"
+    assert result.raw["debug"]["set-cookie"] == "[REDACTED]"
+    assert result.raw["debug"]["request_id"] == "req-1"
+    assert result.raw["response"] == "ok"
+
+
+def test_http_adapter_keeps_sensitive_fields_when_opted_in() -> None:
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={"response": "ok", "api_key": "sk-keep-this"},
+        )
+
+    adapter = _make_http_adapter(
+        httpx.MockTransport(handler),
+        keep_sensitive_response_fields=True,
+    )
+    result = adapter.send_message("hi")
+
+    assert result.raw is not None
+    assert result.raw["api_key"] == "sk-keep-this"
