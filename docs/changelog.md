@@ -5,12 +5,16 @@ All notable changes to `pytest-wardenbot` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased] — 0.1.0.dev0
+## [0.1.0] — 2026-05-24
 
-The v0.1.0 line is the initial pre-release.
+Initial public release.
 
-The docs site you're reading is published on every push to `main` via
+The docs site is published on every push to `main` via
 [the docs workflow](https://github.com/pardamike/pytest-wardenbot/actions/workflows/docs.yml).
+
+Releases to PyPI happen on tag push (`v*`) via
+[the release workflow](https://github.com/pardamike/pytest-wardenbot/actions/workflows/release.yml)
+using PyPI Trusted Publishing — no long-lived API tokens.
 
 ### Added (across the v0.1 development cycle)
 

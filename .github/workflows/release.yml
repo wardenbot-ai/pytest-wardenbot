@@ -1,0 +1,100 @@
+name: Release
+
+# Triggered on tag push v*. Builds sdist + wheel, runs twine check, then
+# publishes to PyPI via OIDC Trusted Publishing — no long-lived API tokens.
+#
+# PyPI setup (one-time, done outside this workflow):
+#   1. Maintainer adds a "Pending Publisher" at
+#      https://pypi.org/manage/account/publishing/
+#      with project=pytest-wardenbot, owner=pardamike,
+#      repo=pytest-wardenbot, workflow=release.yml, environment=pypi.
+#   2. After the first publish, PyPI promotes the pending publisher to a
+#      real one and subsequent releases need no further configuration.
+#
+# Actions are SHA-pinned (not tag-pinned) because this is the
+# supply-chain-critical publish path. Dependabot (.github/dependabot.yml)
+# proposes SHA updates on action revisions.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build sdist + wheel
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        with:
+          python-version: "3.12"
+
+      - name: Install build tooling
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+
+      - name: Verify version in pyproject.toml matches tag
+        run: |
+          set -euo pipefail
+          tag_version="${GITHUB_REF_NAME#v}"
+          file_version=$(python -c "import tomllib, pathlib; \
+            print(tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version'])")
+          echo "tag: $tag_version  /  pyproject.toml: $file_version"
+          if [ "$tag_version" != "$file_version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match pyproject.toml version $file_version"
+            exit 1
+          fi
+
+      - name: Build sdist + wheel
+        run: python -m build
+
+      - name: Verify with twine
+        run: twine check --strict dist/*
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: dist
+          path: dist/
+          retention-days: 14
+
+  publish:
+    name: Publish to PyPI (Trusted Publishing)
+    needs: [build]
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/pytest-wardenbot/
+    permissions:
+      # OIDC token for PyPI Trusted Publishing.
+      id-token: write
+      # Needed by gh-action-pypi-publish if it ever needs to attach assets.
+      contents: read
+    steps:
+      - name: Download built artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: dist
+          path: dist
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b  # v1.14.0
+        with:
+          # Trusted Publishing requires id-token: write above. No password/token.
+          packages-dir: dist/
+          # Verify the same dist matches the metadata before upload.
+          verify-metadata: true
+          # If a sibling release already pushed the same version, fail loudly
+          # rather than silently doing nothing.
+          skip-existing: false
