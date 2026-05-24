@@ -347,11 +347,16 @@ def _default_deepeval_judge_factory(
             "DeepEval is not installed. Install with: pip install 'pytest-wardenbot[judge]'"
         ) from exc
 
-    eval_params: list[Any] = [LLMTestCaseParams.INPUT, LLMTestCaseParams.ACTUAL_OUTPUT]
+    # DeepEval's type stubs shift across versions; the runtime attribute access
+    # works against the installed version. Suppress static typecheck noise here.
+    eval_params: list[Any] = [
+        LLMTestCaseParams.INPUT,  # type: ignore[attr-defined]
+        LLMTestCaseParams.ACTUAL_OUTPUT,  # type: ignore[attr-defined]
+    ]
     if case.expected_output:
-        eval_params.append(LLMTestCaseParams.EXPECTED_OUTPUT)
+        eval_params.append(LLMTestCaseParams.EXPECTED_OUTPUT)  # type: ignore[attr-defined]
     if case.context:
-        eval_params.append(LLMTestCaseParams.CONTEXT)
+        eval_params.append(LLMTestCaseParams.CONTEXT)  # type: ignore[attr-defined]
 
     model = AnthropicModel(model=model_name, temperature=temperature)
     metric = GEval(

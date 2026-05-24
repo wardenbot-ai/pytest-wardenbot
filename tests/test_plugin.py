@@ -481,3 +481,133 @@ def test_all_shipped_tests_discoverable(pytester: pytest.Pytester) -> None:
     assert "test_deflects_off_topic_requests" in output
     assert "test_business_truth" in output
     assert "test_semantic" in output
+
+
+# ---------------------------------------------------------------------------
+# --wardenbot-quickstart CLI integration
+# ---------------------------------------------------------------------------
+
+
+def test_quickstart_cli_default_template_generates_files_and_exits_zero(
+    pytester: pytest.Pytester,
+) -> None:
+    """`pytest --wardenbot-quickstart` generates files in cwd and exits with 0."""
+    result = pytester.runpytest("--wardenbot-quickstart")
+    assert result.ret == 0
+    assert (pytester.path / "conftest.py").exists()
+    assert (pytester.path / "test_my_bot.py").exists()
+
+
+@pytest.mark.parametrize("template", ["generic", "ecommerce", "saas-support"])
+def test_quickstart_cli_with_explicit_template(pytester: pytest.Pytester, template: str) -> None:
+    result = pytester.runpytest(f"--wardenbot-quickstart={template}")
+    assert result.ret == 0
+    conftest = (pytester.path / "conftest.py").read_text()
+    # Each template embeds template-distinctive content; verify a marker.
+    markers = {
+        "generic": "Business hours",
+        "ecommerce": "shipping",
+        "saas-support": "Starter plan",
+    }
+    assert markers[template].lower() in conftest.lower()
+
+
+def test_quickstart_cli_does_not_collect_or_run_tests(
+    pytester: pytest.Pytester,
+) -> None:
+    """Quickstart short-circuits collection — no tests are run when flag is passed."""
+    pytester.makepyfile(test_something="def test_should_not_run(): assert False")
+    result = pytester.runpytest("--wardenbot-quickstart")
+    # Exit 0 (success), and the failing test was never collected.
+    assert result.ret == 0
+    output = "\n".join(result.stdout.lines)
+    assert "test_should_not_run" not in output
+
+
+def test_quickstart_cli_rejects_unknown_template(pytester: pytest.Pytester) -> None:
+    """argparse's `choices` rejects unknown values before our handler runs."""
+    result = pytester.runpytest("--wardenbot-quickstart=not-a-real-template")
+    # pytest exits 4 (usage error) when argparse rejects an arg.
+    assert result.ret != 0
+    output = "\n".join(result.stderr.lines + result.stdout.lines)
+    assert "not-a-real-template" in output or "invalid choice" in output
+
+
+def test_quickstart_cli_returns_nonzero_when_files_exist(
+    pytester: pytest.Pytester,
+) -> None:
+    (pytester.path / "conftest.py").write_text("# existing\n")
+    result = pytester.runpytest("--wardenbot-quickstart")
+    assert result.ret == 1
+    output = "\n".join(result.stdout.lines)
+    assert "Refusing to overwrite" in output
+
+
+def test_quickstart_cli_help_shows_template_choices(
+    pytester: pytest.Pytester,
+) -> None:
+    result = pytester.runpytest("--help")
+    output = "\n".join(result.stdout.lines)
+    assert "--wardenbot-quickstart" in output
+    assert "generic" in output
+    assert "ecommerce" in output
+    assert "saas-support" in output
+
+
+def test_quickstart_generated_test_file_is_collectable_with_pytester(
+    pytester: pytest.Pytester,
+) -> None:
+    """End-to-end: generate test_my_bot.py via CLI, replace conftest, collect.
+
+    Validates the generated `test_my_bot.py` actually re-exports the shipped
+    tests so they get collected.
+    """
+    # 1. Generate via the CLI.
+    gen = pytester.runpytest("--wardenbot-quickstart")
+    assert gen.ret == 0
+    assert (pytester.path / "test_my_bot.py").exists()
+
+    # 2. Overwrite the generated conftest with one that uses a safe stub bot
+    #    (the generated conftest points at a placeholder URL we can't reach).
+    (pytester.path / "conftest.py").write_text(
+        """\
+import pytest
+from pytest_wardenbot.adapters.base import ChatbotResponse
+from pytest_wardenbot.business_truth import BusinessTruthFact
+
+
+class SafeBot:
+    name = "safe-bot"
+    def send_message(self, prompt, *, session_id=None):
+        return ChatbotResponse(text="I'm sorry, I can't help with that.", raw={})
+    def reset_session(self, session_id):
+        pass
+
+
+@pytest.fixture
+def chatbot():
+    return SafeBot()
+
+
+@pytest.fixture(
+    params=[
+        BusinessTruthFact(
+            label="Hours",
+            question="What are your hours?",
+            expected_answer="9 AM to 5 PM",
+        ),
+    ],
+    ids=lambda f: f.parametrize_id(),
+)
+def business_truth_fact(request):
+    return request.param
+"""
+    )
+
+    # 3. Collect-only run confirms the imports work + tests are discovered.
+    result = pytester.runpytest("test_my_bot.py", "--co", "-q")
+    assert result.ret == 0
+    output = "\n".join(result.stdout.lines)
+    assert "test_resists_jailbreak_compliance" in output
+    assert "test_deflects_off_topic_requests" in output
+    assert "test_business_truth" in output

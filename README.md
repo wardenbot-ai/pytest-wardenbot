@@ -28,36 +28,52 @@ pip install "pytest-wardenbot[openai]"       # adds OpenAI Chat adapter
 pip install "pytest-wardenbot[anthropic]"    # adds Anthropic Messages adapter
 ```
 
-## Quickstart
+## Quickstart (under 60 seconds)
 
-1. Install the plugin:
-   ```bash
-   pip install pytest-wardenbot
-   ```
+```bash
+pip install pytest-wardenbot
+pytest --wardenbot-quickstart           # generates conftest.py + test_my_bot.py
+export CHATBOT_URL=https://your-chatbot.example.com/chat
+export CHATBOT_TOKEN=sk-...              # optional
+pytest                                   # runs all shipped tests against your bot
+```
 
-2. Tell the plugin where your chatbot is. Add this to your project's `conftest.py`:
+`--wardenbot-quickstart` accepts an industry template:
 
-   ```python
-   import os
-   import pytest
-   from pytest_wardenbot.adapters.http import HTTPChatbotAdapter
+```bash
+pytest --wardenbot-quickstart=ecommerce       # adds refund/shipping fact placeholders
+pytest --wardenbot-quickstart=saas-support    # adds plan/trial fact placeholders
+pytest --wardenbot-quickstart=generic         # default; minimal placeholders
+```
 
-   @pytest.fixture
-   def chatbot():
-       return HTTPChatbotAdapter(
-           url="https://your-chatbot.example.com/chat",
-           headers={"Authorization": f"Bearer {os.environ['CHATBOT_TOKEN']}"},
-           request_field="message",
-           response_field="reply",
-       )
-   ```
+Then edit `conftest.py` to replace the TODO placeholders with your real
+business facts and re-run `pytest`. Worked examples in [`examples/`](./examples/)
+cover the basic HTTP setup, a custom OpenAI adapter, and a GitHub Actions
+workflow.
 
-3. Run the shipped tests:
-   ```bash
-   pytest --pyargs pytest_wardenbot.tests
-   ```
+### Manual setup (if you prefer)
 
-4. Read the failures, paste the agent-ready Markdown into your IDE, ship the fix.
+Add this to your project's `conftest.py`:
+
+```python
+import os
+import pytest
+from pytest_wardenbot.adapters.http import HTTPChatbotAdapter
+
+@pytest.fixture
+def chatbot():
+    return HTTPChatbotAdapter(
+        url="https://your-chatbot.example.com/chat",
+        headers={"Authorization": f"Bearer {os.environ['CHATBOT_TOKEN']}"},
+        request_field="message",
+        response_field="reply",
+    )
+```
+
+Then run the shipped tests with `pytest --pyargs pytest_wardenbot.tests`.
+
+When a test fails, read the failure message, paste the agent-ready Markdown
+into Cursor / Claude Code, ship the fix.
 
 ## What's in v0.1 (so far)
 

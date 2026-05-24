@@ -8,8 +8,11 @@ Registers fixtures that users override in their own `conftest.py`:
 - `judge_case` â€” optional. Parametrized list of `JudgeCase` entries for the
   shipped `test_semantic` LLM-judge tests (requires `[judge]` extra + API key).
 
-Also registers wardenbot-specific markers (`wardenbot`, `severity_high|medium|low`)
-so `--strict-markers` doesn't reject them.
+Also registers:
+
+- wardenbot-specific markers (`wardenbot`, `severity_high|medium|low`)
+- `--wardenbot-quickstart [TEMPLATE]` CLI option that generates a starter
+  conftest.py + test_my_bot.py and exits.
 
 Most shipped tests live under `pytest_wardenbot.tests`; invoke with:
 
@@ -18,11 +21,14 @@ Most shipped tests live under `pytest_wardenbot.tests`; invoke with:
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from pytest_wardenbot.adapters.base import ChatbotAdapter
 from pytest_wardenbot.business_truth import BusinessTruthFact
 from pytest_wardenbot.grading.judge import JudgeCase
+from pytest_wardenbot.quickstart import AVAILABLE_TEMPLATES, run_quickstart
 
 _NO_CHATBOT_FIXTURE_MESSAGE = """\
 No `chatbot` fixture configured.
@@ -125,6 +131,32 @@ Each invocation costs ~$0.003 against Anthropic Haiku 4.5. Five cases per run â‰
 $0.02 per full suite invocation. Skip the test entirely if you don't want LLM
 spend in CI.
 """
+
+
+def pytest_addoption(parser: pytest.Parser) -> None:
+    """Register pytest-wardenbot CLI options."""
+    group = parser.getgroup("wardenbot", "pytest-wardenbot options")
+    group.addoption(
+        "--wardenbot-quickstart",
+        nargs="?",
+        const="generic",
+        default=None,
+        choices=AVAILABLE_TEMPLATES,
+        metavar="TEMPLATE",
+        help=(
+            "Generate a starter conftest.py + test_my_bot.py in the current "
+            "directory and exit. Optional value selects the template: "
+            f"{'/'.join(AVAILABLE_TEMPLATES)}. Default: generic."
+        ),
+    )
+
+
+def pytest_cmdline_main(config: pytest.Config) -> int | None:
+    """Intercept `--wardenbot-quickstart` and exit before test collection."""
+    template = config.getoption("--wardenbot-quickstart", default=None)
+    if template is None:
+        return None
+    return run_quickstart(template=template, target_dir=Path.cwd())
 
 
 def pytest_configure(config: pytest.Config) -> None:
