@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 The v0.1.0 line is the initial pre-release.
 
+The docs site you're reading is published on every push to `main` via
+[the docs workflow](https://github.com/pardamike/pytest-wardenbot/actions/workflows/docs.yml).
+
 ### Added (across the v0.1 development cycle)
 
 - **Core plugin and adapter framework** — `ChatbotAdapter` Protocol,
