@@ -236,3 +236,117 @@ async def test_async_assistants_timeout_raises() -> None:
     adapter = _async(client, timeout_s=0.05, poll_interval_s=0.01)
     with pytest.raises(WardenBotInfraError, match="did not complete"):
         await adapter.send_message("hi")
+
+
+# ---------------------------------------------------------------------------
+# Helpers, error paths, repr, and the no-client construction path
+# ---------------------------------------------------------------------------
+
+
+def test_extract_text_raises_on_unexpected_shape() -> None:
+    import types
+
+    from pytest_wardenbot.adapters.openai_assistants import _extract_text
+
+    with pytest.raises(WardenBotInfraError, match="shape unexpected"):
+        _extract_text(types.SimpleNamespace())  # no .content attribute
+
+
+def test_extract_text_raises_when_no_text_block() -> None:
+    import types
+
+    from pytest_wardenbot.adapters.openai_assistants import _extract_text
+
+    # A content block whose .text is None -> no usable text block.
+    msg = types.SimpleNamespace(content=[types.SimpleNamespace(text=None)])
+    with pytest.raises(WardenBotInfraError, match="no text content block"):
+        _extract_text(msg)
+
+
+def test_message_to_raw_handles_dict_and_plain_object() -> None:
+    from pytest_wardenbot.adapters.openai_assistants import _message_to_raw
+
+    assert _message_to_raw({"k": "v"}) == {"k": "v"}
+
+    class _Plain:
+        def __repr__(self) -> str:
+            return "PLAIN"
+
+    assert _message_to_raw(_Plain()) == {"repr": "PLAIN"}
+
+
+def test_assistants_adapter_no_messages_raises() -> None:
+    adapter = _sync(StubOpenAIAssistantsClient(empty_messages=True))
+    with pytest.raises(WardenBotInfraError, match="had no messages"):
+        adapter.send_message("hi")
+
+
+def test_assistants_adapter_non_assistant_latest_raises() -> None:
+    adapter = _sync(StubOpenAIAssistantsClient(message_role="user"))
+    with pytest.raises(WardenBotInfraError, match="not an assistant reply"):
+        adapter.send_message("hi")
+
+
+def test_assistants_adapter_reset_unknown_session_is_noop() -> None:
+    client = StubOpenAIAssistantsClient()
+    adapter = _sync(client)
+    adapter.reset_session("never-seen")
+    assert client.threads_stub.deleted == []
+
+
+def test_assistants_adapter_repr_includes_assistant_id() -> None:
+    assert "asst_test" in repr(_sync(StubOpenAIAssistantsClient()))
+
+
+def test_assistants_adapters_construct_client_when_not_injected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import sys
+    import types
+
+    fake = types.ModuleType("openai")
+    fake.OpenAI = object  # type: ignore[attr-defined]
+    fake.AsyncOpenAI = object  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "openai", fake)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        assert OpenAIAssistantsAdapter(assistant_id="x").name == "openai-assistants"
+        assert AsyncOpenAIAssistantsAdapter(assistant_id="x").name == "async-openai-assistants"
+
+
+@pytest.mark.asyncio
+async def test_async_assistants_requires_action_raises() -> None:
+    adapter = _async(StubAsyncOpenAIAssistantsClient(run_statuses=("requires_action",)))
+    with pytest.raises(WardenBotInfraError, match="requires_action"):
+        await adapter.send_message("hi")
+
+
+@pytest.mark.asyncio
+async def test_async_assistants_wraps_vendor_exceptions() -> None:
+    boom = RuntimeError("async boom")
+    adapter = _async(StubAsyncOpenAIAssistantsClient(raise_exc=boom))
+    with pytest.raises(WardenBotInfraError, match="async boom") as exc_info:
+        await adapter.send_message("hi")
+    assert exc_info.value.__cause__ is boom
+
+
+@pytest.mark.asyncio
+async def test_async_assistants_no_messages_and_role_guard() -> None:
+    empty = _async(StubAsyncOpenAIAssistantsClient(empty_messages=True))
+    with pytest.raises(WardenBotInfraError, match="had no messages"):
+        await empty.send_message("hi")
+    wrong_role = _async(StubAsyncOpenAIAssistantsClient(message_role="user"))
+    with pytest.raises(WardenBotInfraError, match="not an assistant reply"):
+        await wrong_role.send_message("hi")
+
+
+@pytest.mark.asyncio
+async def test_async_assistants_reset_unknown_session_is_noop() -> None:
+    client = StubAsyncOpenAIAssistantsClient()
+    adapter = _async(client)
+    await adapter.reset_session("never-seen")
+    assert client.threads_stub.deleted == []
+
+
+def test_async_assistants_repr_includes_assistant_id() -> None:
+    assert "asst_test" in repr(_async(StubAsyncOpenAIAssistantsClient()))

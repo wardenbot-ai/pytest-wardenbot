@@ -275,8 +275,9 @@ class _StubThreadRuns(_StubThreadRunsBase):
 
 
 class _StubThreadMessages:
-    def __init__(self, message: _StubAssistantMessage) -> None:
+    def __init__(self, message: _StubAssistantMessage, empty: bool = False) -> None:
         self._message = message
+        self._empty = empty
         self.create_calls: list[dict[str, Any]] = []
         self.list_calls: list[dict[str, Any]] = []
 
@@ -285,7 +286,7 @@ class _StubThreadMessages:
 
     def list(self, **kwargs: Any) -> _StubMessagesList:
         self.list_calls.append(kwargs)
-        return _StubMessagesList(data=[self._message])
+        return _StubMessagesList(data=[] if self._empty else [self._message])
 
 
 class _StubThreads:
@@ -295,8 +296,9 @@ class _StubThreads:
         statuses: tuple[str, ...],
         last_error: Any,
         raise_exc: Exception | None,
+        empty_messages: bool = False,
     ) -> None:
-        self.messages = _StubThreadMessages(message)
+        self.messages = _StubThreadMessages(message, empty_messages)
         self.runs = _StubThreadRuns(statuses, last_error, raise_exc)
         self.created = 0
         self.deleted: list[str] = []
@@ -324,9 +326,15 @@ class StubOpenAIAssistantsClient:
         last_error: Any = None,
         raise_exc: Exception | None = None,
         extra_raw: dict[str, Any] | None = None,
+        message_role: str = "assistant",
+        empty_messages: bool = False,
     ) -> None:
-        message = _StubAssistantMessage(text=response_text, extra_raw=dict(extra_raw or {}))
-        self.threads_stub = _StubThreads(message, run_statuses, last_error, raise_exc)
+        message = _StubAssistantMessage(
+            text=response_text, role=message_role, extra_raw=dict(extra_raw or {})
+        )
+        self.threads_stub = _StubThreads(
+            message, run_statuses, last_error, raise_exc, empty_messages
+        )
         self.beta = _StubBeta(self.threads_stub)
 
 
@@ -345,8 +353,9 @@ class _StubAsyncThreadRuns(_StubThreadRunsBase):
 
 
 class _StubAsyncThreadMessages:
-    def __init__(self, message: _StubAssistantMessage) -> None:
+    def __init__(self, message: _StubAssistantMessage, empty: bool = False) -> None:
         self._message = message
+        self._empty = empty
         self.create_calls: list[dict[str, Any]] = []
         self.list_calls: list[dict[str, Any]] = []
 
@@ -355,7 +364,7 @@ class _StubAsyncThreadMessages:
 
     async def list(self, **kwargs: Any) -> _StubMessagesList:
         self.list_calls.append(kwargs)
-        return _StubMessagesList(data=[self._message])
+        return _StubMessagesList(data=[] if self._empty else [self._message])
 
 
 class _StubAsyncThreads:
@@ -365,8 +374,9 @@ class _StubAsyncThreads:
         statuses: tuple[str, ...],
         last_error: Any,
         raise_exc: Exception | None,
+        empty_messages: bool = False,
     ) -> None:
-        self.messages = _StubAsyncThreadMessages(message)
+        self.messages = _StubAsyncThreadMessages(message, empty_messages)
         self.runs = _StubAsyncThreadRuns(statuses, last_error, raise_exc)
         self.created = 0
         self.deleted: list[str] = []
@@ -394,7 +404,13 @@ class StubAsyncOpenAIAssistantsClient:
         last_error: Any = None,
         raise_exc: Exception | None = None,
         extra_raw: dict[str, Any] | None = None,
+        message_role: str = "assistant",
+        empty_messages: bool = False,
     ) -> None:
-        message = _StubAssistantMessage(text=response_text, extra_raw=dict(extra_raw or {}))
-        self.threads_stub = _StubAsyncThreads(message, run_statuses, last_error, raise_exc)
+        message = _StubAssistantMessage(
+            text=response_text, role=message_role, extra_raw=dict(extra_raw or {})
+        )
+        self.threads_stub = _StubAsyncThreads(
+            message, run_statuses, last_error, raise_exc, empty_messages
+        )
         self.beta = _StubAsyncBeta(self.threads_stub)
