@@ -5,7 +5,7 @@ All notable changes to `pytest-wardenbot` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.1.4] — 2026-05-26
 
 ### Added
 
@@ -20,6 +20,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   the `--wardenbot-judge-consensus` option / `wardenbot_judge_consensus` fixture.
   Default panel is one popular model per vendor (claude-haiku-4-5, gpt-4o-mini,
   gemini-2.0-flash), routed to its SDK by name prefix. (#6)
+- **Parallel async probe runner** — `pytest_wardenbot.runners.run_probes` fans a
+  corpus out against an `AsyncChatbotAdapter` concurrently (semaphore-bounded),
+  returning per-prompt results in input order; per-probe infra errors are
+  captured rather than sinking the batch. New `[async]` extra + a "Run probes in
+  parallel" how-to. (#2)
 
 ### Documentation
 

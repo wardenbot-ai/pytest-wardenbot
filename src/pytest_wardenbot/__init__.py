@@ -3,7 +3,7 @@
 See https://github.com/pardamike/pytest-wardenbot for documentation.
 """
 
-__version__ = "0.1.3"
+__version__ = "0.1.4"
 
 from pytest_wardenbot._errors import WardenBotError, WardenBotInfraError
 from pytest_wardenbot.adapters.base import (
