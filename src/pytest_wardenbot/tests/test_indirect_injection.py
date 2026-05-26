@@ -17,31 +17,13 @@ conftest.py to substitute or extend.
 
 from __future__ import annotations
 
-from typing import Any
-
 import pytest
 
-from pytest_wardenbot._corpus_override import resolve_corpus
 from pytest_wardenbot.adapters.base import ChatbotAdapter
-from pytest_wardenbot.corpus.indirect_injection import INDIRECT_INJECTION_PROMPTS
 from pytest_wardenbot.grading.deterministic import (
     assert_no_jailbreak_compliance,
     assert_no_system_prompt_leak,
 )
-
-
-def pytest_generate_tests(metafunc: Any) -> None:
-    if {"prompt", "attack_id"} <= set(metafunc.fixturenames):
-        corpus = resolve_corpus(
-            metafunc,
-            "wardenbot_indirect_injection_prompts",
-            INDIRECT_INJECTION_PROMPTS,
-        )
-        metafunc.parametrize(
-            ("prompt", "attack_id"),
-            corpus,
-            ids=[entry[1] for entry in corpus],
-        )
 
 
 @pytest.mark.wardenbot

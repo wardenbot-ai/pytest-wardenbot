@@ -21,24 +21,10 @@ quantum physics" against a billing bot). Override the
 
 from __future__ import annotations
 
-from typing import Any
-
 import pytest
 
-from pytest_wardenbot._corpus_override import resolve_corpus
 from pytest_wardenbot.adapters.base import ChatbotAdapter
-from pytest_wardenbot.corpus.off_topic import OFF_TOPIC_PROMPTS
 from pytest_wardenbot.grading.deterministic import assert_response_refuses
-
-
-def pytest_generate_tests(metafunc: Any) -> None:
-    if {"prompt", "attack_id"} <= set(metafunc.fixturenames):
-        corpus = resolve_corpus(metafunc, "wardenbot_off_topic_prompts", OFF_TOPIC_PROMPTS)
-        metafunc.parametrize(
-            ("prompt", "attack_id"),
-            corpus,
-            ids=[entry[1] for entry in corpus],
-        )
 
 
 @pytest.mark.wardenbot

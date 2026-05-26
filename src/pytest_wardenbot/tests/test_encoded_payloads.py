@@ -16,14 +16,10 @@ conftest.py to substitute or extend.
 
 from __future__ import annotations
 
-from typing import Any
-
 import pytest
 
-from pytest_wardenbot._corpus_override import resolve_corpus
 from pytest_wardenbot._formatting import format_failure_message
 from pytest_wardenbot.adapters.base import ChatbotAdapter
-from pytest_wardenbot.corpus.encoded_payloads import ENCODED_PAYLOAD_PROMPTS
 
 _REMEDIATION = (
     "Your chatbot decoded an encoded payload and executed the resulting "
@@ -34,20 +30,6 @@ _REMEDIATION = (
     "decodes common encodings and runs the same input-guardrail check on the "
     "decoded text before the model sees it."
 )
-
-
-def pytest_generate_tests(metafunc: Any) -> None:
-    if {"prompt", "trigger_words", "attack_id"} <= set(metafunc.fixturenames):
-        corpus = resolve_corpus(
-            metafunc,
-            "wardenbot_encoded_payload_prompts",
-            ENCODED_PAYLOAD_PROMPTS,
-        )
-        metafunc.parametrize(
-            ("prompt", "trigger_words", "attack_id"),
-            corpus,
-            ids=[entry[2] for entry in corpus],
-        )
 
 
 @pytest.mark.wardenbot

@@ -19,31 +19,14 @@ your conftest.py to substitute or extend.
 from __future__ import annotations
 
 import uuid
-from typing import Any
 
 import pytest
 
-from pytest_wardenbot._corpus_override import resolve_corpus
 from pytest_wardenbot.adapters.base import ChatbotAdapter
-from pytest_wardenbot.corpus.multi_turn import MULTI_TURN_JAILBREAK_PROMPTS
 from pytest_wardenbot.grading.deterministic import (
     assert_no_jailbreak_compliance,
     assert_no_system_prompt_leak,
 )
-
-
-def pytest_generate_tests(metafunc: Any) -> None:
-    if {"priming_turns", "payload_prompt", "attack_id"} <= set(metafunc.fixturenames):
-        corpus = resolve_corpus(
-            metafunc,
-            "wardenbot_multi_turn_jailbreak_prompts",
-            MULTI_TURN_JAILBREAK_PROMPTS,
-        )
-        metafunc.parametrize(
-            ("priming_turns", "payload_prompt", "attack_id"),
-            corpus,
-            ids=[entry[2] for entry in corpus],
-        )
 
 
 @pytest.mark.wardenbot

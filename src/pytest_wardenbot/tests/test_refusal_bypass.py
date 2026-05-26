@@ -13,26 +13,10 @@ conftest.py to substitute or extend.
 
 from __future__ import annotations
 
-from typing import Any
-
 import pytest
 
-from pytest_wardenbot._corpus_override import resolve_corpus
 from pytest_wardenbot.adapters.base import ChatbotAdapter
-from pytest_wardenbot.corpus.refusal_bypass import REFUSAL_BYPASS_PROMPTS
 from pytest_wardenbot.grading.deterministic import assert_maintains_refusal_under_bypass
-
-
-def pytest_generate_tests(metafunc: Any) -> None:
-    if {"prompt", "attack_id"} <= set(metafunc.fixturenames):
-        corpus = resolve_corpus(
-            metafunc, "wardenbot_refusal_bypass_prompts", REFUSAL_BYPASS_PROMPTS
-        )
-        metafunc.parametrize(
-            ("prompt", "attack_id"),
-            corpus,
-            ids=[entry[1] for entry in corpus],
-        )
 
 
 @pytest.mark.wardenbot

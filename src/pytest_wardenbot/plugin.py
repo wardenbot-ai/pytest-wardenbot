@@ -22,9 +22,11 @@ Most shipped tests live under `pytest_wardenbot.tests`; invoke with:
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 
+from pytest_wardenbot._corpus_override import resolve_corpus
 from pytest_wardenbot.adapters.base import ChatbotAdapter
 from pytest_wardenbot.business_truth import BusinessTruthFact
 from pytest_wardenbot.corpus.encoded_payloads import (
@@ -175,6 +177,80 @@ def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line("markers", "severity_high: high-severity wardenbot test")
     config.addinivalue_line("markers", "severity_medium: medium-severity wardenbot test")
     config.addinivalue_line("markers", "severity_low: low-severity wardenbot test")
+
+
+# ---------------------------------------------------------------------------
+# Corpus parametrization (global hook)
+# ---------------------------------------------------------------------------
+#
+# Shipped tests parametrize their attack corpus (prompt/attack_id, plus a few
+# wider shapes). We do this from ONE global hook keyed on the test function
+# name, so the parametrization travels with the function — including when a
+# user imports a shipped test into their own module (the examples and
+# `--wardenbot-quickstart` pattern). A per-module `pytest_generate_tests` would
+# not fire for imported tests. User corpus overrides still apply via
+# `resolve_corpus`.
+
+# test function name -> (param names, override-fixture name, default corpus)
+_CORPUS_TESTS: dict[str, tuple[tuple[str, ...], str, tuple[Any, ...]]] = {
+    "test_resists_jailbreak_compliance": (
+        ("prompt", "attack_id"),
+        "wardenbot_jailbreak_prompts",
+        JAILBREAK_PROMPTS,
+    ),
+    "test_jailbreak_does_not_leak_system_prompt": (
+        ("prompt", "attack_id"),
+        "wardenbot_jailbreak_prompts",
+        JAILBREAK_PROMPTS,
+    ),
+    "test_resists_system_prompt_elicitation": (
+        ("prompt", "attack_id"),
+        "wardenbot_system_prompt_leak_prompts",
+        SYSTEM_PROMPT_LEAK_PROMPTS,
+    ),
+    "test_maintains_refusal_under_bypass": (
+        ("prompt", "attack_id"),
+        "wardenbot_refusal_bypass_prompts",
+        REFUSAL_BYPASS_PROMPTS,
+    ),
+    "test_deflects_off_topic_requests": (
+        ("prompt", "attack_id"),
+        "wardenbot_off_topic_prompts",
+        OFF_TOPIC_PROMPTS,
+    ),
+    "test_resists_indirect_injection": (
+        ("prompt", "attack_id"),
+        "wardenbot_indirect_injection_prompts",
+        INDIRECT_INJECTION_PROMPTS,
+    ),
+    "test_resists_encoded_payload": (
+        ("prompt", "trigger_words", "attack_id"),
+        "wardenbot_encoded_payload_prompts",
+        ENCODED_PAYLOAD_PROMPTS,
+    ),
+    "test_resists_multi_turn_jailbreak": (
+        ("priming_turns", "payload_prompt", "attack_id"),
+        "wardenbot_multi_turn_jailbreak_prompts",
+        MULTI_TURN_JAILBREAK_PROMPTS,
+    ),
+}
+
+
+def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
+    """Parametrize shipped corpus-driven tests wherever they are collected.
+
+    Keyed on the test function name (which survives ``from ... import test_X``),
+    so imported shipped tests parametrize correctly — not only those collected
+    from ``pytest_wardenbot.tests``. Honors user corpus overrides.
+    """
+    spec = _CORPUS_TESTS.get(metafunc.function.__name__)
+    if spec is None:
+        return
+    param_names, fixture_name, default_corpus = spec
+    if not set(param_names) <= set(metafunc.fixturenames):
+        return
+    corpus = resolve_corpus(metafunc, fixture_name, default_corpus)
+    metafunc.parametrize(param_names, corpus, ids=[entry[-1] for entry in corpus])
 
 
 @pytest.fixture

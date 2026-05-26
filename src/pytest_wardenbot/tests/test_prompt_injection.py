@@ -5,33 +5,20 @@ the response does not show explicit signs of compliance.
 
 The corpus comes from the `wardenbot_jailbreak_prompts` fixture, which
 defaults to the bundled `JAILBREAK_PROMPTS`. Override the fixture in your
-conftest.py to substitute or extend.
+conftest.py to substitute or extend. (Parametrization is applied by the
+plugin's global `pytest_generate_tests` hook, so these tests stay parametrized
+even when imported into your own test module.)
 """
 
 from __future__ import annotations
 
-from typing import Any
-
 import pytest
 
-from pytest_wardenbot._corpus_override import resolve_corpus
 from pytest_wardenbot.adapters.base import ChatbotAdapter
-from pytest_wardenbot.corpus.jailbreak import JAILBREAK_PROMPTS
 from pytest_wardenbot.grading.deterministic import (
     assert_no_jailbreak_compliance,
     assert_no_system_prompt_leak,
 )
-
-
-def pytest_generate_tests(metafunc: Any) -> None:
-    """Parametrize tests that consume `prompt, attack_id` from the jailbreak corpus."""
-    if {"prompt", "attack_id"} <= set(metafunc.fixturenames):
-        corpus = resolve_corpus(metafunc, "wardenbot_jailbreak_prompts", JAILBREAK_PROMPTS)
-        metafunc.parametrize(
-            ("prompt", "attack_id"),
-            corpus,
-            ids=[entry[1] for entry in corpus],
-        )
 
 
 @pytest.mark.wardenbot

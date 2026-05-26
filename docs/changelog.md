@@ -5,6 +5,20 @@ All notable changes to `pytest-wardenbot` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.1] — 2026-05-26
+
+### Fixed
+
+- Shipped tests now keep their parametrization when imported into your own test
+  module — the pattern used by the bundled examples and `--wardenbot-quickstart`
+  output. Previously, importing a corpus-driven test (e.g.
+  `test_resists_jailbreak_compliance`) lost its `prompt`/`attack_id`
+  parametrization, so the test errored with `fixture 'prompt' not found` once a
+  `chatbot` fixture was wired up (the parametrizing hook was defined per-module
+  and did not follow the import). Parametrization is now applied by a single
+  global `pytest_generate_tests` hook keyed on the test name. Corpus overrides
+  via the `wardenbot_*_prompts` fixtures are unchanged.
+
 ## [0.1.0] — 2026-05-24
 
 Initial public release.
