@@ -5,6 +5,28 @@ All notable changes to `pytest-wardenbot` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- **Bundled LangChain adapter** (`[langchain]` extra) — `LangChainAdapter` /
+  `AsyncLangChainAdapter` wrap any LangChain Runnable (`.invoke` / `.ainvoke`).
+  Duck-typed (never imports `langchain`), so it stays resilient across LangChain
+  releases; extracts text from a string, a message `.content`, or a dict output
+  key. (#3)
+- **Multi-judge ensemble mode** — `judge_ensemble` / `assert_judge_ensemble_passes`
+  grade one `JudgeCase` across several judge models and combine the verdicts
+  under a consensus policy (`majority` default, `unanimous`, or `any`), set via
+  the `--wardenbot-judge-consensus` option / `wardenbot_judge_consensus` fixture.
+  Default panel is one popular model per vendor (claude-haiku-4-5, gpt-4o-mini,
+  gemini-2.0-flash), routed to its SDK by name prefix. (#6)
+
+### Documentation
+
+- Filled in the `docs/about/evaluation.md` result tables from a live run
+  (gpt-4o-mini 28/29; claude-haiku-4-5 26/29 — decoded ROT13/leet/hex;
+  vulnerable-stub 0/29). (#19)
+
 ## [0.1.3] — 2026-05-26
 
 ### Added
