@@ -1,7 +1,9 @@
 name: live-api-smoke
 
-# Smoke-tests the bundled OpenAI + Anthropic adapters against the LIVE vendor
-# APIs (the rest of CI uses stubs). Costs a few cents per run.
+# Round-trip smoke test: verifies the bundled OpenAI + Anthropic adapters still
+# reach the LIVE vendor APIs and parse responses (SDK/adapter drift detection).
+# Not a security check — a model failing a probe is not an adapter failure.
+# The rest of CI uses stubs. Costs a few cents per run.
 # Requires repo secrets: OPENAI_API_KEY, ANTHROPIC_API_KEY.
 
 on:
@@ -31,18 +33,18 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[openai,anthropic]"
 
-      # Examples are run as separate steps: both define test_my_bot.py, which
-      # collides in a single pytest invocation (no __init__.py / unique basename).
-      - name: OpenAI adapter smoke test
+      # Each step runs only its provider's round-trip test. live_smoke/ lives
+      # outside `testpaths`, so it is never part of the default test suite.
+      - name: OpenAI adapter round-trip
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           test -n "$OPENAI_API_KEY" || { echo "::error::OPENAI_API_KEY secret not set"; exit 1; }
-          pytest examples/openai_chat -ra
+          pytest live_smoke/test_live_adapters.py -k openai -ra
 
-      - name: Anthropic adapter smoke test
+      - name: Anthropic adapter round-trip
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           test -n "$ANTHROPIC_API_KEY" || { echo "::error::ANTHROPIC_API_KEY secret not set"; exit 1; }
-          pytest examples/anthropic_messages -ra
+          pytest live_smoke/test_live_adapters.py -k anthropic -ra
