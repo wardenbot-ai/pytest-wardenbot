@@ -9,7 +9,7 @@
 
 Pytest plugin for testing chatbots and LLM apps — prompt injection, jailbreaks, system-prompt leaks, hallucinations, brand drift.
 
-📖 **Documentation:** [pardamike.github.io/pytest-wardenbot](https://pardamike.github.io/pytest-wardenbot/)
+📖 **Documentation:** [pytest-wardenbot.wardenbot.ai](https://pytest-wardenbot.wardenbot.ai/)
 
 > **Status: pre-release.** v0.1.0 is in active development. APIs may change before the first stable release. The v0.2 roadmap is tracked in [GitHub Issues](https://github.com/pardamike/pytest-wardenbot/issues).
 

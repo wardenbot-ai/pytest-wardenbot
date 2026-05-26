@@ -1,6 +1,6 @@
 site_name: pytest-wardenbot
 site_description: Pytest plugin for testing chatbots and LLM apps.
-site_url: https://pardamike.github.io/pytest-wardenbot/
+site_url: https://pytest-wardenbot.wardenbot.ai/
 repo_url: https://github.com/pardamike/pytest-wardenbot
 repo_name: pardamike/pytest-wardenbot
 edit_uri: edit/main/docs/

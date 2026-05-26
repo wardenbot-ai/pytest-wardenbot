@@ -68,6 +68,7 @@ wardenbot = "pytest_wardenbot.plugin"
 
 [project.urls]
 Homepage = "https://wardenbot.ai/pytest-plugin"
+Documentation = "https://pytest-wardenbot.wardenbot.ai/"
 Repository = "https://github.com/pardamike/pytest-wardenbot"
 Issues = "https://github.com/pardamike/pytest-wardenbot/issues"
 
