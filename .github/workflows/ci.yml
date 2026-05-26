@@ -73,6 +73,9 @@ jobs:
   test:
     name: Test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    permissions:
+      contents: read   # actions/checkout
+      id-token: write  # OIDC token for tokenless Codecov upload (use_oidc)
     strategy:
       fail-fast: false
       matrix:
@@ -104,12 +107,14 @@ jobs:
         if: matrix.python-version == '3.12'
         uses: codecov/codecov-action@v5
         with:
+          use_oidc: true
           files: coverage.xml
           fail_ci_if_error: false  # don't break CI on Codecov outages
           flags: unittests
           name: pytest-wardenbot
-        # Tokenless upload works for public repos via Codecov's OIDC support.
-        # If you fork this and run CI on a private fork, add CODECOV_TOKEN.
+        # OIDC authenticates the upload via GitHub's id-token (no CODECOV_TOKEN
+        # secret stored). Requires `id-token: write` on this job (above) and the
+        # repo activated on codecov.io via the Codecov GitHub App.
 
   test-with-judge:
     name: Test (Python 3.12, [judge] extra)
