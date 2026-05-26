@@ -92,6 +92,11 @@ The OpenAI Assistants API is deprecated (sunset 2026-08-26); constructing
       heading_level: 3
       members: ["AttackRunner", "AttackResult"]
 
+::: pytest_wardenbot.runners.async_probe
+    options:
+      heading_level: 3
+      members: ["run_probes", "ProbeResult"]
+
 ## Corpora
 
 ::: pytest_wardenbot.corpus.jailbreak

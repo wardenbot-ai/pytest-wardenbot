@@ -14,8 +14,8 @@ The shipped tests in v0.1 are synchronous and consume a `ChatbotAdapter`.
 Users with an `AsyncChatbotAdapter` (their bot is behind an async-only API,
 or they prefer `httpx.AsyncClient` for parallel fan-out in their own tests)
 can wrap it with `pytest_wardenbot.adapters.to_sync(...)` to satisfy the
-sync fixture contract. v0.2 will ship native-async shipped tests so async
-adapters can run their probes in parallel.
+sync fixture contract, or fan probes out concurrently with
+`pytest_wardenbot.runners.run_probes` (see the "Run probes in parallel" how-to).
 """
 
 from __future__ import annotations
@@ -93,7 +93,8 @@ class AsyncChatbotAdapter(Protocol):
 
     The shipped tests in v0.1 are synchronous; pass an async adapter through
     `pytest_wardenbot.adapters.to_sync(...)` to consume it from the shipped
-    `chatbot` fixture. Native-async shipped tests land in v0.2.
+    `chatbot` fixture, or fan probes out concurrently with
+    `pytest_wardenbot.runners.run_probes`.
 
     Like `ChatbotAdapter`, async adapters MAY expose an optional
     ``stateful: bool`` attribute; `to_sync(...)` propagates it to the wrapper.

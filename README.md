@@ -43,6 +43,7 @@ pip install "pytest-wardenbot[judge]"        # adds DeepEval for semantic checks
 pip install "pytest-wardenbot[openai]"       # adds OpenAI Chat + Assistants adapters (sync + async)
 pip install "pytest-wardenbot[anthropic]"    # adds Anthropic Messages adapter (sync + async)
 pip install "pytest-wardenbot[langchain]"    # adds LangChainAdapter for any Runnable (sync + async)
+pip install "pytest-wardenbot[async]"        # adds pytest-asyncio for parallel async probing (run_probes)
 ```
 
 > **Note:** the OpenAI Assistants API is deprecated (sunset 2026-08-26). `OpenAIAssistantsAdapter` is a stopgap for teams still on it — it emits a `DeprecationWarning`; prefer `OpenAIChatAdapter` for new work.

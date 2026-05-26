@@ -43,6 +43,7 @@ dependencies = [
 openai = ["openai>=1.0"]
 anthropic = ["anthropic>=0.30"]
 langchain = ["langchain-core>=0.3"]
+async = ["pytest-asyncio>=0.24"]
 judge = ["deepeval>=2.0"]
 docs = [
     "mkdocs>=1.6",
