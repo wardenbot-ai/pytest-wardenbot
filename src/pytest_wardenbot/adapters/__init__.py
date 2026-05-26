@@ -14,6 +14,8 @@ Vendor-specific adapters (require the corresponding extra):
         AnthropicMessagesAdapter, AsyncAnthropicMessagesAdapter
     pytest_wardenbot.adapters.openai_assistants   [openai]  (deprecated API)
         OpenAIAssistantsAdapter, AsyncOpenAIAssistantsAdapter
+    pytest_wardenbot.adapters.langchain_runnable   [langchain]
+        LangChainAdapter, AsyncLangChainAdapter
 
 Bridge helper:
     to_sync(async_adapter) -> wraps an AsyncChatbotAdapter as a

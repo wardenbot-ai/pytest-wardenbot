@@ -30,6 +30,7 @@ See [Add your chatbot](../how-to/add-chatbot.md) for usage.
 | `OpenAIChatAdapter` / `AsyncOpenAIChatAdapter` | `pytest_wardenbot.adapters.openai_chat` | `[openai]` |
 | `OpenAIAssistantsAdapter` / `AsyncOpenAIAssistantsAdapter` | `pytest_wardenbot.adapters.openai_assistants` | `[openai]` |
 | `AnthropicMessagesAdapter` / `AsyncAnthropicMessagesAdapter` | `pytest_wardenbot.adapters.anthropic_msgs` | `[anthropic]` |
+| `LangChainAdapter` / `AsyncLangChainAdapter` | `pytest_wardenbot.adapters.langchain_runnable` | `[langchain]` |
 
 The OpenAI Assistants API is deprecated (sunset 2026-08-26); constructing
 `OpenAIAssistantsAdapter` emits a `DeprecationWarning`. Prefer
