@@ -161,6 +161,17 @@ def pytest_addoption(parser: pytest.Parser) -> None:
             f"{'/'.join(AVAILABLE_TEMPLATES)}. Default: generic."
         ),
     )
+    group.addoption(
+        "--wardenbot-judge-consensus",
+        choices=("majority", "unanimous", "any"),
+        default="majority",
+        help=(
+            "Consensus policy for ensemble LLM-judge tests (read via the "
+            "`wardenbot_judge_consensus` fixture / passed to "
+            "`assert_judge_ensemble_passes`): 'majority' (default), 'unanimous', "
+            "or 'any'. No effect on single-judge tests."
+        ),
+    )
 
 
 def pytest_cmdline_main(config: pytest.Config) -> int | None:
@@ -284,6 +295,18 @@ def judge_case() -> JudgeCase:
     `test_semantic` test skips with a helpful message.
     """
     pytest.skip(_NO_JUDGE_CASES_MESSAGE)
+
+
+@pytest.fixture
+def wardenbot_judge_consensus(request: pytest.FixtureRequest) -> str:
+    """Consensus policy for ensemble LLM-judge tests.
+
+    Reads `--wardenbot-judge-consensus` (default `majority`). Pass it to
+    `assert_judge_ensemble_passes(..., consensus=wardenbot_judge_consensus)` in
+    your own judge tests so the policy is switchable from the CLI without
+    editing test code.
+    """
+    return str(request.config.getoption("--wardenbot-judge-consensus"))
 
 
 # ---------------------------------------------------------------------------

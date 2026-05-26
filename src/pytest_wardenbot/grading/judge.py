@@ -24,9 +24,9 @@ documentation of the limitation.
 from __future__ import annotations
 
 import os
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 
 from pytest_wardenbot._util import slugify
 
@@ -91,6 +91,51 @@ class JudgeResult:
 
     threshold: float
     """The threshold the score was compared against (echoed for context)."""
+
+
+ConsensusPolicy = Literal["majority", "unanimous", "any"]
+"""How an ensemble combines its judges' verdicts.
+
+- ``majority``: passes if more than half the judges pass (the default — a
+  balanced signal that tolerates one dissenting judge in a panel of three).
+- ``unanimous``: passes only if every judge passes (strictest; use for
+  safety-critical checks where any flag should block).
+- ``any``: passes if at least one judge passes (loosest; use when you only
+  want to catch responses no judge would accept).
+"""
+
+DEFAULT_ENSEMBLE_MODELS: tuple[str, ...] = (
+    "claude-haiku-4-5",
+    "gpt-4o-mini",
+    "gemini-2.0-flash",
+)
+"""Default ensemble — one small, popular model per major vendor. Each judge
+needs its vendor key set (`ANTHROPIC_API_KEY` / `OPENAI_API_KEY` /
+`GOOGLE_API_KEY`); the ensemble costs roughly N times a single-judge call."""
+
+
+@dataclass(frozen=True)
+class EnsembleResult:
+    """The combined outcome of an ensemble of judges over one response."""
+
+    passed: bool
+    """Whether the ensemble passed under its consensus policy."""
+
+    policy: str
+    """The consensus policy applied (`majority` / `unanimous` / `any`)."""
+
+    results: tuple[tuple[str, JudgeResult], ...]
+    """Per-judge `(model_name, JudgeResult)` pairs, in call order."""
+
+    @property
+    def passed_count(self) -> int:
+        """How many judges passed."""
+        return sum(1 for _, result in self.results if result.passed)
+
+    @property
+    def total(self) -> int:
+        """How many judges voted."""
+        return len(self.results)
 
 
 class JudgeUnavailableError(RuntimeError):
@@ -328,8 +373,130 @@ def assert_judge_passes(
 
 
 # ---------------------------------------------------------------------------
+# Ensemble judging (multi-model consensus)
+# ---------------------------------------------------------------------------
+
+
+def aggregate_verdicts(verdicts: Sequence[bool], policy: ConsensusPolicy) -> bool:
+    """Combine per-judge pass/fail verdicts under a consensus `policy`.
+
+    - `majority`: more than half passed (a tie does NOT pass).
+    - `unanimous`: all passed.
+    - `any`: at least one passed.
+    """
+    if not verdicts:
+        raise ValueError("aggregate_verdicts requires at least one verdict")
+    if policy == "any":
+        return any(verdicts)
+    if policy == "unanimous":
+        return all(verdicts)
+    if policy == "majority":
+        return sum(verdicts) * 2 > len(verdicts)
+    raise ValueError(
+        f"Unknown consensus policy: {policy!r}. Use 'majority', 'unanimous', or 'any'."
+    )
+
+
+def judge_ensemble(
+    case: JudgeCase,
+    actual_response: str,
+    *,
+    models: Sequence[str] = DEFAULT_ENSEMBLE_MODELS,
+    consensus: ConsensusPolicy = "majority",
+    temperature: float = 0.0,
+    judge_factory: JudgeFactory | None = None,
+) -> EnsembleResult:
+    """Grade `actual_response` with several judge models and combine the verdicts.
+
+    Each model is graded independently via `judge_response`, then the per-judge
+    verdicts are combined under `consensus`. Costs ~`len(models)` times a single
+    judge call. Models are routed to their vendor by name prefix
+    (`claude*` / `gpt*` / `gemini*`), so the matching vendor API key must be set.
+
+    `judge_factory` is injected by tests to avoid paid API calls; production
+    callers omit it.
+    """
+    if not models:
+        raise ValueError("judge_ensemble requires at least one model")
+    results: list[tuple[str, JudgeResult]] = [
+        (
+            model_name,
+            judge_response(
+                case,
+                actual_response,
+                model_name=model_name,
+                temperature=temperature,
+                judge_factory=judge_factory,
+            ),
+        )
+        for model_name in models
+    ]
+    passed = aggregate_verdicts([result.passed for _, result in results], consensus)
+    return EnsembleResult(passed=passed, policy=consensus, results=tuple(results))
+
+
+def assert_judge_ensemble_passes(
+    case: JudgeCase,
+    actual_response: str,
+    *,
+    models: Sequence[str] = DEFAULT_ENSEMBLE_MODELS,
+    consensus: ConsensusPolicy = "majority",
+    temperature: float = 0.0,
+    judge_factory: JudgeFactory | None = None,
+) -> None:
+    """Run the ensemble; raise AssertionError with a per-judge breakdown on failure."""
+    result = judge_ensemble(
+        case,
+        actual_response,
+        models=models,
+        consensus=consensus,
+        temperature=temperature,
+        judge_factory=judge_factory,
+    )
+    if result.passed:
+        return
+    raise AssertionError(_format_ensemble_failure(case, actual_response, result))
+
+
+# ---------------------------------------------------------------------------
 # Default DeepEval factory
 # ---------------------------------------------------------------------------
+
+
+def _vendor_for_model(model_name: str) -> str:
+    """Route a judge model name to its vendor by prefix.
+
+    `gpt*` / `o1*` / `o3*` / `o4*` / `chatgpt*` -> ``openai``; `gemini*` ->
+    ``gemini``; everything else (`claude*`, `anthropic*`, unknown) ->
+    ``anthropic`` (the v0.1 single-judge default). Pure + side-effect-free, so
+    it's unit-testable without DeepEval installed.
+    """
+    lower = model_name.lower()
+    if lower.startswith(("gpt", "o1", "o3", "o4", "chatgpt")):
+        return "openai"
+    if lower.startswith("gemini"):
+        return "gemini"
+    return "anthropic"
+
+
+def _build_deepeval_model(model_name: str, temperature: float) -> Any:  # pragma: no cover
+    """Construct the DeepEval vendor model for `model_name` (real-API glue).
+
+    Exercised only in live eval runs, never in unit tests — hence no-cover. All
+    three vendor classes share the ``(model=, temperature=)`` constructor.
+    """
+    from deepeval.models import (  # type: ignore[import-not-found]
+        AnthropicModel,
+        GeminiModel,
+        GPTModel,
+    )
+
+    vendor = _vendor_for_model(model_name)
+    if vendor == "openai":
+        return GPTModel(model=model_name, temperature=temperature)
+    if vendor == "gemini":
+        return GeminiModel(model=model_name, temperature=temperature)
+    return AnthropicModel(model=model_name, temperature=temperature)
 
 
 def _default_deepeval_judge_factory(
@@ -345,7 +512,6 @@ def _default_deepeval_judge_factory(
     """
     try:
         from deepeval.metrics import GEval  # type: ignore[import-not-found]
-        from deepeval.models import AnthropicModel  # type: ignore[import-not-found]
         from deepeval.test_case import (  # type: ignore[import-not-found]
             LLMTestCase,
             LLMTestCaseParams,
@@ -366,7 +532,7 @@ def _default_deepeval_judge_factory(
     if case.context:
         eval_params.append(LLMTestCaseParams.CONTEXT)  # type: ignore[attr-defined]
 
-    model = AnthropicModel(model=model_name, temperature=temperature)
+    model = _build_deepeval_model(model_name, temperature)
     metric = GEval(
         name=case.label or case.check_type,
         criteria=case.criteria,
@@ -425,4 +591,39 @@ def _format_judge_failure(case: JudgeCase, actual_response: str, result: JudgeRe
         f"retrieval scoring or the grounding instructions in the system prompt. "
         f"Note: LLM judges agree with humans ~80% of the time — if this failure "
         f"feels wrong, sample the response manually before tuning.\n"
+    )
+
+
+def _format_ensemble_failure(case: JudgeCase, actual_response: str, result: EnsembleResult) -> str:
+    truncated = actual_response if len(actual_response) <= 500 else actual_response[:500] + "…"
+    label = case.label or case.check_type
+
+    verdict_lines = "\n".join(
+        f"    {'PASS' if judge_result.passed else 'FAIL'}  {model_name}  "
+        f"score={judge_result.score:.3f} (threshold {judge_result.threshold:.3f})"
+        for model_name, judge_result in result.results
+    )
+
+    return (
+        f"WardenBot test failed: LLM-judge ensemble [{result.policy}] {case.check_type}\n"
+        f"\n"
+        f"  Case: {label}\n"
+        f"  Prompt sent:\n"
+        f"    {case.prompt!r}\n"
+        f"\n"
+        f"  Actual response (first 500 chars):\n"
+        f"    {truncated!r}\n"
+        f"\n"
+        f"  Consensus: {result.policy} — {result.passed_count}/{result.total} judges passed\n"
+        f"  Per-judge verdicts:\n"
+        f"{verdict_lines}\n"
+        f"\n"
+        f"  Agent-ready remediation (paste into Cursor / Claude Code):\n"
+        f"    An ensemble of LLM judges rated this response below threshold under "
+        f"the {result.policy!r} consensus policy for the {case.check_type!r} "
+        f"criterion. Read each judge's score above — judges that split often flag "
+        f"a genuinely borderline response. Tighten the system prompt on the "
+        f"failing dimension and re-run. If the panel is consistently split, "
+        f"reconsider whether 'majority' is the right policy here versus "
+        f"'unanimous' (stricter) or 'any' (looser).\n"
     )
