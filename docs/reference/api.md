@@ -92,10 +92,6 @@ The OpenAI Assistants API is deprecated (sunset 2026-08-26); constructing
 ::: pytest_wardenbot.corpus.refusal_bypass
 ::: pytest_wardenbot.corpus.off_topic
 
-## Remediation formatter
-
-::: pytest_wardenbot.remediation
-
 ## Quickstart helpers
 
 ::: pytest_wardenbot.quickstart

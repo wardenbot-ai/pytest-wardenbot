@@ -1,0 +1,21 @@
+# Codecov configuration — https://docs.codecov.com/docs/codecovyml-reference
+#
+# The `project` status compares overall coverage against the PR base commit.
+# A small threshold tolerates legitimate fluctuations — e.g. deleting
+# covered-but-dead code, which lowers the ratio of a <100% codebase even though
+# no real coverage was lost. The hard absolute floor (80%) is enforced
+# separately in CI via `coverage report --fail-under=80`.
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 1%
+    patch:
+      default:
+        target: auto
+        threshold: 1%
+
+comment:
+  layout: "reach, diff, flags, files"
+  require_changes: true

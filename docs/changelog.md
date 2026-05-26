@@ -5,6 +5,29 @@ All notable changes to `pytest-wardenbot` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- Multi-turn jailbreak test now emits a `UserWarning` when it runs against an
+  adapter that has not declared `stateful = True` — priming silently no-ops on a
+  stateless adapter, so the test would otherwise pass trivially. Bundled SDK
+  adapters (OpenAI Chat / Assistants, Anthropic) declare it; `HTTPChatbotAdapter`
+  / `AsyncHTTPChatbotAdapter` take a `stateful=` flag for session-aware
+  endpoints. (#18)
+
+### Removed
+
+- `pytest_wardenbot.remediation` (`Remediation` / `to_agent_markdown`) — an
+  unused v0.1 formatter superseded by the internal failure-message builder the
+  shipped tests actually use. It was never wired into the failure path, and its
+  presence in the API reference misrepresented how remediation is emitted. (#20)
+
+### Documentation
+
+- New "Triage a failing test" how-to: ERROR vs FAILURE, failure-message anatomy,
+  expected non-findings, and the fix loop. (#17)
+
 ## [0.1.2] — 2026-05-26
 
 ### Fixed
