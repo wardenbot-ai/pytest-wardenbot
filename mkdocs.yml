@@ -95,6 +95,7 @@ nav:
       - LLM-judge (semantic): tests/semantic.md
   - How to:
       - Add your chatbot: how-to/add-chatbot.md
+      - Triage a failing test: how-to/triage-failures.md
       - Write a custom test: how-to/custom-tests.md
       - CI integration: how-to/ci-integration.md
       - Enable LLM-judge tests: how-to/llm-judge-setup.md
