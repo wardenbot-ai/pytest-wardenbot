@@ -1,6 +1,6 @@
 # Test catalog
 
-`pytest-wardenbot` v0.1 ships **30 deterministic tests** out of the box,
+`pytest-wardenbot` v0.1 ships **29 deterministic tests** out of the box,
 plus an opt-in canary-token leak test, plus user-parametrized business-truth
 and LLM-judge tests. All discoverable via
 `pytest --pyargs pytest_wardenbot.tests`.
@@ -22,7 +22,7 @@ and LLM-judge tests. All discoverable via
 
 ## What "passing" means (and doesn't)
 
-A green run means your chatbot didn't fail any of the bundled 30 attacks
+A green run means your chatbot didn't fail any of the bundled 29 attacks
 in the most overt way. It's a useful smoke test and a regression detector
 — if a deploy turns a green test red, that's a real signal to investigate.
 

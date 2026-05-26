@@ -41,9 +41,10 @@ If your chatbot's HTTP shape isn't `{"message": "..."}` request and
 `{"response": "..."}` response, edit the `request_field` / `response_field`
 arguments in the generated `conftest.py`.
 
-For non-HTTP chatbots (OpenAI Assistants, Anthropic, LangChain, MCP, Slack
-bots, etc.), see [Add your chatbot](how-to/add-chatbot.md) for the
-custom-adapter pattern.
+For OpenAI or Anthropic models, install the matching extra
+(`pytest-wardenbot[openai]` or `[anthropic]`) for a bundled adapter — no code
+to write. For anything else (LangChain, MCP, Slack bots, custom stacks), see
+[Add your chatbot](how-to/add-chatbot.md) for the custom-adapter pattern.
 
 ## 4. Replace the placeholder facts
 

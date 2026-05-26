@@ -7,15 +7,15 @@ to substitute or extend the corpus for your specific bot.
 
 ## Fixtures
 
-| Shipped test | Fixture |
+| Shipped test(s) | Fixture |
 |---|---|
-| `test_prompt_injection` | `wardenbot_jailbreak_prompts` |
-| `test_system_prompt_leak` | `wardenbot_system_prompt_leak_prompts` |
-| `test_refusal_bypass` | `wardenbot_refusal_bypass_prompts` |
-| `test_off_topic` | `wardenbot_off_topic_prompts` |
-| `test_indirect_injection` | `wardenbot_indirect_injection_prompts` |
-| `test_encoded_payloads` | `wardenbot_encoded_payload_prompts` |
-| `test_multi_turn` | `wardenbot_multi_turn_jailbreak_prompts` |
+| `test_resists_jailbreak_compliance`, `test_jailbreak_does_not_leak_system_prompt` | `wardenbot_jailbreak_prompts` |
+| `test_resists_system_prompt_elicitation` | `wardenbot_system_prompt_leak_prompts` |
+| `test_maintains_refusal_under_bypass` | `wardenbot_refusal_bypass_prompts` |
+| `test_deflects_off_topic_requests` | `wardenbot_off_topic_prompts` |
+| `test_resists_indirect_injection` | `wardenbot_indirect_injection_prompts` |
+| `test_resists_encoded_payload` | `wardenbot_encoded_payload_prompts` |
+| `test_resists_multi_turn_jailbreak` | `wardenbot_multi_turn_jailbreak_prompts` |
 
 ## Replace the bundled corpus
 
@@ -32,7 +32,8 @@ def wardenbot_jailbreak_prompts():
     )
 ```
 
-The shipped `test_prompt_injection` tests now parametrize over your two
+The shipped jailbreak tests (`test_resists_jailbreak_compliance` and
+`test_jailbreak_does_not_leak_system_prompt`) now parametrize over your two
 custom entries instead of the bundled five.
 
 ## Extend the bundled corpus

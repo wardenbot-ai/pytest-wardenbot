@@ -32,7 +32,7 @@ Recurring external monitoring of customer-facing chatbots:
 ## How this plugin relates
 
 The plugin is **the free, open-source slice of the Continuous Monitoring
-test corpus**. 30 curated tests (plus an opt-in canary-leak test, plus
+test corpus**. 29 curated tests (plus an opt-in canary-leak test, plus
 your business-truth and judge lists) that you run locally in your own
 pytest suite.
 

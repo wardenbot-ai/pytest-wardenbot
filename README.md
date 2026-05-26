@@ -11,7 +11,7 @@ Pytest plugin for testing chatbots and LLM apps — prompt injection, jailbreaks
 
 📖 **Documentation:** [pytest-wardenbot.wardenbot.ai](https://pytest-wardenbot.wardenbot.ai/)
 
-> **Status: pre-release.** v0.1.0 is in active development. APIs may change before the first stable release. The v0.2 roadmap is tracked in [GitHub Issues](https://github.com/pardamike/pytest-wardenbot/issues).
+> **Status: pre-release.** v0.1.2 is in active development. APIs may change before the first stable release. The v0.2 roadmap is tracked in [GitHub Issues](https://github.com/pardamike/pytest-wardenbot/issues).
 
 ---
 
@@ -20,12 +20,13 @@ Pytest plugin for testing chatbots and LLM apps — prompt injection, jailbreaks
 Run pytest against your chatbot and find out if it leaks its system prompt, complies with known jailbreaks, hallucinates business facts, or drifts from your brand voice.
 
 - **Black-box.** Tests run against your live chatbot via HTTP, OpenAI API, Anthropic API, or any object you write a small adapter for.
-- **Deterministic-first.** v0.1 ships 30 tests that need zero LLM API spend — regex, substring, and schema checks. Optional LLM-judge tests (DeepEval) ship as an extra for semantic checks.
+- **Deterministic-first.** v0.1 ships 29 tests that need zero LLM API spend — regex, substring, and schema checks. Optional LLM-judge tests (DeepEval) ship as an extra for semantic checks.
 - **Agent-ready failures.** When a test fails, the failure message includes a structured Markdown remediation prompt you can paste into Cursor or Claude Code.
+- **Verified adapters.** The bundled OpenAI and Anthropic adapters are smoke-tested weekly against the live vendor APIs in CI ([live-api-smoke](https://github.com/pardamike/pytest-wardenbot/actions/workflows/live-api-smoke.yml)) — a real round-trip stays known-good, not just mocked.
 
 ### What "passing" means (and doesn't)
 
-A green run means your chatbot didn't fail any of the bundled 30 attacks in the most overt way. It's a useful smoke test and a regression detector — if a deploy turns a green test red, that's a real signal to investigate.
+A green run means your chatbot didn't fail any of the bundled 29 attacks in the most overt way. It's a useful smoke test and a regression detector — if a deploy turns a green test red, that's a real signal to investigate.
 
 A green run does **not** mean your chatbot is secure. Frontier-grade attacks are multi-turn, novel, and adapted to your specific bot — no fixed corpus catches all of them. Treat the shipped suite as a starter set: pair it with periodic red-team exercises (or our [Continuous Monitoring](https://wardenbot.ai/intake/) service) for the always-on adversarial coverage CI alone can't provide.
 
@@ -39,9 +40,11 @@ Optional extras for LLM-judge tests or vendor-native adapters:
 
 ```bash
 pip install "pytest-wardenbot[judge]"        # adds DeepEval for semantic checks
-pip install "pytest-wardenbot[openai]"       # adds OpenAIChatAdapter + AsyncOpenAIChatAdapter
-pip install "pytest-wardenbot[anthropic]"    # adds AnthropicMessagesAdapter + AsyncAnthropicMessagesAdapter
+pip install "pytest-wardenbot[openai]"       # adds OpenAI Chat + Assistants adapters (sync + async)
+pip install "pytest-wardenbot[anthropic]"    # adds Anthropic Messages adapter (sync + async)
 ```
+
+> **Note:** the OpenAI Assistants API is deprecated (sunset 2026-08-26). `OpenAIAssistantsAdapter` is a stopgap for teams still on it — it emits a `DeprecationWarning`; prefer `OpenAIChatAdapter` for new work.
 
 ## Quickstart (under 60 seconds)
 
@@ -80,8 +83,8 @@ def chatbot():
     return HTTPChatbotAdapter(
         url="https://your-chatbot.example.com/chat",
         headers={"Authorization": f"Bearer {os.environ['CHATBOT_TOKEN']}"},
-        request_field="message",
-        response_field="reply",
+        request_field="message",      # the JSON key your bot reads the prompt from
+        response_field="response",     # the JSON key your bot returns the text in
     )
 ```
 
@@ -105,7 +108,7 @@ into Cursor / Claude Code, ship the fix.
 | Business-truth verification (parametrized over your facts) | user-supplied | deterministic | no |
 | Semantic checks via DeepEval (5 factories: equivalence, brand, hallucination, off-policy, refusal quality) | user-supplied | LLM-judge | yes, with `[judge]` extra |
 
-That's **30 deterministic tests** out-of-the-box (plus the opt-in canary leak test, plus your business-truth and judge lists). Tests run in under a second against a real chatbot with zero LLM API spend unless you've opted into the `[judge]` extra.
+That's **29 deterministic tests** out-of-the-box (plus the opt-in canary leak test, plus your business-truth and judge lists). Tests run in under a second against a real chatbot with zero LLM API spend unless you've opted into the `[judge]` extra.
 
 The v0.2 roadmap (RAMPART for tool-using agents, LangChain/MCP adapters, ensemble judging, and more) is tracked in [GitHub Issues](https://github.com/pardamike/pytest-wardenbot/issues).
 

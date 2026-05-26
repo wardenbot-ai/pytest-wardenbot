@@ -37,7 +37,7 @@ def chatbot():
         url=os.environ["CHATBOT_URL"],
         headers={"Authorization": f"Bearer {os.environ['CHATBOT_TOKEN']}"},
         request_field="message",       # the key in the request body that holds the prompt
-        response_field="reply",        # the key in the response body that holds the text
+        response_field="response",     # the key in the response body that holds the text
     )
 ```
 
@@ -130,8 +130,13 @@ class StatefulAdapter:
         self._histories.pop(session_id, None)
 ```
 
-The shipped tests don't yet exercise multi-turn flows in v0.1, but custom
-tests using `session_id` will work today.
+The shipped suite includes a multi-turn jailbreak test
+(`test_resists_multi_turn_jailbreak`) that sends priming turns and a payload
+under one `session_id`. It only carries real signal against a session-aware
+backend like this one: the adapter forwards `session_id` but doesn't replay
+prior turns itself, so a stateless endpoint (or the default
+`HTTPChatbotAdapter` against a stateless API) treats each turn as fresh and the
+test passes trivially.
 
 ## What gets returned
 

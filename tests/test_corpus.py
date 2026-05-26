@@ -23,7 +23,6 @@ SINGLE_TURN_CORPORA = (
     ("system_prompt_leak", SYSTEM_PROMPT_LEAK_PROMPTS),
     ("refusal_bypass", REFUSAL_BYPASS_PROMPTS),
     ("off_topic", OFF_TOPIC_PROMPTS),
-    ("indirect_injection", INDIRECT_INJECTION_PROMPTS),
 )
 
 
@@ -66,6 +65,28 @@ def test_encoded_payload_corpus_shape() -> None:
 
 def test_encoded_payload_attack_ids_unique() -> None:
     ids = [e[2] for e in ENCODED_PAYLOAD_PROMPTS]
+    assert len(ids) == len(set(ids))
+
+
+# ---------------------------------------------------------------------------
+# Indirect-injection corpus shares the (prompt, trigger_words, attack_id) shape
+# (trigger_words may be empty when the tell is a system-prompt leak).
+# ---------------------------------------------------------------------------
+
+
+def test_indirect_injection_corpus_shape() -> None:
+    assert len(INDIRECT_INJECTION_PROMPTS) > 0
+    for i, entry in enumerate(INDIRECT_INJECTION_PROMPTS):
+        assert len(entry) == 3, f"indirect[{i}] wrong length: {entry!r}"
+        prompt, triggers, attack_id = entry
+        assert isinstance(prompt, str) and prompt
+        assert isinstance(triggers, tuple)  # may be empty (leak-based tells)
+        assert all(isinstance(t, str) and t for t in triggers)
+        assert isinstance(attack_id, str) and attack_id
+
+
+def test_indirect_injection_attack_ids_unique() -> None:
+    ids = [e[2] for e in INDIRECT_INJECTION_PROMPTS]
     assert len(ids) == len(set(ids))
 
 

@@ -4,7 +4,7 @@ Pytest plugin for testing chatbots and LLM apps. Run a curated test suite
 against your chatbot to catch behavior regressions before your customers do.
 
 !!! note "Pre-release"
-    v0.1.0 is in active development. APIs may change before the first stable
+    v0.1.2 is in active development. APIs may change before the first stable
     release. See the [changelog](changelog.md) for what's landed.
 
 ## Why this exists
@@ -38,7 +38,7 @@ Markdown into your IDE, iterate.
 
 ## What "passing" means (and doesn't)
 
-A green run means your chatbot didn't fail any of the bundled 30 attacks
+A green run means your chatbot didn't fail any of the bundled 29 attacks
 in the most overt way. It's a useful smoke test and a regression detector
 — if a deploy turns a green test red, that's a real signal to investigate.
 

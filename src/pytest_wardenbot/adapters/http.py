@@ -37,7 +37,7 @@ class HTTPChatbotAdapter:
             url="https://api.example.com/chat",
             headers={"Authorization": f"Bearer {os.environ['CHATBOT_TOKEN']}"},
             request_field="message",
-            response_field="reply",
+            response_field="response",
         )
     ```
 

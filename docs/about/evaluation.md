@@ -123,7 +123,7 @@ Per full eval run, against each frontier model:
 
 | Bot | Calls | Tokens (~) | Cost (~USD) |
 |---|---|---|---|
-| openai-gpt-4o-mini | 29 single-turn + 3 multi-turn × 3 turns | ~25K | $0.05 |
+| openai-gpt-4o-mini | 26 single-turn + 3 multi-turn × 3 turns | ~25K | $0.05 |
 | anthropic-haiku-4-5 | same | ~25K | $0.05 |
 
 Multi-turn calls are ~3× the single-turn cost because each priming turn

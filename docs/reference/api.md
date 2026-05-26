@@ -19,6 +19,22 @@ Auto-generated from docstrings via `mkdocstrings`.
     options:
       heading_level: 3
 
+### Vendor adapters (optional extras)
+
+These bundled adapters require their vendor SDK extra to import, so they are
+not auto-documented here (the docs build doesn't install the vendor SDKs).
+See [Add your chatbot](../how-to/add-chatbot.md) for usage.
+
+| Class (sync / async) | Module | Extra |
+|---|---|---|
+| `OpenAIChatAdapter` / `AsyncOpenAIChatAdapter` | `pytest_wardenbot.adapters.openai_chat` | `[openai]` |
+| `OpenAIAssistantsAdapter` / `AsyncOpenAIAssistantsAdapter` | `pytest_wardenbot.adapters.openai_assistants` | `[openai]` |
+| `AnthropicMessagesAdapter` / `AsyncAnthropicMessagesAdapter` | `pytest_wardenbot.adapters.anthropic_msgs` | `[anthropic]` |
+
+The OpenAI Assistants API is deprecated (sunset 2026-08-26); constructing
+`OpenAIAssistantsAdapter` emits a `DeprecationWarning`. Prefer
+`OpenAIChatAdapter` for new work.
+
 ## Business truth
 
 ::: pytest_wardenbot.business_truth

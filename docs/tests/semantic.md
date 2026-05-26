@@ -89,7 +89,7 @@ The shipped `test_semantic` skips gracefully if:
 - `ANTHROPIC_API_KEY` is not set (with the env-var name)
 - `judge_case` fixture is not configured (with onboarding template)
 
-You can have all four skip paths in CI and the test simply skips — it
+You can have all three skip paths in CI and the test simply skips — it
 won't fail the build.
 
 ## Source

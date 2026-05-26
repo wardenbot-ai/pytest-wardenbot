@@ -5,6 +5,30 @@ All notable changes to `pytest-wardenbot` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.2] — 2026-05-26
+
+### Fixed
+
+- **Indirect-injection (XPIA) false negative.** `test_resists_indirect_injection`
+  graded responses only with the generic jailbreak / system-prompt-leak
+  patterns, so the two corpus entries that smuggle a literal compliance token
+  (`COMPROMISED`, `JAILBROKEN`) could be obeyed by the bot and still pass. The
+  test now also checks for the smuggled trigger token (mirroring the
+  encoded-payload test), so a bot that acts on the injection fails. The
+  indirect-injection corpus entry shape is now `(prompt, trigger_words, attack_id)`.
+
+### Changed
+
+- **Documentation accuracy.** Corrected the shipped deterministic test count to
+  29 (was overstated as 30); documented the bundled `OpenAIAssistantsAdapter` /
+  `AsyncOpenAIAssistantsAdapter` (`[openai]` extra); fixed the
+  `HTTPChatbotAdapter` default `response_field` shown in examples (`response`);
+  corrected the fixture→test-name mapping in the corpus customization guide;
+  fixed the encoded-payload encodings list (hex, not Unicode-tag); and removed
+  stale "single-turn only" claims (multi-turn tests ship in v0.1). Added a
+  "Verified adapters" note: the OpenAI + Anthropic adapters are smoke-tested
+  weekly against the live vendor APIs.
+
 ## [0.1.1] — 2026-05-26
 
 ### Fixed
@@ -47,7 +71,8 @@ using PyPI Trusted Publishing — no long-lived API tokens.
 - **Response payload redaction** — `ChatbotResponse.raw` strips values
   whose keys look sensitive (authorization, api-key, cookie, etc.) by
   default. Opt out via `keep_sensitive_response_fields=True`.
-- **30 deterministic shipped tests**:
+- **29 deterministic shipped tests** (plus a parametrized business-truth
+  test over your own facts):
     - 5 prompt-injection prompts × 2 checks (compliance + leak) = 10
     - 3 system-prompt elicitation tests
     - 3 refusal-bypass tests
@@ -56,7 +81,6 @@ using PyPI Trusted Publishing — no long-lived API tokens.
     - 4 encoded-payload jailbreak tests (Base64 / ROT13 / leet / hex)
     - 3 multi-turn jailbreak tests (priming + payload, needs
       session-aware adapter)
-    - 1 parametrized business-truth test (user-supplied facts)
 - **Canary-token leak detection** — opt-in `test_canary_leak` test +
   `pytest_wardenbot.canary` module. Strongest single signal for
   system-prompt disclosure.

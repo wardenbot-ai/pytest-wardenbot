@@ -219,6 +219,14 @@ The LLM-judge tests cost ~$0.003 per case against Anthropic Haiku 4.5.
 To enable the canary-token leak test, plant a high-entropy token in your
 chatbot's system prompt and expose it via a `wardenbot_canary` fixture in
 your conftest.py. See `docs/how-to/canary-token.md` for the pattern.
+
+Two of the shipped tests need tailoring to your bot:
+  - Off-topic deflection assumes a *scoped* bot. If yours is general-purpose,
+    override `wardenbot_off_topic_prompts` in conftest.py (return `()` to skip).
+  - The multi-turn jailbreak test sends priming turns + a payload under one
+    `session_id`. The default HTTPChatbotAdapter forwards `session_id` but does
+    not replay turns, so unless your endpoint tracks conversation state the
+    priming has no effect and the test passes trivially.
 """
 
 # ruff: noqa: F401
@@ -306,7 +314,7 @@ def run_quickstart(
             f"  3. Run:  pytest\n"
             f"\n"
             f"Optional: add LLM-judge tests with `pip install 'pytest-wardenbot[judge]'`.\n"
-            f"See https://github.com/pardamike/pytest-wardenbot for docs.\n"
+            f"See https://pytest-wardenbot.wardenbot.ai/ for docs.\n"
         ),
     )
     return 0
