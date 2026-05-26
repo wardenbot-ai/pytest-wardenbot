@@ -1,0 +1,52 @@
+name: docs-cloudflare
+
+# Builds the mkdocs site and deploys it to the Cloudflare Pages project
+# `pytest-wardenbot` (Direct Upload), which serves the primary docs domain
+# https://pytest-wardenbot.wardenbot.ai/. The separate docs.yml workflow keeps
+# deploying the same site to GitHub Pages as a fallback.
+# Requires repo secrets: CLOUDFLARE_API_TOKEN (Pages:Edit), CLOUDFLARE_ACCOUNT_ID.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "mkdocs.yml"
+      - "src/pytest_wardenbot/**"
+      - ".github/workflows/docs-cloudflare.yml"
+      - "pyproject.toml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-cloudflare-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build + deploy docs to Cloudflare Pages
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install docs deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[docs]"
+      - name: Build site
+        run: mkdocs build --strict
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy site --project-name=pytest-wardenbot --branch=main
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
