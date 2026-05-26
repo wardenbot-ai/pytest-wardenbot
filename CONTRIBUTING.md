@@ -63,7 +63,7 @@ https://wardenbot.ai/intake/ for the managed service.
   path. Don't add async code without prior discussion.
 - **Script-first / LLM-fallback.** Per the WardenBot AI doctrine, deterministic
   checks come first. Reach for LLM judging only when no deterministic check
-  applies. See `15-continuous-monitoring.md §4.1` in the main wardenbot repo.
+  applies. See [the design principles doc](docs/about/design.md) for the rationale.
 - **Conservative detection patterns.** False positives in safety tests erode
   trust faster than false negatives. Err on the side of missing a specific
   variant rather than firing on a non-issue.

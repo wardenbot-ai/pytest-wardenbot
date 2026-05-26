@@ -65,3 +65,16 @@ _site/
 # Evaluation harness output (per-user, model-version-specific)
 scripts/evaluation/results/
 .pytest-eval-work/
+
+# Secrets / keys (hardening)
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+
+# Planning / internal docs — not for the public repo
+BUILD-PLAN.md
+RESUME.md
+/handoff/
+/docs/launch/

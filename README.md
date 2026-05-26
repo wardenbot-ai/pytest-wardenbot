@@ -11,7 +11,7 @@ Pytest plugin for testing chatbots and LLM apps — prompt injection, jailbreaks
 
 📖 **Documentation:** [pardamike.github.io/pytest-wardenbot](https://pardamike.github.io/pytest-wardenbot/)
 
-> **Status: pre-release.** v0.1.0 is in active development. APIs may change before the first stable release.
+> **Status: pre-release.** v0.1.0 is in active development. APIs may change before the first stable release. The v0.2 roadmap is tracked in [GitHub Issues](https://github.com/pardamike/pytest-wardenbot/issues).
 
 ---
 
@@ -106,6 +106,8 @@ into Cursor / Claude Code, ship the fix.
 | Semantic checks via DeepEval (5 factories: equivalence, brand, hallucination, off-policy, refusal quality) | user-supplied | LLM-judge | yes, with `[judge]` extra |
 
 That's **30 deterministic tests** out-of-the-box (plus the opt-in canary leak test, plus your business-truth and judge lists). Tests run in under a second against a real chatbot with zero LLM API spend unless you've opted into the `[judge]` extra.
+
+The v0.2 roadmap (RAMPART for tool-using agents, LangChain/MCP adapters, ensemble judging, and more) is tracked in [GitHub Issues](https://github.com/pardamike/pytest-wardenbot/issues).
 
 ## How it's different from related tools
 
