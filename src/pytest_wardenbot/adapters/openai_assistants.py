@@ -121,6 +121,7 @@ class OpenAIAssistantsAdapter:
     """
 
     name = "openai-assistants"
+    stateful = True  # session_id maps to a persistent thread; multi-turn priming lands
 
     def __init__(
         self,
@@ -228,6 +229,7 @@ class AsyncOpenAIAssistantsAdapter:
     """
 
     name = "async-openai-assistants"
+    stateful = True  # session_id maps to a persistent thread; multi-turn priming lands
 
     def __init__(
         self,

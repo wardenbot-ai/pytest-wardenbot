@@ -50,6 +50,14 @@ class ChatbotAdapter(Protocol):
 
     Any object with these attributes satisfies the contract. Adapters must NOT
     persist user data beyond what the underlying transport requires.
+
+    Adapters MAY expose an optional ``stateful: bool`` attribute declaring that
+    they maintain conversation context across ``send_message`` calls for a given
+    ``session_id``. The multi-turn jailbreak test reads it (via ``getattr``,
+    default ``False``) and warns when it runs against an adapter that has not
+    declared itself stateful — multi-turn priming only lands on a session-aware
+    adapter. It is intentionally *not* a required Protocol member, so existing
+    adapters keep satisfying ``isinstance`` checks.
     """
 
     name: str
@@ -86,6 +94,9 @@ class AsyncChatbotAdapter(Protocol):
     The shipped tests in v0.1 are synchronous; pass an async adapter through
     `pytest_wardenbot.adapters.to_sync(...)` to consume it from the shipped
     `chatbot` fixture. Native-async shipped tests land in v0.2.
+
+    Like `ChatbotAdapter`, async adapters MAY expose an optional
+    ``stateful: bool`` attribute; `to_sync(...)` propagates it to the wrapper.
     """
 
     name: str

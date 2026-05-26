@@ -33,6 +33,9 @@ class _SyncFromAsyncAdapter:
     def __init__(self, inner: AsyncChatbotAdapter) -> None:
         self._inner = inner
         self.name = f"sync-from-async({inner.name})"
+        # Propagate the wrapped adapter's statefulness so the multi-turn test's
+        # session-awareness warning reflects the real adapter, not the wrapper.
+        self.stateful = getattr(inner, "stateful", False)
 
     def send_message(self, prompt: str, *, session_id: str | None = None) -> ChatbotResponse:
         return asyncio.run(self._inner.send_message(prompt, session_id=session_id))

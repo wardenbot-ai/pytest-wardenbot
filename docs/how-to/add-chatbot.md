@@ -114,6 +114,7 @@ inside the adapter:
 ```python
 class StatefulAdapter:
     name = "stateful"
+    stateful = True  # tells the multi-turn test this adapter maintains context
 
     def __init__(self):
         self._histories: dict[str, list[dict]] = {}
@@ -137,6 +138,12 @@ backend like this one: the adapter forwards `session_id` but doesn't replay
 prior turns itself, so a stateless endpoint (or the default
 `HTTPChatbotAdapter` against a stateless API) treats each turn as fresh and the
 test passes trivially.
+
+To make that honest, the test emits a `UserWarning` unless your adapter
+declares `stateful = True` (as above). Set it once your endpoint maintains
+conversation state — on the bundled HTTP adapter,
+`HTTPChatbotAdapter(..., stateful=True)`. The bundled OpenAI and Anthropic
+adapters already declare it.
 
 ## What gets returned
 

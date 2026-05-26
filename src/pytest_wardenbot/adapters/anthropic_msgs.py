@@ -87,6 +87,7 @@ class AnthropicMessagesAdapter:
     """
 
     name = "anthropic-messages"
+    stateful = True  # accumulates per-session_id history; multi-turn priming lands
 
     def __init__(
         self,
@@ -158,6 +159,7 @@ class AsyncAnthropicMessagesAdapter:
     """
 
     name = "async-anthropic-messages"
+    stateful = True  # accumulates per-session_id history; multi-turn priming lands
 
     def __init__(
         self,

@@ -95,6 +95,7 @@ class OpenAIChatAdapter:
     """
 
     name = "openai-chat"
+    stateful = True  # accumulates per-session_id history; multi-turn priming lands
 
     def __init__(
         self,
@@ -163,6 +164,7 @@ class AsyncOpenAIChatAdapter:
     """
 
     name = "async-openai-chat"
+    stateful = True  # accumulates per-session_id history; multi-turn priming lands
 
     def __init__(
         self,

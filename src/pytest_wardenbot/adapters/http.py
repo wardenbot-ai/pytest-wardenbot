@@ -50,6 +50,11 @@ class HTTPChatbotAdapter:
     any dict key containing `authorization`, `api-key`, `cookie`, etc. has its
     value replaced with `[REDACTED]`. Pass `keep_sensitive_response_fields=True`
     to disable (debugging a vendor response shape, etc.).
+
+    Set `stateful=True` if your endpoint maintains conversation state keyed on
+    the `session_id` sent each turn; this silences the multi-turn jailbreak
+    test's statelessness warning. Leave it `False` (the default) for a stateless
+    endpoint, where multi-turn priming has no effect.
     """
 
     name = "http"
@@ -64,6 +69,7 @@ class HTTPChatbotAdapter:
         extra_request_fields: dict[str, Any] | None = None,
         timeout: float = 30.0,
         keep_sensitive_response_fields: bool = False,
+        stateful: bool = False,
     ) -> None:
         self._url = url
         self._headers = dict(headers or {})
@@ -72,6 +78,7 @@ class HTTPChatbotAdapter:
         self._extra_request_fields = dict(extra_request_fields or {})
         self._timeout = timeout
         self._keep_sensitive_response_fields = keep_sensitive_response_fields
+        self.stateful = stateful
         self._client = httpx.Client(timeout=timeout)
 
     def send_message(self, prompt: str, *, session_id: str | None = None) -> ChatbotResponse:
@@ -157,6 +164,7 @@ class AsyncHTTPChatbotAdapter:
         extra_request_fields: dict[str, Any] | None = None,
         timeout: float = 30.0,
         keep_sensitive_response_fields: bool = False,
+        stateful: bool = False,
     ) -> None:
         self._url = url
         self._headers = dict(headers or {})
@@ -165,6 +173,7 @@ class AsyncHTTPChatbotAdapter:
         self._extra_request_fields = dict(extra_request_fields or {})
         self._timeout = timeout
         self._keep_sensitive_response_fields = keep_sensitive_response_fields
+        self.stateful = stateful
         self._client = httpx.AsyncClient(timeout=timeout)
 
     async def send_message(self, prompt: str, *, session_id: str | None = None) -> ChatbotResponse:
