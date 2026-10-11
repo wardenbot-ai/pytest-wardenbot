@@ -19,8 +19,6 @@ import inspect
 from collections.abc import Sequence
 from typing import Any
 
-import pytest
-
 # Different corpora have different entry shapes (jailbreak: (prompt, attack_id),
 # encoded: (prompt, triggers, attack_id), multi-turn: (priming, payload, attack_id)).
 # We keep the type loose here — each shipped test knows its own entry shape.
@@ -41,8 +39,8 @@ def _lookup_fixture_defs(metafunc: Any, fixture_name: str) -> Sequence[Any]:
        defines `wardenbot_jailbreak_prompts` in their conftest but the test
        function doesn't list it as a param.
 
-    Both are internal pytest APIs but they've been stable across 7.x and 8.x
-    and are used by other plugins (pytest-asyncio, pytest-bdd, etc).
+    Both are internal pytest APIs. The supported pytest range is exercised by
+    integration tests with external consumer fixtures.
     """
     closure_defs = getattr(metafunc, "_arg2fixturedefs", {}).get(fixture_name)
     if closure_defs:
@@ -69,11 +67,8 @@ def _lookup_fixture_defs(metafunc: Any, fixture_name: str) -> Sequence[Any]:
     if fm is None:
         return ()
 
-    # Pytest 8.1 changed this argument from a nodeid string to a Node. The
-    # package supports 8.0 too; collection fails before any bot is probed if
-    # we send its fixture manager a FunctionDefinition instead of a string.
-    fixture_node = definition.nodeid if pytest.version_tuple[:2] < (8, 1) else definition
-    defs = fm.getfixturedefs(fixture_name, fixture_node)
+    # Supported pytest versions (8.1.1+) expect a Node here, not a nodeid.
+    defs = fm.getfixturedefs(fixture_name, definition)
     return defs or ()
 
 

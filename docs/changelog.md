@@ -11,7 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - Restored consumer root fixtures when running the installed probe suite with
   `--pyargs` on pytest 9.1, preserving parametrization, scope and teardown.
-- Restored corpus fixture lookup on the minimum supported pytest 8.0 release.
+- Raised the pytest floor to 8.1.1: 8.0.x can fail external `--pyargs`
+  collection on unrelated protected directories (upstream pytest #11904).
+  CI and installed-wheel checks test 8.1.1 explicitly.
 - Missing required `chatbot` configuration now produces setup errors and a
   nonzero exit instead of an entirely skipped, successful security run.
 - Updated Anthropic adapters for current SDKs: sampling parameters are omitted
