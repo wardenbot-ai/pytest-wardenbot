@@ -367,3 +367,70 @@ async def test_async_openai_adapter_reset_session(session_id: str) -> None:
     await adapter.send_message("second", session_id=session_id)
 
     assert client.completions_stub.calls[1]["messages"] == [{"role": "user", "content": "second"}]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("asynchronous", [False, True], ids=["sync", "async"])
+@pytest.mark.parametrize(
+    "shape", ["choices-raises", "choices-wrong", "choices-empty", "message-missing"]
+)
+async def test_openai_malformed_sdk_shapes_are_private(asynchronous: bool, shape: str) -> None:
+    class Completion:
+        @property
+        def choices(self) -> object:
+            if shape == "choices-raises":
+                raise RuntimeError("provider-private-response-secret")
+            if shape == "choices-wrong":
+                return {"private": "provider-private-response-secret"}
+            if shape == "choices-empty":
+                return []
+            return [SimpleNamespace()]
+
+    class Completions:
+        def create(self, **kwargs: object) -> object:
+            del kwargs
+            return Completion()
+
+    class AsyncCompletions:
+        async def create(self, **kwargs: object) -> object:
+            return Completions().create(**kwargs)
+
+    client = SimpleNamespace(
+        chat=SimpleNamespace(completions=AsyncCompletions() if asynchronous else Completions())
+    )
+    with pytest.raises(WardenBotInfraError) as exc_info:
+        if asynchronous:
+            await AsyncOpenAIChatAdapter(client=client).send_message("hi")
+        else:
+            OpenAIChatAdapter(client=client).send_message("hi")
+    rendered = "".join(traceback.format_exception(exc_info.value))
+    assert "provider-private-response-secret" not in repr(exc_info.value)
+    assert "provider-private-response-secret" not in rendered
+    assert exc_info.value.__cause__ is None
+    assert exc_info.value.__suppress_context__
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("asynchronous", [False, True], ids=["sync", "async"])
+async def test_openai_none_content_preserves_empty_text(asynchronous: bool) -> None:
+    message = SimpleNamespace(content=None)
+    completion = SimpleNamespace(choices=[SimpleNamespace(message=message)])
+
+    class Completions:
+        def create(self, **kwargs: object) -> object:
+            del kwargs
+            return completion
+
+    class AsyncCompletions:
+        async def create(self, **kwargs: object) -> object:
+            return Completions().create(**kwargs)
+
+    client = SimpleNamespace(
+        chat=SimpleNamespace(completions=AsyncCompletions() if asynchronous else Completions())
+    )
+    if asynchronous:
+        result = await AsyncOpenAIChatAdapter(client=client).send_message("hi")
+        assert result.text == ""
+    else:
+        result = OpenAIChatAdapter(client=client).send_message("hi")
+        assert result.text == ""

@@ -337,3 +337,51 @@ async def test_async_anthropic_adapter_session_memory(session_id: str) -> None:
         {"role": "assistant", "content": "r1"},
         {"role": "user", "content": "t2"},
     ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("asynchronous", [False, True], ids=["sync", "async"])
+@pytest.mark.parametrize(
+    "shape", ["content-raises", "type-raises", "unsupported-type", "text-raises"]
+)
+async def test_anthropic_malformed_sdk_shapes_are_private(asynchronous: bool, shape: str) -> None:
+    class MalformedMessage:
+        @property
+        def content(self) -> object:
+            if shape == "content-raises":
+                raise RuntimeError("provider-private-response-secret")
+            return [MalformedBlock()]
+
+    class MalformedBlock:
+        @property
+        def type(self) -> str:
+            if shape == "type-raises":
+                raise RuntimeError("provider-private-response-secret")
+            return "tool_use" if shape == "unsupported-type" else "text"
+
+        @property
+        def text(self) -> str:
+            if shape == "text-raises":
+                raise RuntimeError("provider-private-response-secret")
+            return "unused"
+
+    class Messages:
+        def create(self, **kwargs: object) -> object:
+            del kwargs
+            return MalformedMessage()
+
+    class AsyncMessages:
+        async def create(self, **kwargs: object) -> object:
+            return Messages().create(**kwargs)
+
+    client = SimpleNamespace(messages=AsyncMessages() if asynchronous else Messages())
+    with pytest.raises(WardenBotInfraError) as exc_info:
+        if asynchronous:
+            await AsyncAnthropicMessagesAdapter(client=client).send_message("hi")
+        else:
+            AnthropicMessagesAdapter(client=client).send_message("hi")
+    rendered = "".join(traceback.format_exception(exc_info.value))
+    assert "provider-private-response-secret" not in repr(exc_info.value)
+    assert "provider-private-response-secret" not in rendered
+    assert exc_info.value.__cause__ is None
+    assert exc_info.value.__suppress_context__

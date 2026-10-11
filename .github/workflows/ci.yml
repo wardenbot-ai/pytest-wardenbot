@@ -194,6 +194,9 @@ jobs:
     name: Full suite (all integration extras)
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
     env:
       DEEPEVAL_TELEMETRY_OPT_OUT: "YES"
       DEEPEVAL_UPDATE_WARNING_OPT_OUT: "YES"
@@ -212,6 +215,15 @@ jobs:
           pip check
           coverage run -m pytest -ra
           coverage report --fail-under=90
+          coverage xml
+      - name: Upload complete integration coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          use_oidc: true
+          files: coverage.xml
+          fail_ci_if_error: false
+          flags: integrations
+          name: pytest-wardenbot-integrations
 
   mcp-contracts:
     name: MCP harness (Python ${{ matrix.python }}, ${{ matrix.dependencies }})
