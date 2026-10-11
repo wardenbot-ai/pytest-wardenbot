@@ -102,6 +102,8 @@ nav:
       - Dependency support: how-to/dependency-support.md
       - Migrate from OpenAI Assistants: how-to/migrate-openai.md
       - Isolate LangGraph state: how-to/langgraph-state.md
+      - Instrument agent trials: how-to/agent-trials.md
+      - Run the controlled MCP harness: how-to/mcp-harness.md
       - Community release updates: how-to/community-updates.md
       - Enable LLM-judge tests: how-to/llm-judge-setup.md
       - Plant a canary token: how-to/canary-token.md

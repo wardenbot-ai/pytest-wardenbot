@@ -5,6 +5,34 @@ All notable changes to `pytest-wardenbot` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.9] — 2026-10-11
+
+### Added
+
+- Transport-independent `AgentTarget`, `Scenario`, `HarnessTrace` and `RunResult`
+  contracts, with explicit violated/resisted/inconclusive/unsupported/error
+  outcomes. Task success remains separate from observed security behavior.
+- Bounded async trial runner with unique trial IDs, reset before and after,
+  execution/cleanup deadlines and cooperative turn limits. Authoritative local
+  effects remain findings even if execution subsequently fails.
+- Evidence provenance and scenario/version binding. Target-reported events
+  cannot promote themselves into trusted observations or prove injected-content
+  exposure. Missing coverage cannot silently become observed resistance.
+- Content-minimized console, JSON and escaped HTML diagnostics. Optional content
+  capture filters configured literals and sensitive keys; exception messages are
+  replaced with fixed reason codes. Explicit deprecated conversion to legacy
+  boolean results rejects incomplete/error outcomes.
+- Optional `[mcp]` controlled harness with isolated recording sinks and real
+  in-memory, stdio and loopback HTTP transports. Scripted controls exercise tool
+  results, tool descriptions, resources and prompts across the tested
+  2025-11-25 and 2026-07-28 protocol modes without provider credentials.
+- MCP dependency-floor/current CI, lifecycle and cancellation regressions,
+  a fresh-wheel MCP consumer check, and executable examples/documentation.
+
+The existing chatbot interfaces and text suite remain compatible. This release
+delivers the agent contracts and controlled harness; the packaged agent scenario
+suite and a live application pilot remain subsequent roadmap work.
+
 ## [0.1.8] — 2026-10-11
 
 ### Added

@@ -48,6 +48,7 @@ pip install "pytest-wardenbot[openai]"       # adds OpenAI Responses + Chat adap
 pip install "pytest-wardenbot[anthropic]"    # adds Anthropic Messages adapter (sync + async)
 pip install "pytest-wardenbot[langchain]"    # adds LangChainAdapter for any Runnable (sync + async)
 pip install "pytest-wardenbot[async]"        # adds pytest-asyncio for parallel async probing (run_probes)
+pip install "pytest-wardenbot[mcp]"          # adds the controlled local MCP harness
 ```
 
 > **Assistants retirement:** OpenAI retired the Assistants API on 26 August 2026;
@@ -65,6 +66,20 @@ pip install "pytest-wardenbot[async]"        # adds pytest-asyncio for parallel 
 
 See the [dependency support matrix](docs/how-to/dependency-support.md) for
 validated SDK combinations and [adapter setup](docs/how-to/add-chatbot.md).
+
+### Instrumented agent trials
+
+The additive `pytest_wardenbot.agents` API records explicit outcomes: violation,
+observed resistance, inconclusive evidence, unsupported capabilities and execution
+errors. A trusted recording sink establishes effects; model claims do not. Task
+success is tracked separately, and diagnostic content is hidden by default.
+
+The optional [MCP harness](docs/how-to/mcp-harness.md) exercises tool results,
+tool descriptions, resources and prompts over real local MCP transports, with
+scripted vulnerable/resistant/unexposed controls. It needs no provider credentials.
+See [agent trials](docs/how-to/agent-trials.md) for the contract and application
+integration responsibilities. A packaged agent scenario corpus and live application
+pilot remain roadmap work; the existing chatbot tests continue unchanged.
 
 
 ## Quickstart (under 60 seconds)

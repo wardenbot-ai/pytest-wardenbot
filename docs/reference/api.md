@@ -93,10 +93,55 @@ and does not delete old remote threads. For LangGraph state and reset hooks, see
 
 ## Attack runners
 
+The legacy boolean runner remains compatible. New instrumented agent integrations
+use the additive contracts below; see [agent trials](../how-to/agent-trials.md)
+for outcomes, trust boundaries and explicit legacy conversion.
+
 ::: pytest_wardenbot.runners.base
     options:
       heading_level: 3
       members: ["AttackRunner", "AttackResult"]
+
+## Instrumented agent trials
+
+::: pytest_wardenbot.agents.contracts
+    options:
+      heading_level: 3
+
+::: pytest_wardenbot.agents.runner
+    options:
+      heading_level: 3
+      members: ["run_scenario"]
+
+::: pytest_wardenbot.agents.reporting
+    options:
+      heading_level: 3
+
+::: pytest_wardenbot.agents._privacy
+    options:
+      heading_level: 3
+      members: ["PrivacyPolicy"]
+
+## Controlled MCP harness (optional `[mcp]` extra)
+
+See [the harness guide](../how-to/mcp-harness.md) for the tested SDK/protocol
+matrix and [the executable example](https://github.com/wardenbot-ai/pytest-wardenbot/tree/main/examples/mcp_harness)
+for offline controls. These classes are exported by `pytest_wardenbot.mcp`.
+
+::: pytest_wardenbot.mcp.harness
+    options:
+      heading_level: 3
+      members: ["MCPHarness", "SUPPORTED_PROTOCOL_VERSIONS"]
+
+::: pytest_wardenbot.mcp._client
+    options:
+      heading_level: 3
+      members: ["MCPClient"]
+
+::: pytest_wardenbot.mcp.targets
+    options:
+      heading_level: 3
+      members: ["ScriptedMCPAgentTarget"]
 
 ::: pytest_wardenbot.runners.async_probe
     options:
