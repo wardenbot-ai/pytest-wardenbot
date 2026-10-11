@@ -479,24 +479,61 @@ def _vendor_for_model(model_name: str) -> str:
     return "anthropic"
 
 
-def _build_deepeval_model(model_name: str, temperature: float) -> Any:  # pragma: no cover
-    """Construct the DeepEval vendor model for `model_name` (real-API glue).
+def _build_deepeval_model(model_name: str, temperature: float) -> Any:
+    """Construct only the selected vendor model, tested with offline SDK HTTP.
 
-    Exercised only in live eval runs, never in unit tests — hence no-cover. All
-    three vendor classes share the ``(model=, temperature=)`` constructor.
+    DeepEval 2 lacked the default Anthropic model entirely. Current DeepEval
+    also forwards temperature to older Anthropic models even when a newer SDK
+    has removed that keyword. Preserve it through the SDK's extra_body for
+    models that support it, rather than failing before the first HTTP call.
     """
-    from deepeval.models import (  # type: ignore[import-not-found]
-        AnthropicModel,
-        GeminiModel,
-        GPTModel,
-    )
+    import inspect
+
+    from deepeval import models as models_module  # type: ignore[import-not-found]
 
     vendor = _vendor_for_model(model_name)
     if vendor == "openai":
-        return GPTModel(model=model_name, temperature=temperature)
+        model_class = getattr(models_module, "OpenAIModel", None)
+        if model_class is None:
+            model_class = getattr(models_module, "GPTModel", None)
+    else:
+        class_name = "GeminiModel" if vendor == "gemini" else "AnthropicModel"
+        model_class = getattr(models_module, class_name, None)
+    if model_class is None:
+        raise JudgeUnavailableError(
+            f"Installed DeepEval does not provide the {vendor} judge model. "
+            "Upgrade with: pip install --upgrade 'pytest-wardenbot[judge]' "
+            "(requires DeepEval >= 4.2.8 for the default Anthropic judge)."
+        )
     if vendor == "gemini":
-        return GeminiModel(model=model_name, temperature=temperature)
-    return AnthropicModel(model=model_name, temperature=temperature)
+        try:
+            import importlib
+
+            importlib.import_module("google.genai")
+        except ImportError as exc:
+            raise JudgeUnavailableError(
+                "The Gemini judge additionally requires google-genai. "
+                "Install with: pip install google-genai"
+            ) from exc
+    if vendor != "anthropic":
+        return model_class(model=model_name, temperature=temperature)
+
+    try:
+        from anthropic.resources import Messages  # type: ignore[import-not-found]
+    except ImportError as exc:
+        raise JudgeUnavailableError(
+            "The Anthropic judge requires the Anthropic SDK. "
+            "Install with: pip install 'pytest-wardenbot[judge,anthropic]'"
+        ) from exc
+    supports_temperature = "temperature" in inspect.signature(Messages.create).parameters
+    model = model_class(model=model_name, temperature=temperature if supports_temperature else None)
+    if not supports_temperature:
+        # DeepEval may restore temperature from its environment/settings when
+        # passed None. Its public model attribute controls generation kwargs.
+        model.temperature = None
+        if getattr(model.model_data, "supports_temperature", None) is not False:
+            model.generation_kwargs["extra_body"] = {"temperature": temperature}
+    return model
 
 
 def _default_deepeval_judge_factory(
@@ -511,30 +548,21 @@ def _default_deepeval_judge_factory(
     who only run deterministic tests.
     """
     try:
-        from deepeval import test_case as test_case_module  # type: ignore[import-not-found]
         from deepeval.metrics import GEval  # type: ignore[import-not-found]
+        from deepeval.test_case import (  # type: ignore[import-not-found]
+            LLMTestCase,
+            SingleTurnParams,
+        )
     except ImportError as exc:
         raise JudgeUnavailableError(
             "DeepEval is not installed. Install with: pip install 'pytest-wardenbot[judge]'"
         ) from exc
 
-    LLMTestCase = test_case_module.LLMTestCase
-    # DeepEval 4 renamed this enum; avoid touching the deprecated alias on new
-    # releases, while retaining the tested DeepEval 2 compatibility path.
-    eval_param_type = getattr(test_case_module, "SingleTurnParams", None)
-    if eval_param_type is None:
-        eval_param_type = test_case_module.LLMTestCaseParams
-
-    # DeepEval's type stubs shift across versions; the runtime attribute access
-    # works against the installed version. Suppress static typecheck noise here.
-    eval_params: list[Any] = [
-        eval_param_type.INPUT,
-        eval_param_type.ACTUAL_OUTPUT,
-    ]
+    eval_params = [SingleTurnParams.INPUT, SingleTurnParams.ACTUAL_OUTPUT]
     if case.expected_output:
-        eval_params.append(eval_param_type.EXPECTED_OUTPUT)
+        eval_params.append(SingleTurnParams.EXPECTED_OUTPUT)
     if case.context:
-        eval_params.append(eval_param_type.CONTEXT)
+        eval_params.append(SingleTurnParams.CONTEXT)
 
     model = _build_deepeval_model(model_name, temperature)
     metric = GEval(

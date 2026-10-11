@@ -169,8 +169,8 @@ jobs:
       - name: Install exact supported SDK floors
         if: matrix.dependencies == 'minimum'
         run: >-
-          pip install -e ".[dev]" "openai==1.66.3" "anthropic==0.40.0"
-          "langchain-core==0.3.0" "deepeval==2.0.0"
+          pip install -e ".[dev]" "openai==1.66.3" "anthropic==0.49.0"
+          "langchain-core==0.3.0" "deepeval==4.2.8"
       - name: Install current SDKs and the tested graph example
         if: matrix.dependencies == 'current'
         run: pip install -e ".[dev,openai,anthropic,langchain,judge]" "langgraph==1.2.14"
@@ -179,9 +179,12 @@ jobs:
           pip check
           pip list
           python -c "import openai, anthropic, langchain_core, deepeval"
+      - name: Typecheck with installed SDK interfaces
+        run: pyright
       - name: Exercise real SDKs without provider requests
         run: >-
-          pytest tests/test_sdk_contracts.py tests/test_openai_responses_adapter.py
+          pytest tests/test_sdk_contracts.py tests/test_deepeval_contracts.py
+          tests/test_openai_responses_adapter.py
           tests/test_langchain_adapter.py tests/test_sync_bridge.py -ra
       - name: Execute the graph state recipe
         if: matrix.dependencies == 'current'
