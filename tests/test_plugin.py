@@ -11,13 +11,15 @@ and pytest would raise ValueError.
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 pytest_plugins = ["pytester"]
 
 
 # ---------------------------------------------------------------------------
-# Plugin loads + fixture stubs skip with helpful messages
+# Plugin loads + fixture stubs report helpful messages
 # ---------------------------------------------------------------------------
 
 
@@ -28,8 +30,8 @@ def test_plugin_loads_without_error(pytester: pytest.Pytester) -> None:
     result.assert_outcomes(passed=1)
 
 
-def test_chatbot_fixture_skips_when_unconfigured(pytester: pytest.Pytester) -> None:
-    """Tests using the `chatbot` fixture skip with a helpful message if no override."""
+def test_chatbot_fixture_errors_when_unconfigured(pytester: pytest.Pytester) -> None:
+    """A missing required bot must not produce a successful security run."""
     pytester.makepyfile(
         test_uses_chatbot="""
         def test_needs_chatbot(chatbot):
@@ -38,7 +40,8 @@ def test_chatbot_fixture_skips_when_unconfigured(pytester: pytest.Pytester) -> N
         """
     )
     result = pytester.runpytest("-v", "-rs")
-    result.assert_outcomes(skipped=1)
+    result.assert_outcomes(errors=1)
+    assert result.ret == pytest.ExitCode.TESTS_FAILED
     result.stdout.fnmatch_lines(["*No `chatbot` fixture configured*"])
 
 
@@ -485,6 +488,89 @@ def test_all_shipped_tests_discoverable(pytester: pytest.Pytester) -> None:
     assert "test_resists_indirect_injection" in output
     assert "test_resists_encoded_payload" in output
     assert "test_canary_never_appears_in_responses" in output
+
+
+def test_unconfigured_shipped_suite_fails_instead_of_skipping_every_probe(
+    pytester: pytest.Pytester,
+) -> None:
+    result = pytester.runpytest_subprocess("--pyargs", "pytest_wardenbot.tests", "-q")
+    assert result.ret == pytest.ExitCode.TESTS_FAILED
+    outcomes = result.parseoutcomes()
+    assert outcomes.get("errors", 0) >= 30
+    assert outcomes.get("passed", 0) == 0
+    result.stdout.fnmatch_lines(["*No `chatbot` fixture configured*"])
+
+
+def test_consumer_session_fixtures_preserve_lifecycle_and_nested_overrides(
+    pytester: pytest.Pytester,
+) -> None:
+    """Mixed local/--pyargs collection keeps fixture metadata and precedence."""
+    pytester.makeconftest(
+        _SAFE_BOT_CONFTEST.split("@pytest.fixture\ndef chatbot")[0]
+        + """
+import json
+from pathlib import Path
+
+@pytest.fixture(scope="session", autouse=True)
+def setup_guard():
+    events = ["session-setup"]
+    yield events
+    events.append("session-teardown")
+    Path("lifecycle.json").write_text(json.dumps(events))
+
+@pytest.fixture(name="chatbot", scope="session", params=["first", "second"], ids=str)
+def configured_bot(request, setup_guard):
+    setup_guard.append("bot-setup:" + request.param)
+    bot = SafeBot()
+    bot.name = request.param
+    yield bot
+    setup_guard.append("bot-teardown:" + request.param)
+"""
+    )
+    pytester.makepyfile(
+        test_root="""
+        def test_root_bot(chatbot):
+            assert chatbot.name in ("first", "second")
+        """
+    )
+    nested = pytester.path / "nested"
+    nested.mkdir()
+    (nested / "conftest.py").write_text(
+        """
+import pytest
+
+@pytest.fixture
+def chatbot(chatbot):
+    class NestedBot:
+        name = "nested-" + chatbot.name
+    return NestedBot()
+
+@pytest.fixture(autouse=True)
+def nested_guard(chatbot):
+    assert chatbot.name.startswith("nested-")
+"""
+    )
+    (nested / "test_nested.py").write_text(
+        "def test_nested_bot(chatbot):\n"
+        "    assert chatbot.name in ('nested-first', 'nested-second')\n"
+    )
+    result = pytester.runpytest_subprocess(
+        "--pyargs",
+        "pytest_wardenbot.tests.test_system_prompt_leak",
+        "test_root.py",
+        "nested",
+        "-v",
+    )
+    result.assert_outcomes(passed=10)
+    events = json.loads((pytester.path / "lifecycle.json").read_text())
+    assert events == [
+        "session-setup",
+        "bot-setup:first",
+        "bot-teardown:first",
+        "bot-setup:second",
+        "bot-teardown:second",
+        "session-teardown",
+    ]
 
 
 # ---------------------------------------------------------------------------

@@ -16,6 +16,9 @@ pip install -e ".[dev]"
 pre-commit install
 ```
 
+The dev extra installs the same pinned Ruff and Pyright versions as the hooks.
+Update their pins and hook revisions together, and review any formatting changes.
+
 Run the full check pipeline locally:
 
 ```bash
@@ -93,7 +96,9 @@ A good new test:
 3. Open a PR using the template. Make sure the scope-check boxes are honestly
    checked.
 4. CI must be green before review (lint, typecheck, tests across 3.11/3.12/3.13,
-   coverage ≥80%, build verifies wheel + sdist).
+   coverage ≥80%, minimum/current pytest, strict docs build, wheel + sdist,
+   fresh-wheel consumer).
+   See [dependency support](docs/how-to/dependency-support.md) for the matrix.
 5. Expect ~1-business-day turnaround on the first review pass.
 
 ## Maintenance philosophy

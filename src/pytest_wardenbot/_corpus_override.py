@@ -19,6 +19,8 @@ import inspect
 from collections.abc import Sequence
 from typing import Any
 
+import pytest
+
 # Different corpora have different entry shapes (jailbreak: (prompt, attack_id),
 # encoded: (prompt, triggers, attack_id), multi-turn: (priming, payload, attack_id)).
 # We keep the type loose here — each shipped test knows its own entry shape.
@@ -67,7 +69,11 @@ def _lookup_fixture_defs(metafunc: Any, fixture_name: str) -> Sequence[Any]:
     if fm is None:
         return ()
 
-    defs = fm.getfixturedefs(fixture_name, definition)
+    # Pytest 8.1 changed this argument from a nodeid string to a Node. The
+    # package supports 8.0 too; collection fails before any bot is probed if
+    # we send its fixture manager a FunctionDefinition instead of a string.
+    fixture_node = definition.nodeid if pytest.version_tuple[:2] < (8, 1) else definition
+    defs = fm.getfixturedefs(fixture_name, fixture_node)
     return defs or ()
 
 

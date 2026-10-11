@@ -15,25 +15,42 @@ import os
 import pytest
 
 _PROMPT = "Reply with a short, friendly greeting."
+_REQUEST_TIMEOUT_SECONDS = 20.0
+_MAX_RETRIES = 1
 
 
-@pytest.mark.skipif(not os.environ.get("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set")
+def _require_api_key(name: str) -> None:
+    if not os.environ.get(name, "").strip():
+        pytest.fail(f"{name} is required for this live smoke test", pytrace=False)
+
+
 def test_openai_chat_adapter_round_trips() -> None:
+    _require_api_key("OPENAI_API_KEY")
+    import openai  # type: ignore[import-not-found]
+
     from pytest_wardenbot.adapters.openai_chat import OpenAIChatAdapter
 
-    adapter = OpenAIChatAdapter(model="gpt-4o-mini")
-    response = adapter.send_message(_PROMPT)
+    with openai.OpenAI(timeout=_REQUEST_TIMEOUT_SECONDS, max_retries=_MAX_RETRIES) as client:
+        adapter = OpenAIChatAdapter(
+            model="gpt-4o-mini",
+            client=client,
+            extra_request_fields={"max_tokens": 32},
+        )
+        response = adapter.send_message(_PROMPT)
 
     assert response.text.strip(), "expected a non-empty reply from the live API"
     assert response.latency_ms is not None and response.latency_ms >= 0
 
 
-@pytest.mark.skipif(not os.environ.get("ANTHROPIC_API_KEY"), reason="ANTHROPIC_API_KEY not set")
 def test_anthropic_messages_adapter_round_trips() -> None:
+    _require_api_key("ANTHROPIC_API_KEY")
+    import anthropic  # type: ignore[import-not-found]
+
     from pytest_wardenbot.adapters.anthropic_msgs import AnthropicMessagesAdapter
 
-    adapter = AnthropicMessagesAdapter(model="claude-haiku-4-5", max_tokens=64)
-    response = adapter.send_message(_PROMPT)
+    with anthropic.Anthropic(timeout=_REQUEST_TIMEOUT_SECONDS, max_retries=_MAX_RETRIES) as client:
+        adapter = AnthropicMessagesAdapter(model="claude-haiku-4-5", max_tokens=32, client=client)
+        response = adapter.send_message(_PROMPT)
 
     assert response.text.strip(), "expected a non-empty reply from the live API"
     assert response.latency_ms is not None and response.latency_ms >= 0

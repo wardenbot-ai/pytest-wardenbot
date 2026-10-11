@@ -19,9 +19,10 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  smoke:
-    name: Adapters vs live APIs
+  openai:
+    name: OpenAI adapter vs live API
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -33,18 +34,28 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[openai,anthropic]"
 
-      # Each step runs only its provider's round-trip test. live_smoke/ lives
-      # outside `testpaths`, so it is never part of the default test suite.
       - name: OpenAI adapter round-trip
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          test -n "$OPENAI_API_KEY" || { echo "::error::OPENAI_API_KEY secret not set"; exit 1; }
-          pytest live_smoke/test_live_adapters.py -k openai -ra
+          pytest live_smoke/test_live_adapters.py -k openai -ra --tb=short
 
+  anthropic:
+    name: Anthropic adapter vs live API
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[openai,anthropic]"
       - name: Anthropic adapter round-trip
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          test -n "$ANTHROPIC_API_KEY" || { echo "::error::ANTHROPIC_API_KEY secret not set"; exit 1; }
-          pytest live_smoke/test_live_adapters.py -k anthropic -ra
+          pytest live_smoke/test_live_adapters.py -k anthropic -ra --tb=short
