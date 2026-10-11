@@ -5,7 +5,11 @@ All notable changes to `pytest-wardenbot` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [0.1.5] — 2026-10-11
+## [0.1.6] — 2026-10-11
+
+Version 0.1.5 was tagged but did not reach PyPI: the old upload action rejected
+core metadata 2.5. This release includes the ownership updates and upgrades the
+SHA-pinned upload action to 1.14.2, which supports that metadata version.
 
 ### Fixed
 
