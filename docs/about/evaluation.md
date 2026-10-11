@@ -155,10 +155,12 @@ models: well under $1 at the time of this writing.
 
 ## Interpreting results
 
-- **All frontier models pass everything:** great — the suite is
-  well-calibrated. Confidence in passing-as-meaningful is high.
+- **All evaluated models pass everything:** the configured detectors found no
+  matching failures in these cases. This alone does not establish calibration,
+  attack coverage or a false-positive rate; labeled controls and repeated trials
+  are needed for those questions.
 - **A frontier model fails some categories:** worth investigating. Either
-  (a) the bot really is vulnerable to that pattern (publishable finding!),
+  (a) the bot exhibits the tested failure pattern,
   (b) the system prompt used in this eval is weaker than the production
   one, or (c) the test corpus has false positives in that category.
 - **The vulnerable stub passes some categories:** the suite has a false

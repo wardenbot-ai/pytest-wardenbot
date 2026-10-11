@@ -9,6 +9,7 @@ or API keys are needed. Pytest discovers wardenbot through its entry point.
 
 from __future__ import annotations
 
+import argparse
 import importlib.metadata
 import importlib.util
 import json
@@ -196,6 +197,10 @@ def _run(
         "errors": errors,
         "skipped": skipped,
         "names": [case.get("name", "") for case in cases],
+        "properties": [
+            {prop.get("name"): prop.get("value") for prop in case.findall("./properties/property")}
+            for case in cases
+        ],
         "output": output,
     }
 
@@ -208,7 +213,127 @@ def _expect(result: dict[str, Any], **expected: int) -> None:
         )
 
 
+_AGENT_CONFTEST = """
+import pytest
+from pytest_wardenbot.mcp import MCPHarness, ScriptedMCPAgentTarget
+
+@pytest.fixture
+def harness(wardenbot_agent_scenario, wardenbot_agent_attack_enabled):
+    return MCPHarness(
+        wardenbot_agent_scenario,
+        transport="stdio",
+        attack_enabled=wardenbot_agent_attack_enabled,
+    )
+
+@pytest.fixture
+def agent_target(harness):
+    return ScriptedMCPAgentTarget(harness, behavior="resistant")
+
+@pytest.fixture
+def agent_observer(harness):
+    return harness.observe
+"""
+
+
+def check_agents() -> None:
+    """Exercise packaged scenario selection and coverage outside the checkout."""
+    package_path = _check_installation()
+    target = "pytest_wardenbot.agent_tests"
+    selected = "--wardenbot-agent-scenario=mcp.tool-result.forbidden-tool@1"
+    with tempfile.TemporaryDirectory(prefix="wardenbot-agent-consumer-") as temporary:
+        root = Path(temporary)
+        safe = _run(root / "safe", _AGENT_CONFTEST, target, "--wardenbot-agent-required")
+        _expect(safe, exit_code=0, passed=16, failed=0, errors=0, skipped=0)
+        _require(len(set(safe["names"])) == 16, "Agent nodes must have unique stable IDs.")
+        for properties in safe["properties"]:
+            phase = properties.get("wardenbot.agent.phase")
+            expected = "resisted" if phase == "attack" else "inconclusive"
+            _require(
+                properties.get("wardenbot.agent.outcome") == expected,
+                "JUnit lost the agent domain outcome or baseline distinction.",
+            )
+            _require(
+                properties.get("wardenbot.agent.task_succeeded") == "true",
+                "JUnit lost independent task utility.",
+            )
+        pair = _run(root / "pair", _AGENT_CONFTEST, target, selected, "--wardenbot-agent-required")
+        _expect(pair, exit_code=0, passed=2, failed=0, errors=0, skipped=0)
+        missing = _run(root / "missing", "", target, selected)
+        _require(missing["exit_code"] != 0, "Missing integration silently passed.")
+        _require(
+            "agent_target" in missing["output"], "Missing target setup needs actionable guidance."
+        )
+        deselected = _run(
+            root / "deselected",
+            _AGENT_CONFTEST,
+            target,
+            selected,
+            "--wardenbot-agent-required",
+            "-k",
+            "baseline",
+        )
+        _expect(deselected, exit_code=1, passed=1, failed=0, errors=0, skipped=0)
+        _require(
+            "Required agent coverage incomplete" in deselected["output"],
+            "Required deselection lacks a coverage explanation.",
+        )
+        vulnerable = _run(
+            root / "vulnerable",
+            _AGENT_CONFTEST.replace('behavior="resistant"', 'behavior="vulnerable"'),
+            target,
+            selected,
+        )
+        _expect(vulnerable, exit_code=1, passed=1, failed=1, errors=0, skipped=0)
+        _require(
+            any(p.get("wardenbot.agent.outcome") == "violated" for p in vulnerable["properties"]),
+            "Actual recorded effects must retain the violated domain outcome.",
+        )
+        imported = _run(
+            root / "imported",
+            _AGENT_CONFTEST,
+            "test_local.py",
+            selected,
+            "--wardenbot-agent-required",
+            files={
+                "test_local.py": (
+                    "from pytest_wardenbot.agent_tests.test_security import test_agent_security\n"
+                )
+            },
+        )
+        _expect(imported, exit_code=0, passed=2, failed=0, errors=0, skipped=0)
+        sys.stdout.write(
+            json.dumps(
+                {
+                    "package": package_path,
+                    "agent_consumer_checks": {
+                        label: {
+                            key: result[key] for key in ("exit_code", "passed", "failed", "errors")
+                        }
+                        for label, result in (
+                            ("safe", safe),
+                            ("pair", pair),
+                            ("missing", missing),
+                            ("required_deselection", deselected),
+                            ("vulnerable", vulnerable),
+                            ("imported", imported),
+                        )
+                    },
+                },
+                indent=2,
+            )
+            + "\n"
+        )
+
+
 def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--agents", action="store_true", help="Check the installed agent suite ([mcp])."
+    )
+    args = parser.parse_args()
+    if args.agents:
+        check_agents()
+        return
     package_path = _check_installation()
     with tempfile.TemporaryDirectory(prefix="wardenbot-consumer-") as temporary:
         root = Path(temporary)

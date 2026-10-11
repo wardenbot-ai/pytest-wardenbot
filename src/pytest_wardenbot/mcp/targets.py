@@ -42,7 +42,7 @@ class ScriptedMCPAgentTarget:
         attack_text = ""
         document = ""
         async with self.harness.trial(trial_id) as client:
-            if self.behavior == "no_exposure":
+            if self.behavior == "no_exposure" and self.harness.attack_enabled:
                 return TargetRun(task_succeeded=False, trace_complete=True, turns=0)
             if max_turns < 2:
                 return TargetRun(

@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
+import traceback
+from types import SimpleNamespace
+
 import pytest
 
 from pytest_wardenbot import (
@@ -69,12 +73,18 @@ def test_openai_adapter_accepts_extra_request_fields() -> None:
 
 
 def test_openai_adapter_wraps_vendor_exceptions_in_infra_error() -> None:
-    boom = RuntimeError("rate limit")
+    boom = RuntimeError("synthetic-secret vendor payload")
     client = StubOpenAIClient(raise_exc=boom)
     adapter = OpenAIChatAdapter(client=client)
-    with pytest.raises(WardenBotInfraError, match="rate limit") as exc_info:
+    with pytest.raises(
+        WardenBotInfraError, match=r"OpenAI API call failed \(RuntimeError\)"
+    ) as exc_info:
         adapter.send_message("hi")
-    assert exc_info.value.__cause__ is boom
+    rendered = "".join(traceback.format_exception(exc_info.value))
+    assert "synthetic-secret" not in repr(exc_info.value)
+    assert "synthetic-secret" not in rendered
+    assert exc_info.value.__cause__ is None
+    assert exc_info.value.__suppress_context__
 
 
 @pytest.mark.parametrize("session_id", ["s", ""])
@@ -158,6 +168,70 @@ def test_openai_adapter_keeps_raw_when_opted_in() -> None:
     assert result.raw["api_key"] == "sk-keep"
 
 
+def test_openai_adapter_does_not_store_object_repr_as_raw_payload() -> None:
+    class Response:
+        def __init__(self) -> None:
+            self.choices = [SimpleNamespace(message=SimpleNamespace(content="ok"))]
+
+        def __repr__(self) -> str:
+            return "Response(synthetic-secret)"
+
+    class Completions:
+        def create(self, **kwargs: object) -> Response:
+            del kwargs
+            return Response()
+
+    client = SimpleNamespace(chat=SimpleNamespace(completions=Completions()))
+    response = OpenAIChatAdapter(client=client).send_message("hi")
+    assert response.raw == {"unavailable": "Response object does not support model_dump()."}
+    assert "synthetic-secret" not in repr(response.raw)
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        {"secret": "malformed-secret"},  # pragma: allowlist secret
+        ["malformed-secret"],
+        12,
+    ],
+)
+def test_openai_adapter_rejects_non_text_content_without_leaking(content: object) -> None:
+    class Completions:
+        def create(self, **kwargs: object) -> object:
+            del kwargs
+            message = SimpleNamespace(content=content)
+            return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+
+    client = SimpleNamespace(chat=SimpleNamespace(completions=Completions()))
+    adapter = OpenAIChatAdapter(client=client)
+    with pytest.raises(WardenBotInfraError, match="content is not text") as exc_info:
+        adapter.send_message("hi")
+    rendered = "".join(traceback.format_exception(exc_info.value))
+    assert "malformed-secret" not in rendered
+    assert exc_info.value.__cause__ is None
+    assert exc_info.value.__suppress_context__
+
+
+def test_openai_adapter_preserves_empty_response_and_hides_model_dump_failure() -> None:
+    class Response:
+        def __init__(self) -> None:
+            self.choices = [SimpleNamespace(message=SimpleNamespace(content=None))]
+
+        def model_dump(self) -> dict[str, object]:
+            raise RuntimeError("dump-secret")
+
+    class Completions:
+        def create(self, **kwargs: object) -> Response:
+            del kwargs
+            return Response()
+
+    client = SimpleNamespace(chat=SimpleNamespace(completions=Completions()))
+    result = OpenAIChatAdapter(client=client).send_message("hi")
+    assert result.text == ""
+    assert result.raw == {"unavailable": "Response payload could not be serialized."}
+    assert "dump-secret" not in repr(result)
+
+
 def test_openai_adapter_install_hint_on_missing_dep(monkeypatch: pytest.MonkeyPatch) -> None:
     """If no client provided AND openai isn't importable, raise install hint."""
     import sys
@@ -166,6 +240,25 @@ def test_openai_adapter_install_hint_on_missing_dep(monkeypatch: pytest.MonkeyPa
     monkeypatch.setitem(sys.modules, "openai", None)
     with pytest.raises(ImportError, match=r"pytest-wardenbot\[openai\]"):
         OpenAIChatAdapter()
+
+
+def test_sync_openai_client_close_respects_ownership(monkeypatch: pytest.MonkeyPatch) -> None:
+    import pytest_wardenbot.adapters.openai_chat as module
+
+    class ClosableClient(StubOpenAIClient):
+        closed = 0
+
+        def close(self) -> None:
+            self.closed += 1
+
+    owned = ClosableClient()
+    monkeypatch.setattr(module, "_import_openai", lambda: SimpleNamespace(OpenAI=lambda: owned))
+    OpenAIChatAdapter().close()
+    assert owned.closed == 1
+
+    injected = ClosableClient()
+    OpenAIChatAdapter(client=injected).close()
+    assert injected.closed == 0
 
 
 # ---------------------------------------------------------------------------
@@ -193,12 +286,58 @@ async def test_async_openai_adapter_sends_and_extracts() -> None:
 
 @pytest.mark.asyncio
 async def test_async_openai_adapter_wraps_exceptions() -> None:
-    boom = RuntimeError("network")
+    boom = RuntimeError("synthetic-secret vendor payload")
     client = StubAsyncOpenAIClient(raise_exc=boom)
     adapter = AsyncOpenAIChatAdapter(client=client)
-    with pytest.raises(WardenBotInfraError, match="network") as exc_info:
+    with pytest.raises(
+        WardenBotInfraError, match=r"OpenAI API call failed \(RuntimeError\)"
+    ) as exc_info:
         await adapter.send_message("hi")
-    assert exc_info.value.__cause__ is boom
+    rendered = "".join(traceback.format_exception(exc_info.value))
+    assert "synthetic-secret" not in repr(exc_info.value)
+    assert "synthetic-secret" not in rendered
+    assert exc_info.value.__cause__ is None
+    assert exc_info.value.__suppress_context__
+
+
+@pytest.mark.asyncio
+async def test_async_openai_client_close_respects_ownership(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import pytest_wardenbot.adapters.openai_chat as module
+
+    class ClosableClient(StubAsyncOpenAIClient):
+        closed = 0
+
+        async def close(self) -> None:
+            self.closed += 1
+
+    owned = ClosableClient()
+    monkeypatch.setattr(
+        module, "_import_openai", lambda: SimpleNamespace(AsyncOpenAI=lambda: owned)
+    )
+    await AsyncOpenAIChatAdapter().aclose()
+    assert owned.closed == 1
+
+    injected = ClosableClient()
+    await AsyncOpenAIChatAdapter(client=injected).aclose()
+    assert injected.closed == 0
+
+
+@pytest.mark.asyncio
+async def test_async_openai_caller_cancellation_propagates() -> None:
+    class HangingCompletions:
+        async def create(self, **kwargs: object) -> object:
+            del kwargs
+            await asyncio.Event().wait()
+            return object()
+
+    client = SimpleNamespace(chat=SimpleNamespace(completions=HangingCompletions()))
+    task = asyncio.create_task(AsyncOpenAIChatAdapter(client=client).send_message("hi"))
+    await asyncio.sleep(0)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
 
 
 @pytest.mark.asyncio

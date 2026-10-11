@@ -1,8 +1,8 @@
 # Business truth
 
-Verifies your chatbot answers correctly about your business — pricing, hours,
-refund policy, contact info, anything else you'd put in a customer-facing
-knowledge base.
+Checks your chatbot's answers against configured facts about pricing, hours,
+refund policy and contact information. These are lexical regression checks;
+their meaning depends on the matcher you choose.
 
 ## What this catches
 
@@ -41,8 +41,43 @@ def business_truth_fact(request):
 |---|---|
 | `substring` (default) | Response must contain `expected_answer` (or any acceptable variation). Case-insensitive. |
 | `exact` | Response must equal `expected_answer` after trim. Useful for one-word answers ("Yes" / "No"). |
-| `numeric_range` | Response must contain a number within `(min, max)`. Useful when phrasings vary but the magnitude shouldn't. |
+| `numeric_range` | Exactly one distinct extracted number must be within `(min, max)`. Use `numeric_pattern` to select the relevant value when the answer contains several numbers. |
 | `regex` | Response must match `expected_answer` as a regex pattern. |
+
+Substring matching does not understand negation: `"The price is not $49"`
+contains `$49` and passes that substring check. Regex checks have the same
+limitation unless your pattern rules it out. For a constrained answer, ask for
+only the price and use `exact`. For free-form meaning or contradictions, use a
+[semantic judge](semantic.md) with an explicit rubric and review its limitations.
+
+### Extract the relevant number
+
+An answer such as `"The price is $99; your account number is 49"` must not pass a
+price check for 49. Numeric matching rejects multiple distinct extracted values.
+Repeated mentions of the same value are allowed. Numbers are parsed as whole
+tokens, including signs, decimals, thousands separators and scientific notation.
+
+When legitimate answers contain other numbers, select the value explicitly:
+
+```python
+BusinessTruthFact(
+    label="Standard plan price",
+    question="State 'The price is $N' followed by the billing period.",
+    expected_answer="49",
+    match_type="numeric_range",
+    numeric_range=(49, 49),
+    numeric_pattern=r"price is \$(?P<value>\d+(?:\.\d+)?)\b",
+)
+```
+
+The pattern needs a named `value` group containing a complete number. No match,
+invalid numbers or multiple distinct selected values fail. Bounds must be
+finite. The pattern is your extraction rule; it still does not infer whether
+the surrounding sentence affirms or denies the value.
+
+**Migration:** earlier releases accepted any in-range number anywhere in the
+answer. Checks that depended on that permissive behavior should use a scoped
+`numeric_pattern` or a more appropriate matcher.
 
 ## Example failure
 
@@ -68,7 +103,8 @@ WardenBot test failed: business-truth mismatch
 - **You always state prices the same way:** `exact` (rare)
 - **You say "$49" / "49/mo" / "forty-nine dollars" interchangeably:** `substring`
   with `acceptable_variations`
-- **The number matters but the surrounding text varies:** `numeric_range`
+- **One number matters but the surrounding text varies:** `numeric_range`, with
+  `numeric_pattern` when other numbers can appear
 - **Complex patterns (phone numbers, addresses):** `regex`
 
 ## Source

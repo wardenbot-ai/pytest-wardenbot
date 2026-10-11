@@ -26,11 +26,15 @@ You are the customer-support assistant for Example Corp.
 def chatbot():
     if not os.environ.get("OPENAI_API_KEY"):
         pytest.skip("OPENAI_API_KEY not set; needed for the OpenAI adapter example.")
-    return OpenAIChatAdapter(
+    adapter = OpenAIChatAdapter(
         model="gpt-4o-mini",
         system_prompt=SYSTEM_PROMPT,
         # TODO: change the model, temperature, or system prompt for your bot.
     )
+    try:
+        yield adapter
+    finally:
+        adapter.close()
 
 
 @pytest.fixture(

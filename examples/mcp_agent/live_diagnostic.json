@@ -1,0 +1,22 @@
+{
+  "outcome": "error",
+  "diagnostics": [
+    {
+      "line": 186,
+      "type": "invalid_request_error",
+      "http_status": 400,
+      "code": "unknown_parameter",
+      "param": "input[1].async_"
+    },
+    {
+      "line": 189,
+      "type": "WardenBotInfraError",
+      "fixed_reason": "Reference model request failed"
+    },
+    {
+      "line": 130,
+      "type": "WardenBotInfraError",
+      "fixed_reason": "Local MCP harness transport or target execution failed"
+    }
+  ]
+}

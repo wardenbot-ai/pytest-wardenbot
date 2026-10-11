@@ -6,6 +6,7 @@ scripts that verify expected outcomes.
 
 | Example | What it shows |
 |---|---|
+| [`mcp_agent/`](./mcp_agent/) | Reference Responses tool loop, offline SDK controls and a bounded opt-in live pilot with benign/attack pairs. |
 | [`mcp_harness/`](./mcp_harness/) | Real local MCP transports, four injected surfaces and three scripted agent controls. No API keys or external effects. |
 | [`basic_http/`](./basic_http/) | The bundled `HTTPChatbotAdapter` against any HTTP chatbot endpoint. The quickest starting point. |
 | [`langgraph_state/`](./langgraph_state/) | An executable in-memory LangGraph with messages mapping, independent threads, and sync/async checkpoint reset. No API key needed. |

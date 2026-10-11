@@ -135,7 +135,11 @@ _SessionStore = TypeVar("_SessionStore", _SyncSessions, _AsyncSessions)
 def _validated_response(response: Any) -> tuple[str, dict[str, Any], list[dict[str, Any]]]:
     """Validate all output before accepting any text or committing history."""
     try:
-        raw = deepcopy(response if isinstance(response, dict) else response.model_dump(mode="json"))
+        raw = deepcopy(
+            response
+            if isinstance(response, dict)
+            else response.model_dump(mode="json", by_alias=True, exclude_unset=True)
+        )
     except Exception:
         raise WardenBotInfraError(
             "OpenAI Responses returned an unreadable response payload."

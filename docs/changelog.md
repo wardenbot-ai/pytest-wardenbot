@@ -5,6 +5,47 @@ All notable changes to `pytest-wardenbot` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.0] — 2026-10-11
+
+### Added
+
+- Separate packaged `pytest_wardenbot.agent_tests` suite with eight versioned
+  scenarios: forbidden-tool and synthetic-canary assertions across tool results,
+  descriptions, resources and prompts. Each scenario runs a benign baseline
+  and an attack trial with independent task-utility checks.
+- Explicit scenario selection, capability markers, sanitized console/JUnit
+  diagnostics and required-coverage mode. Skipping or deselecting required
+  cases, missing evidence and unsupported capabilities cannot silently pass CI.
+  Baseline utility is distinguished from observed attack resistance.
+- Real Responses/MCP reference agent with a dispatch allowlist and an
+  intentionally vulnerable profile. Offline SDK controls run without API keys;
+  opt-in live evaluation uses frozen development/holdout cases, repeated paired
+  trials, request/output/time bounds and content-minimized reports.
+- Benign MCP harness mode and configurable synthetic document/injection content
+  for paired controls. Existing harness behavior remains the default.
+
+### Fixed
+
+- HTTP, OpenAI Chat and Anthropic infrastructure errors no longer include URL
+  credentials, response bodies or raw provider exception text. HTTP reprs hide
+  endpoints; malformed vendor output cannot leak through validation errors.
+- Responses replay uses wire aliases and only fields present in the provider
+  response. SDK-only names and unset defaults cannot leak into the next request;
+  reasoning items remain intact for local replay.
+- Owned sync/async clients now have explicit cleanup methods; injected vendor
+  clients remain caller-owned. Examples and generated HTTP fixtures close their
+  clients after use. Cancellation continues to propagate.
+- Numeric business-fact checks no longer accept a prefix of a larger number or
+  an unrelated in-range value among ambiguous numbers. `numeric_pattern` with a
+  named `value` group supports scoped extraction. Existing multi-number checks
+  may need this explicit selector; see the business-truth migration note.
+- Documentation now states the limits of lexical fact matching and removes an
+  unsupported calibration claim from the historical evaluation discussion.
+
+The existing chatbot test package remains separate. The agent workflow records
+local instrumented boundaries and includes deliberately vulnerable controls;
+neither passing controls nor the small pilot establish general model security.
+
 ## [0.1.9] — 2026-10-11
 
 ### Added

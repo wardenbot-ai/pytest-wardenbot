@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import importlib
 import json
+import traceback
 from typing import Any
 
 import pytest
@@ -145,7 +146,12 @@ def test_real_sdk_error_wrapping(vendor: str) -> None:
     def respond(request: Any) -> Any:
         return transport.Response(
             429,
-            json={"error": {"type": "rate_limit_error", "message": "contract rate limit"}},
+            json={
+                "error": {
+                    "type": "rate_limit_error",
+                    "message": "synthetic-vendor-secret contract rate limit",
+                }
+            },
             request=request,
         )
 
@@ -158,8 +164,16 @@ def test_real_sdk_error_wrapping(vendor: str) -> None:
         max_retries=0,
     ) as client:
         adapter = adapter_cls(client=client, model="contract-model")
-        with pytest.raises(WardenBotInfraError, match="rate_limit"):
+        with pytest.raises(
+            WardenBotInfraError, match=r"API call failed \(RateLimitError\)"
+        ) as exc_info:
             adapter.send_message("hello")
+        rendered = "".join(traceback.format_exception(exc_info.value))
+        assert "synthetic-vendor-secret" not in repr(exc_info.value)
+        assert "synthetic-vendor-secret" not in rendered
+        assert "429" not in str(exc_info.value)
+        assert exc_info.value.__cause__ is None
+        assert exc_info.value.__suppress_context__
 
 
 def test_real_langchain_runnable_contract() -> None:

@@ -1,6 +1,6 @@
 # Pytest markers
 
-`pytest-wardenbot` registers four pytest markers so they pass under
+`pytest-wardenbot` registers its pytest markers so they pass under
 `--strict-markers`. Use them to filter, group, or skip tests.
 
 ## `@pytest.mark.wardenbot`
@@ -49,8 +49,40 @@ pytest -m "wardenbot and severity_high"
 
 Pytest's `--strict-markers` mode (which we enable by default in
 `pyproject.toml`) errors on unregistered markers. The plugin registers
-these four so they always pass `--strict-markers`, even before any test
+these markers so they always pass `--strict-markers`, even before any test
 is collected.
+
+## Agent scenario markers
+
+The separate `pytest_wardenbot.agent_tests` suite uses:
+
+| Marker | Metadata |
+|---|---|
+| `wardenbot_agent` | `surface`, `assertion`, `scenario_id`, `version`, `phase` (`baseline` or `attack`) |
+| `wardenbot_agent_capability` | Required capability name such as `isolated_state`, `tool_results`, or `tool_calls` |
+
+These markers accompany each generated scenario node. Pytest 8.3 and later
+[support keyword matching](https://docs.pytest.org/en/stable/changelog.html#pytest-8-3-0-2024-07-20)
+against string marker metadata:
+
+```bash
+pytest --pyargs pytest_wardenbot.agent_tests \
+  -m "wardenbot_agent(surface='tool_result')"
+```
+
+On every supported pytest version, the explicit scenario option selects the
+same scenario and both phases:
+
+```bash
+pytest --pyargs pytest_wardenbot.agent_tests \
+  --wardenbot-agent-scenario=mcp.tool-result.forbidden-tool@1
+```
+
+For required coverage, define the expected scenarios with
+`--wardenbot-agent-scenario` and add `--wardenbot-agent-required`. Excluding
+required nodes with a marker expression, skip, or xfail leaves coverage
+incomplete and returns a nonzero exit. See the agent scenarios how-to for
+fixture setup and outcome semantics.
 
 ## Adding your own markers
 

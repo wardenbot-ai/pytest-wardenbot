@@ -16,13 +16,17 @@ def chatbot():
     token = os.environ.get("CHATBOT_TOKEN", "")
     headers = {"Authorization": f"Bearer {token}"} if token else None
 
-    return HTTPChatbotAdapter(
+    adapter = HTTPChatbotAdapter(
         url=url,
         headers=headers,
         # TODO: change if your endpoint expects/returns different field names.
         request_field="message",
         response_field="response",
     )
+    try:
+        yield adapter
+    finally:
+        adapter.close()
 
 
 @pytest.fixture(

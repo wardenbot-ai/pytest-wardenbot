@@ -13,12 +13,13 @@ Supports four match types:
 
 - `exact`   — response must equal `expected_answer` (case-insensitive trim).
 - `substring` — response must contain `expected_answer` (or any acceptable variation).
-- `numeric_range` — response must contain a number in `numeric_range`.
+- `numeric_range` — one unambiguous extracted value must be in `numeric_range`.
 - `regex`   — response must match `expected_answer` as a regex.
 """
 
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass, field
 from typing import Literal
@@ -61,6 +62,14 @@ class BusinessTruthFact:
     numeric_range: tuple[float, float] | None = None
     """Inclusive (min, max) range for `numeric_range` match."""
 
+    numeric_pattern: str | None = None
+    """Optional regex with a named ``value`` group selecting the relevant number.
+
+    Without it, all standalone numeric tokens are considered. Multiple distinct
+    values fail rather than allowing an unrelated number to satisfy the check.
+    This is a lexical assertion, not a check of meaning or negation.
+    """
+
     def parametrize_id(self) -> str:
         """The string shown as the parametrize ID in pytest output."""
         source = self.label or self.question
@@ -73,7 +82,11 @@ class BusinessTruthFact:
 
 
 def assert_truth_fact_match(response_text: str, fact: BusinessTruthFact) -> None:
-    """Assert the chatbot's response correctly answers `fact`.
+    """Assert the response satisfies the configured lexical check for `fact`.
+
+    Substring and regex matches do not establish semantic correctness. A
+    response denying the expected phrase can still contain it. Use an exact
+    constrained answer or a semantic judge when that distinction matters.
 
     Raises AssertionError with a structured message including:
     - The fact label + question
@@ -98,6 +111,10 @@ def _match_substring(response_text: str, fact: BusinessTruthFact) -> bool:
     return any(c.casefold() in haystack for c in candidates if c)
 
 
+_NUMBER = r"[-+]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?(?:[eE][-+]?\d+)?"
+_NUMBER_TOKEN = re.compile(r"(?<![\w.,])" + _NUMBER + r"(?!\w|\.\d|,\d)")
+
+
 def _match_numeric_range(response_text: str, fact: BusinessTruthFact) -> bool:
     if fact.numeric_range is None:
         raise ValueError(
@@ -105,21 +122,29 @@ def _match_numeric_range(response_text: str, fact: BusinessTruthFact) -> bool:
             "but no numeric_range=(min, max) was provided."
         )
     lo, hi = fact.numeric_range
+    if not math.isfinite(lo) or not math.isfinite(hi):
+        raise ValueError("numeric_range bounds must be finite.")
     if lo > hi:
         raise ValueError(
             f"BusinessTruthFact {fact.label or fact.question!r} has numeric_range "
             f"min ({lo}) > max ({hi})."
         )
-    # Find all numeric tokens in the response, including decimals + commas.
-    matches = re.findall(r"-?\d{1,3}(?:,\d{3})*(?:\.\d+)?|-?\d+(?:\.\d+)?", response_text)
+    if fact.numeric_pattern is None:
+        matches = _NUMBER_TOKEN.findall(response_text)
+    else:
+        pattern = re.compile(fact.numeric_pattern)
+        if "value" not in pattern.groupindex:
+            raise ValueError("numeric_pattern must contain a named (?P<value>...) group.")
+        matches = [match.group("value") for match in pattern.finditer(response_text)]
+    values: set[float] = set()
     for raw in matches:
-        try:
-            value = float(raw.replace(",", ""))
-        except ValueError:
-            continue
-        if lo <= value <= hi:
-            return True
-    return False
+        if raw is None or re.fullmatch(_NUMBER, raw) is None:
+            return False
+        value = float(raw.replace(",", ""))
+        if not math.isfinite(value):
+            return False
+        values.add(value)
+    return len(values) == 1 and lo <= next(iter(values)) <= hi
 
 
 def _match_regex(response_text: str, fact: BusinessTruthFact) -> bool:
@@ -153,7 +178,9 @@ def _format_truth_failure(response_text: str, fact: BusinessTruthFact) -> str:
     label = fact.label or "(unlabeled fact)"
 
     if fact.match_type == "numeric_range" and fact.numeric_range is not None:
-        expected_desc = f"a number in range [{fact.numeric_range[0]}, {fact.numeric_range[1]}]"
+        expected_desc = (
+            f"one unambiguous value in range [{fact.numeric_range[0]}, {fact.numeric_range[1]}]"
+        )
     elif fact.match_type == "substring" and fact.acceptable_variations:
         expected_desc = (
             f"{fact.expected_answer!r} (or any of: "
