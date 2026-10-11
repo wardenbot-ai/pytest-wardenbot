@@ -1,9 +1,9 @@
 """pytest-wardenbot — pytest plugin for testing chatbots and LLM apps.
 
-See https://github.com/pardamike/pytest-wardenbot for documentation.
+See https://github.com/wardenbot-ai/pytest-wardenbot for documentation.
 """
 
-__version__ = "0.1.4"
+__version__ = "0.1.5"
 
 from pytest_wardenbot._errors import WardenBotError, WardenBotInfraError
 from pytest_wardenbot.adapters.base import (

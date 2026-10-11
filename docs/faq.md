@@ -33,7 +33,7 @@ Or remove the import from your generated `test_my_bot.py`.
 
 v0.1 doesn't include tool-call-specific tests. v0.2 will add a runner
 backed by Microsoft RAMPART for Cross-Prompt Injection Attack (XPIA)
-testing against agents that use tools. Track progress in [GitHub Issues](https://github.com/pardamike/pytest-wardenbot/issues).
+testing against agents that use tools. Track progress in [GitHub Issues](https://github.com/wardenbot-ai/pytest-wardenbot/issues).
 
 ## My bot is behind a login. How do I test it?
 
@@ -101,6 +101,6 @@ browser to drive the widget, which is outside the OSS plugin's scope.
 
 ## How do I get help?
 
-- [Open an issue](https://github.com/pardamike/pytest-wardenbot/issues/new/choose)
-- Check the [examples](https://github.com/pardamike/pytest-wardenbot/tree/main/examples)
-- For security reports, see [SECURITY.md](https://github.com/pardamike/pytest-wardenbot/blob/main/SECURITY.md)
+- [Open an issue](https://github.com/wardenbot-ai/pytest-wardenbot/issues/new/choose)
+- Check the [examples](https://github.com/wardenbot-ai/pytest-wardenbot/tree/main/examples)
+- For security reports, see [SECURITY.md](https://github.com/wardenbot-ai/pytest-wardenbot/blob/main/SECURITY.md)

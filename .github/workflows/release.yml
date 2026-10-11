@@ -3,13 +3,12 @@ name: Release
 # Triggered on tag push v*. Builds sdist + wheel, runs twine check, then
 # publishes to PyPI via OIDC Trusted Publishing — no long-lived API tokens.
 #
-# PyPI setup (one-time, done outside this workflow):
-#   1. Maintainer adds a "Pending Publisher" at
-#      https://pypi.org/manage/account/publishing/
-#      with project=pytest-wardenbot, owner=pardamike,
-#      repo=pytest-wardenbot, workflow=release.yml, environment=pypi.
-#   2. After the first publish, PyPI promotes the pending publisher to a
-#      real one and subsequent releases need no further configuration.
+# PyPI setup for the existing project (also required after a GitHub transfer):
+#   https://pypi.org/manage/project/pytest-wardenbot/settings/publishing/
+#   Add a GitHub Trusted Publisher with owner=wardenbot-ai,
+#   repository=pytest-wardenbot, workflow=release.yml, environment=pypi.
+#   This is a project publisher, not a pending publisher for a new package.
+#   See CONTRIBUTING.md for release and ownership-transfer verification.
 #
 # Actions are SHA-pinned (not tag-pinned) because this is the
 # supply-chain-critical publish path. Dependabot (.github/dependabot.yml)
@@ -72,6 +71,7 @@ jobs:
   publish:
     name: Publish to PyPI (Trusted Publishing)
     needs: [build]
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     environment:
       name: pypi

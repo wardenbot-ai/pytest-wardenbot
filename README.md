@@ -1,7 +1,7 @@
 # pytest-wardenbot
 
-[![CI](https://github.com/pardamike/pytest-wardenbot/actions/workflows/ci.yml/badge.svg)](https://github.com/pardamike/pytest-wardenbot/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/pardamike/pytest-wardenbot/branch/main/graph/badge.svg)](https://codecov.io/gh/pardamike/pytest-wardenbot)
+[![CI](https://github.com/wardenbot-ai/pytest-wardenbot/actions/workflows/ci.yml/badge.svg)](https://github.com/wardenbot-ai/pytest-wardenbot/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/wardenbot-ai/pytest-wardenbot/branch/main/graph/badge.svg)](https://codecov.io/gh/wardenbot-ai/pytest-wardenbot)
 [![Python versions](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue)](https://pypi.org/project/pytest-wardenbot/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](./LICENSE.md)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
@@ -11,7 +11,7 @@ Pytest plugin for testing chatbots and LLM apps — prompt injection, jailbreaks
 
 📖 **Documentation:** [pytest-wardenbot.wardenbot.ai](https://pytest-wardenbot.wardenbot.ai/)
 
-> **Status: pre-release.** v0.1.2 is in active development. APIs may change before the first stable release. The v0.2 roadmap is tracked in [GitHub Issues](https://github.com/pardamike/pytest-wardenbot/issues).
+> **Status: pre-release.** The 0.1 series is in active development. APIs may change before the first stable release. The v0.2 roadmap is tracked in [GitHub Issues](https://github.com/wardenbot-ai/pytest-wardenbot/issues).
 
 ---
 
@@ -20,9 +20,9 @@ Pytest plugin for testing chatbots and LLM apps — prompt injection, jailbreaks
 Run pytest against your chatbot and find out if it leaks its system prompt, complies with known jailbreaks, hallucinates business facts, or drifts from your brand voice.
 
 - **Black-box.** Tests run against your live chatbot via HTTP, OpenAI API, Anthropic API, or any object you write a small adapter for.
-- **Deterministic-first.** v0.1 ships 29 tests that need zero LLM API spend — regex, substring, and schema checks. Optional LLM-judge tests (DeepEval) ship as an extra for semantic checks.
+- **Deterministic-first.** v0.1 ships 29 tests graded with regex, substring, and schema checks, without a separate judge model. Your chatbot's API usage may still cost money. Optional LLM-judge tests (DeepEval) ship as an extra for semantic checks.
 - **Agent-ready failures.** When a test fails, the failure message includes a structured Markdown remediation prompt you can paste into Cursor or Claude Code.
-- **Verified adapters.** The bundled OpenAI and Anthropic adapters are smoke-tested weekly against the live vendor APIs in CI ([live-api-smoke](https://github.com/pardamike/pytest-wardenbot/actions/workflows/live-api-smoke.yml)) — a real round-trip stays known-good, not just mocked.
+- **Public adapter checks.** The bundled OpenAI and Anthropic adapters have mock-based tests and a scheduled live API smoke workflow. Check the [latest workflow results](https://github.com/wardenbot-ai/pytest-wardenbot/actions/workflows/live-api-smoke.yml) for the current live status.
 
 ### What "passing" means (and doesn't)
 
@@ -31,6 +31,10 @@ A green run means your chatbot didn't fail any of the bundled 29 attacks in the 
 A green run does **not** mean your chatbot is secure. Frontier-grade attacks are multi-turn, novel, and adapted to your specific bot — no fixed corpus catches all of them. Treat the shipped suite as a starter set: pair it with periodic red-team exercises (or our [Continuous Monitoring](https://wardenbot.ai/intake/) service) for the always-on adversarial coverage CI alone can't provide.
 
 ## Install
+
+Requires Python 3.11+. The package is maintained by
+the [WardenBot AI organization](https://github.com/wardenbot-ai/pytest-wardenbot);
+the GitHub transfer does not change its PyPI name or Python imports.
 
 ```bash
 pip install pytest-wardenbot
@@ -110,9 +114,11 @@ into Cursor / Claude Code, ship the fix.
 | Business-truth verification (parametrized over your facts) | user-supplied | deterministic | no |
 | Semantic checks via DeepEval (5 factories: equivalence, brand, hallucination, off-policy, refusal quality) | user-supplied | LLM-judge | yes, with `[judge]` extra |
 
-That's **29 deterministic tests** out-of-the-box (plus the opt-in canary leak test, plus your business-truth and judge lists). Tests run in under a second against a real chatbot with zero LLM API spend unless you've opted into the `[judge]` extra.
+That's **29 deterministic tests** out-of-the-box (plus the opt-in canary leak test, plus your business-truth and judge lists). Runtime and chatbot API costs depend on your endpoint; the deterministic checks do not call a separate judge model.
 
-The v0.2 roadmap (RAMPART for tool-using agents, LangChain/MCP adapters, ensemble judging, and more) is tracked in [GitHub Issues](https://github.com/pardamike/pytest-wardenbot/issues).
+LangChain adapters, ensemble judging, and parallel async probes are available
+in the 0.1 series. Follow upcoming work in
+[GitHub Issues](https://github.com/wardenbot-ai/pytest-wardenbot/issues).
 
 ## How it's different from related tools
 

@@ -108,5 +108,5 @@ Run only high-severity tests: `pytest -m severity_high`.
 ## Contributing tests back
 
 If your custom test catches a pattern that probably affects other users,
-consider opening a [new-test-request issue](https://github.com/pardamike/pytest-wardenbot/issues/new?template=new_test_request.yml).
+consider opening a [new-test-request issue](https://github.com/wardenbot-ai/pytest-wardenbot/issues/new?template=new_test_request.yml).
 We add useful tests to the shipped corpus when they're broadly applicable.

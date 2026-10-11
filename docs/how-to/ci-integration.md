@@ -40,7 +40,7 @@ Add `CHATBOT_URL` (and `CHATBOT_TOKEN` if your bot needs auth) to repo
 secrets under Settings → Secrets and variables → Actions.
 
 Full example with optional Slack notification on failure:
-[`examples/github_actions/wardenbot.yml`](https://github.com/pardamike/pytest-wardenbot/tree/main/examples/github_actions)
+[`examples/github_actions/wardenbot.yml`](https://github.com/wardenbot-ai/pytest-wardenbot/tree/main/examples/github_actions)
 
 ## GitLab CI
 

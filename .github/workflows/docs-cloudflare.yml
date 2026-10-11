@@ -15,6 +15,7 @@ on:
       - "src/pytest_wardenbot/**"
       - ".github/workflows/docs-cloudflare.yml"
       - "pyproject.toml"
+      - "scripts/check_docs.py"
   workflow_dispatch: {}
 
 permissions:
@@ -51,3 +52,5 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy site --project-name=pytest-wardenbot --branch=main
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify deployed navigation and assets
+        run: python scripts/check_docs.py https://pytest-wardenbot.wardenbot.ai/ --attempts 8
