@@ -171,7 +171,10 @@ def test_real_langchain_runnable_contract() -> None:
         LangChainAdapter,
     )
 
-    runnable = RunnableLambda(lambda prompt: {"answer": "Echo: " + prompt})
+    def echo(prompt: str) -> dict[str, str]:
+        return {"answer": "Echo: " + prompt}
+
+    runnable = RunnableLambda(echo)
     assert LangChainAdapter(runnable).send_message("hello").text == "Echo: hello"
     response = asyncio.run(AsyncLangChainAdapter(runnable).send_message("async"))
     assert response.text == "Echo: async"

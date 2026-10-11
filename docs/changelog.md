@@ -31,8 +31,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Unknown LangChain outputs and invalid text extractors now raise infrastructure
   errors. Stateful reset requires a hook that clears the backing history.
 - OpenAI extra now requires SDK 1.66.3 or later for Responses; Anthropic requires
-  0.40.0 or later after reproducing an older HTTP-client constructor failure.
-- DeepEval uses its current parameter enum while retaining the older SDK path.
+  0.49.0 or later for compatible client construction and judge request fields.
+- The judge extra requires DeepEval 4.2.8 and includes the Anthropic SDK needed
+  by its default provider. DeepEval 2.0 lacks the required vendor wrappers.
+  Compatibility tests exercise the built-in judge provider path. Requested
+  temperature reaches current Anthropic SDKs through `extra_body` when the
+  selected model supports it.
 
 ### Fixed
 
