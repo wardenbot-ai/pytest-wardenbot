@@ -4,7 +4,7 @@ Pytest plugin for testing chatbots and LLM apps. Run a curated test suite
 against your chatbot to catch behavior regressions before your customers do.
 
 !!! note "Pre-release"
-    v0.1.2 is in active development. APIs may change before the first stable
+    The 0.1 series is in active development. APIs may change before the first stable
     release. See the [changelog](changelog.md) for what's landed.
 
 ## Why this exists

@@ -9,6 +9,7 @@ on:
       - "src/pytest_wardenbot/**"
       - ".github/workflows/docs.yml"
       - "pyproject.toml"
+      - "scripts/check_docs.py"
   workflow_dispatch: {}
 
 permissions:
@@ -40,6 +41,8 @@ jobs:
           pip install -e ".[docs]"
 
       - name: Build site
+        env:
+          DOCS_SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
         run: mkdocs build --strict
 
       - name: Upload artifact
@@ -56,5 +59,10 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - uses: actions/checkout@v4
       - id: deployment
         uses: actions/deploy-pages@v4
+      - name: Verify deployed navigation and assets
+        env:
+          DOCS_URL: ${{ steps.deployment.outputs.page_url }}
+        run: python scripts/check_docs.py "$DOCS_URL" --attempts 8

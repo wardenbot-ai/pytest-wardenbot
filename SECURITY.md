@@ -18,7 +18,7 @@ the latest tag.
 In scope:
 
 - The installed `pytest-wardenbot` package on PyPI
-- The GitHub repository at `pardamike/pytest-wardenbot`
+- The GitHub repository at `wardenbot-ai/pytest-wardenbot`
 - Generated `conftest.py` / `test_my_bot.py` templates
 
 Out of scope (report to [WardenBot AI](https://wardenbot.ai/.well-known/security.txt) instead):

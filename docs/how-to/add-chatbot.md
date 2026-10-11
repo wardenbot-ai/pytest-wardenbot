@@ -103,7 +103,7 @@ def chatbot():
 ```
 
 The same shape works for Anthropic, LangChain agents, MCP servers, Slack
-bots, or anything else. See [`examples/custom_openai_adapter/`](https://github.com/pardamike/pytest-wardenbot/tree/main/examples/custom_openai_adapter)
+bots, or anything else. See [`examples/custom_openai_adapter/`](https://github.com/wardenbot-ai/pytest-wardenbot/tree/main/examples/custom_openai_adapter)
 in the repo for the full working file.
 
 ## Path 3: stateful / multi-turn chatbots

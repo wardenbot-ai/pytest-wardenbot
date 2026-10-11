@@ -4,6 +4,9 @@ Get from `pip install` to a green test run in under 60 seconds.
 
 ## 1. Install
 
+Use Python 3.11+. The GitHub repository is now under `wardenbot-ai`; the package name
+and imports are unchanged.
+
 ```bash
 pip install pytest-wardenbot
 ```
@@ -84,7 +87,8 @@ pytest
 ```
 
 You should see all the shipped tests run against your chatbot. The
-deterministic tests are free (no LLM API spend).
+deterministic grading does not use a judge model. Your chatbot's API usage
+can still incur provider charges.
 
 ## What to do with failures
 

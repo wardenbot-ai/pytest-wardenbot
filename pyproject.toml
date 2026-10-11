@@ -1,6 +1,6 @@
 [project]
 name = "pytest-wardenbot"
-version = "0.1.4"
+version = "0.1.5"
 description = "Pytest plugin for testing chatbots and LLM apps — prompt injection, jailbreaks, system-prompt leaks, hallucinations, brand drift."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -69,10 +69,10 @@ dev = [
 wardenbot = "pytest_wardenbot.plugin"
 
 [project.urls]
-Homepage = "https://wardenbot.ai/pytest-plugin"
+Homepage = "https://wardenbot.ai/pytest-plugin/"
 Documentation = "https://pytest-wardenbot.wardenbot.ai/"
-Repository = "https://github.com/pardamike/pytest-wardenbot"
-Issues = "https://github.com/pardamike/pytest-wardenbot/issues"
+Repository = "https://github.com/wardenbot-ai/pytest-wardenbot"
+Issues = "https://github.com/wardenbot-ai/pytest-wardenbot/issues"
 
 [build-system]
 requires = ["hatchling"]

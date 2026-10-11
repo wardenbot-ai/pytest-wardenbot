@@ -5,6 +5,34 @@ All notable changes to `pytest-wardenbot` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.5] — 2026-10-11
+
+### Fixed
+
+- Updated repository, issue, contribution, badge, and documentation links after
+  moving the project to `wardenbot-ai/pytest-wardenbot`.
+- Refreshed PyPI project metadata without changing the package name or imports.
+- Rebuilt the custom-domain docs and GitHub Pages fallback with deployment
+  checks for navigation, assets, and ownership links.
+- Documented the new PyPI Trusted Publisher settings and release procedure.
+
+### Known maintenance work
+
+This is an ownership and documentation release; runtime behavior and dependency
+requirements are unchanged. The following existing issues were identified during
+transfer verification and are deferred to the next maintenance phase:
+
+- **pytest 9.1 compatibility:** the `--pyargs` integration path skips
+  caller-configured fixtures with pytest 9.1.1 (23 integration tests fail).
+  The full suite passes with pytest 9.0.3. Use the quickstart's local test file
+  pattern while this is investigated.
+- **Development tooling drift:** CI installs an unbounded Ruff version while
+  pre-commit pins 0.15.14. Newer formatting rules fail on existing Markdown
+  code examples; align the tools during the maintenance update.
+- **Live vendor smoke checks:** scheduled OpenAI/Anthropic API runs were already
+  failing before this transfer. Review credentials, supported APIs, and model
+  selections before treating those adapters as recently live-verified.
+
 ## [0.1.4] — 2026-05-26
 
 ### Added
@@ -98,10 +126,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 Initial public release.
 
 The docs site is published on every push to `main` via
-[the docs workflow](https://github.com/pardamike/pytest-wardenbot/actions/workflows/docs.yml).
+[the docs workflow](https://github.com/wardenbot-ai/pytest-wardenbot/actions/workflows/docs.yml).
 
 Releases to PyPI happen on tag push (`v*`) via
-[the release workflow](https://github.com/pardamike/pytest-wardenbot/actions/workflows/release.yml)
+[the release workflow](https://github.com/wardenbot-ai/pytest-wardenbot/actions/workflows/release.yml)
 using PyPI Trusted Publishing — no long-lived API tokens.
 
 ### Added (across the v0.1 development cycle)

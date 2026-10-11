@@ -33,7 +33,7 @@ Three questions:
 ## Setup
 
 ```bash
-git clone https://github.com/pardamike/pytest-wardenbot.git
+git clone https://github.com/wardenbot-ai/pytest-wardenbot.git
 cd pytest-wardenbot
 python -m venv .venv
 source .venv/bin/activate
