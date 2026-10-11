@@ -190,6 +190,46 @@ def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line("markers", "severity_low: low-severity wardenbot test")
 
 
+@pytest.hookimpl(trylast=True)
+def pytest_sessionstart(session: pytest.Session) -> None:
+    """Keep consumer root fixtures visible to the installed ``--pyargs`` suite.
+
+    Pytest 9.1 defers conftest fixture registration until the corresponding
+    Directory is collected. The installed suite is outside the consumer's
+    rootdir, so its root Directory is never visited. Before 9.1, root conftest
+    fixtures were session-wide; restore that visibility for this invocation.
+
+    This compatibility shim mirrors pytest's upstream fix for #14683:
+    https://github.com/pytest-dev/pytest/pull/14694
+    Taking
+    the root conftest out of the pending queue also prevents duplicate fixture
+    registration in runs that collect both local and installed tests. Older
+    pytest, and versions with the upstream fix, have nothing pending to repair.
+    Nested conftests retain their normal directory scope.
+    Remove this shim when the minimum supported pytest includes that fix.
+    """
+    config = session.config
+    if not config.getoption("pyargs") or not any(
+        arg.split("::", 1)[0] == "pytest_wardenbot.tests"
+        or arg.split("::", 1)[0].startswith("pytest_wardenbot.tests.")
+        for arg in config.args
+    ):
+        return
+
+    # These two internal APIs are confined to the pytest 9.1 compatibility
+    # path. Reuse pytest's scanner to preserve scopes, params, ids, autouse,
+    # fixture names and dependency/override chains without cloning fixtures.
+    fixture_manager = getattr(session, "_fixturemanager", None)
+    if fixture_manager is None:
+        return
+    pending = getattr(fixture_manager, "_pending_conftests", None)
+    if pending is None:
+        return  # pytest < 9.1 registered these fixtures eagerly.
+    root_conftest = pending.pop(config.rootpath, None)
+    if root_conftest is not None:
+        fixture_manager.parsefactories(holder=root_conftest, node=session)
+
+
 # ---------------------------------------------------------------------------
 # Corpus parametrization (global hook)
 # ---------------------------------------------------------------------------
@@ -269,9 +309,10 @@ def chatbot() -> ChatbotAdapter:
     """The chatbot under test.
 
     Users MUST override this in their own conftest.py to point at their chatbot.
-    If left at the default, all wardenbot tests skip with a helpful message.
+    If left at the default, tests error with a helpful message. A security
+    suite that never probes a chatbot must not report a successful run.
     """
-    pytest.skip(_NO_CHATBOT_FIXTURE_MESSAGE)
+    pytest.fail(_NO_CHATBOT_FIXTURE_MESSAGE, pytrace=False)
 
 
 @pytest.fixture

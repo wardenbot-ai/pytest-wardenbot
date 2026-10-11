@@ -16,6 +16,12 @@ contains only the alternating user/assistant turns.
 
 A user-supplied client can be injected via the `client` parameter for tests
 and custom configuration.
+
+Sampling parameters are omitted by default for current Anthropic models.
+For an older model that supports it, an explicit `temperature` is forwarded
+through the SDK's `extra_body` option. The current SDK no longer accepts
+`temperature` directly on `messages.create`; model support remains the
+caller's responsibility.
 """
 
 from __future__ import annotations
@@ -95,7 +101,7 @@ class AnthropicMessagesAdapter:
         model: str = "claude-haiku-4-5",
         system_prompt: str | None = None,
         max_tokens: int = 1024,
-        temperature: float = 0.0,
+        temperature: float | None = None,
         client: Any | None = None,
         extra_request_fields: dict[str, Any] | None = None,
         keep_sensitive_response_fields: bool = False,
@@ -119,10 +125,13 @@ class AnthropicMessagesAdapter:
         kwargs: dict[str, Any] = {
             "model": self._model,
             "max_tokens": self._max_tokens,
-            "temperature": self._temperature,
             "messages": messages,
             **self._extra_request_fields,
         }
+        if self._temperature is not None:
+            extra_body = dict(kwargs.get("extra_body", {}))
+            extra_body["temperature"] = self._temperature
+            kwargs["extra_body"] = extra_body
         if self._system_prompt:
             kwargs["system"] = self._system_prompt
 
@@ -167,7 +176,7 @@ class AsyncAnthropicMessagesAdapter:
         model: str = "claude-haiku-4-5",
         system_prompt: str | None = None,
         max_tokens: int = 1024,
-        temperature: float = 0.0,
+        temperature: float | None = None,
         client: Any | None = None,
         extra_request_fields: dict[str, Any] | None = None,
         keep_sensitive_response_fields: bool = False,
@@ -191,10 +200,13 @@ class AsyncAnthropicMessagesAdapter:
         kwargs: dict[str, Any] = {
             "model": self._model,
             "max_tokens": self._max_tokens,
-            "temperature": self._temperature,
             "messages": messages,
             **self._extra_request_fields,
         }
+        if self._temperature is not None:
+            extra_body = dict(kwargs.get("extra_body", {}))
+            extra_body["temperature"] = self._temperature
+            kwargs["extra_body"] = extra_body
         if self._system_prompt:
             kwargs["system"] = self._system_prompt
 

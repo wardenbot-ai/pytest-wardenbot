@@ -42,7 +42,22 @@ def test_anthropic_adapter_sends_messages_with_system_top_level() -> None:
     assert call["messages"] == [{"role": "user", "content": "hi"}]
     assert call["model"] == "claude-haiku-4-5"
     assert call["max_tokens"] == 1024
-    assert call["temperature"] == 0.0
+    assert "temperature" not in call
+
+
+def test_anthropic_adapter_sends_explicit_temperature_in_extra_body() -> None:
+    client = StubAnthropicClient(response_text="hi back")
+    adapter = AnthropicMessagesAdapter(
+        client=client,
+        temperature=0.2,
+        extra_request_fields={"extra_body": {"custom": "value"}},
+    )
+    adapter.send_message("hi")
+
+    assert client.messages.calls[0]["extra_body"] == {
+        "custom": "value",
+        "temperature": 0.2,
+    }
 
 
 def test_anthropic_adapter_omits_system_kwarg_when_unset() -> None:
@@ -136,6 +151,16 @@ async def test_async_anthropic_adapter_sends_and_extracts() -> None:
     call = client.messages.calls[0]
     assert call["system"] == "sys"
     assert call["messages"] == [{"role": "user", "content": "hi"}]
+    assert "temperature" not in call
+
+
+@pytest.mark.asyncio
+async def test_async_anthropic_adapter_sends_explicit_temperature_in_extra_body() -> None:
+    client = StubAsyncAnthropicClient(response_text="async-reply")
+    adapter = AsyncAnthropicMessagesAdapter(client=client, temperature=0.2)
+    await adapter.send_message("hi")
+
+    assert client.messages.calls[0]["extra_body"] == {"temperature": 0.2}
 
 
 @pytest.mark.asyncio

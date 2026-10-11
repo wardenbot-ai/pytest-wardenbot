@@ -32,7 +32,7 @@ jobs:
           python-version: "3.12"
           cache: pip
       - name: Install pre-commit
-        run: pip install pre-commit
+        run: pip install pre-commit==4.5.1
       - name: Run pre-commit on all files
         run: pre-commit run --all-files --show-diff-on-failure
 
@@ -71,7 +71,7 @@ jobs:
         run: pyright
 
   test:
-    name: Test (Python ${{ matrix.python-version }})
+    name: Test (Python ${{ matrix.python-version }}, pytest ${{ matrix.pytest }})
     runs-on: ubuntu-latest
     permissions:
       contents: read   # actions/checkout
@@ -80,6 +80,10 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
+        pytest: [current]
+        include:
+          - python-version: "3.11"
+            pytest: minimum
     steps:
       - uses: actions/checkout@v4
 
@@ -89,10 +93,22 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
 
-      - name: Install package + dev deps
+      - name: Install package + current dev deps
+        if: matrix.pytest == 'current'
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
+
+      - name: Install minimum pytest and compatible test harness
+        if: matrix.pytest == 'minimum'
+        # pytest-asyncio 0.24+ requires pytest 8.2+, so this core-support
+        # lane uses an older harness without installing the [async] extra.
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e . "pytest==8.0.0" "pytest-asyncio==0.23.8" "pytest-cov==5.0.0"
+
+      - name: Report resolved versions
+        run: pip list
 
       - name: Run tests with coverage
         # Using `coverage run -m pytest` instead of `pytest --cov` so that the
@@ -104,7 +120,7 @@ jobs:
           coverage xml
 
       - name: Upload coverage to Codecov
-        if: matrix.python-version == '3.12'
+        if: matrix.python-version == '3.12' && matrix.pytest == 'current'
         uses: codecov/codecov-action@v5
         with:
           use_oidc: true
@@ -155,3 +171,45 @@ jobs:
           name: dist
           path: dist/
           retention-days: 7
+
+  docs:
+    name: Validate documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install documentation dependencies
+        run: pip install -e ".[docs]"
+      - name: Build documentation
+        run: mkdocs build --strict
+
+  consumer:
+    name: Fresh-wheel consumer (pytest ${{ matrix.pytest }})
+    runs-on: ubuntu-latest
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        pytest: [minimum, current]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Install wheel in a fresh environment
+        run: |
+          python -m venv "$RUNNER_TEMP/consumer-venv"
+          "$RUNNER_TEMP/consumer-venv/bin/python" -m pip install dist/*.whl
+      - name: Select minimum supported pytest
+        if: matrix.pytest == 'minimum'
+        run: '"$RUNNER_TEMP/consumer-venv/bin/python" -m pip install "pytest==8.0.0"'
+      - name: Run external consumer checks
+        working-directory: ${{ runner.temp }}
+        run: '"$RUNNER_TEMP/consumer-venv/bin/python" "$GITHUB_WORKSPACE/scripts/check_consumer.py"'

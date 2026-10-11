@@ -7,7 +7,8 @@
 # Run on all files (CI does this on every PR):
 #     pre-commit run --all-files
 #
-# Hook versions are pinned; update with `pre-commit autoupdate`.
+# Update Ruff and Pyright hooks together with their pins in pyproject.toml.
+# Review the resulting lint/format diff when upgrading tools.
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks

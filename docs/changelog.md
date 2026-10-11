@@ -5,6 +5,29 @@ All notable changes to `pytest-wardenbot` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.7] — 2026-10-11
+
+### Fixed
+
+- Restored consumer root fixtures when running the installed probe suite with
+  `--pyargs` on pytest 9.1, preserving parametrization, scope and teardown.
+- Restored corpus fixture lookup on the minimum supported pytest 8.0 release.
+- Missing required `chatbot` configuration now produces setup errors and a
+  nonzero exit instead of an entirely skipped, successful security run.
+- Updated Anthropic adapters for current SDKs: sampling parameters are omitted
+  by default; an explicit `temperature` uses `extra_body` for older models that
+  still support it. Explicit settings are not silently discarded.
+
+### Maintenance
+
+- Aligned Ruff and Pyright versions between CI and contributor hooks.
+- Added minimum/current pytest coverage and fresh-wheel consumer checks for
+  configured, vulnerable and missing-configuration cases.
+- Added strict documentation validation and a dependency support policy.
+- Split live provider checks into independent jobs with request timeouts,
+  retry/output bounds and explicit missing-credential failures. Both providers
+  passed bounded local round trips on 11 October 2026.
+
 ## [0.1.6] — 2026-10-11
 
 Version 0.1.5 was tagged but did not reach PyPI: the old upload action rejected
