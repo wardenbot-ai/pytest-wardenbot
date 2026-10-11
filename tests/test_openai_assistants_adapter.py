@@ -175,14 +175,17 @@ def test_assistants_adapter_keeps_raw_when_opted_in() -> None:
     assert result.raw["api_key"] == "sk-keep"  # pragma: allowlist secret
 
 
-def test_assistants_adapter_install_hint_on_missing_dep(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("adapter_class", [OpenAIAssistantsAdapter, AsyncOpenAIAssistantsAdapter])
+def test_assistants_adapter_retirement_error_without_sdk(
+    monkeypatch: pytest.MonkeyPatch, adapter_class: Any
+) -> None:
     import sys
 
     monkeypatch.setitem(sys.modules, "openai", None)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", DeprecationWarning)
-        with pytest.raises(ImportError, match=r"pytest-wardenbot\[openai\]"):
-            OpenAIAssistantsAdapter(assistant_id="asst_x")
+        with pytest.raises(WardenBotInfraError, match="OpenAIResponsesAdapter"):
+            adapter_class(assistant_id="asst_x")
 
 
 # ---------------------------------------------------------------------------
@@ -298,20 +301,41 @@ def test_assistants_adapter_repr_includes_assistant_id() -> None:
     assert "asst_test" in repr(_sync(StubOpenAIAssistantsClient()))
 
 
-def test_assistants_adapters_construct_client_when_not_injected(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize("adapter_class", [OpenAIAssistantsAdapter, AsyncOpenAIAssistantsAdapter])
+def test_assistants_adapters_do_not_construct_default_sdk_client(
+    monkeypatch: pytest.MonkeyPatch, adapter_class: Any
 ) -> None:
     import sys
     import types
+    from unittest.mock import Mock
 
+    factory = Mock(side_effect=AssertionError("Retired adapter must not construct SDK clients"))
     fake = types.ModuleType("openai")
-    fake.OpenAI = object  # type: ignore[attr-defined]
-    fake.AsyncOpenAI = object  # type: ignore[attr-defined]
+    fake.OpenAI = factory  # type: ignore[attr-defined]
+    fake.AsyncOpenAI = factory  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "openai", fake)
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DeprecationWarning)
-        assert OpenAIAssistantsAdapter(assistant_id="x").name == "openai-assistants"
-        assert AsyncOpenAIAssistantsAdapter(assistant_id="x").name == "async-openai-assistants"
+    with (
+        pytest.warns(DeprecationWarning, match="unavailable"),
+        pytest.raises(WardenBotInfraError, match="OpenAIResponsesAdapter"),
+    ):
+        adapter_class(assistant_id="x")
+    factory.assert_not_called()
+
+
+@pytest.mark.parametrize("adapter_class", [OpenAIAssistantsAdapter, AsyncOpenAIAssistantsAdapter])
+def test_assistants_rejects_incompatible_injected_client(adapter_class: Any) -> None:
+    with (
+        pytest.warns(DeprecationWarning, match="retired"),
+        pytest.raises(WardenBotInfraError, match=r"callable beta\.threads"),
+    ):
+        adapter_class(assistant_id="x", client=object())
+
+
+def test_assistants_rejects_noncallable_legacy_methods() -> None:
+    client = StubOpenAIAssistantsClient()
+    client.threads_stub.create = None  # type: ignore[method-assign]
+    with pytest.warns(DeprecationWarning), pytest.raises(WardenBotInfraError, match="callable"):
+        OpenAIAssistantsAdapter(assistant_id="x", client=client)
 
 
 @pytest.mark.asyncio

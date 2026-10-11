@@ -119,7 +119,7 @@ class AnthropicMessagesAdapter:
         self._sessions: dict[str, list[dict[str, str]]] = {}
 
     def send_message(self, prompt: str, *, session_id: str | None = None) -> ChatbotResponse:
-        history = self._sessions.setdefault(session_id, []) if session_id else []
+        history = self._sessions.setdefault(session_id, []) if session_id is not None else []
         messages = [*history, {"role": "user", "content": prompt}]
 
         kwargs: dict[str, Any] = {
@@ -194,7 +194,7 @@ class AsyncAnthropicMessagesAdapter:
         self._sessions: dict[str, list[dict[str, str]]] = {}
 
     async def send_message(self, prompt: str, *, session_id: str | None = None) -> ChatbotResponse:
-        history = self._sessions.setdefault(session_id, []) if session_id else []
+        history = self._sessions.setdefault(session_id, []) if session_id is not None else []
         messages = [*history, {"role": "user", "content": prompt}]
 
         kwargs: dict[str, Any] = {

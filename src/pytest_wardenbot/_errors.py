@@ -6,12 +6,14 @@ reached, returned malformed data, hit a network error) from security findings
 
 Why this matters: when a CI run shows red, the on-call engineer needs to know
 "is my bot down?" vs. "is my bot compromised?" — the operational response is
-completely different. `WardenBotInfraError` propagating naturally lands the
-result in pytest's ERROR bucket (vs. FAILURE for assertions), so the
-distinction is visible without any custom reporting layer.
+completely different. The exception type distinguishes infrastructure faults
+from assertion findings.
+Pytest reports exceptions during setup as ERROR and during a test call as FAILED;
+the exception class alone does not select the report outcome.
 
-Callers that need the original cause can access it via `__cause__` since all
-wrappers use `raise ... from exc`.
+Some adapters preserve an original cause via `__cause__`. Privacy-conscious
+adapters, including Responses, suppress SDK exception text and chaining because
+provider exceptions can contain sensitive request or response data.
 """
 
 from __future__ import annotations
@@ -29,5 +31,5 @@ class WardenBotInfraError(WardenBotError):
     missing expected field, wrong type). Distinct from AssertionError, which
     signals the chatbot DID respond but failed a security check.
 
-    The original exception is preserved as `__cause__`.
+    A wrapped exception may be preserved as `__cause__`; this is adapter-specific.
     """

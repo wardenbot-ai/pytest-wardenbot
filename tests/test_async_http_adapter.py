@@ -118,12 +118,11 @@ def test_to_sync_wraps_async_adapter_into_sync_protocol() -> None:
         return httpx.Response(200, json={"response": "via-sync-bridge"})
 
     async_adapter = _make_async_adapter(httpx.MockTransport(handler))
-    sync_adapter = to_sync(async_adapter)
-
-    assert isinstance(sync_adapter, ChatbotAdapter)
-    assert sync_adapter.name.startswith("sync-from-async(")
-    result = sync_adapter.send_message("hi")
-    assert result.text == "via-sync-bridge"
+    with to_sync(async_adapter) as sync_adapter:
+        assert isinstance(sync_adapter, ChatbotAdapter)
+        assert sync_adapter.name.startswith("sync-from-async(")
+        result = sync_adapter.send_message("hi")
+        assert result.text == "via-sync-bridge"
 
 
 def test_to_sync_propagates_infra_errors() -> None:
@@ -131,8 +130,7 @@ def test_to_sync_propagates_infra_errors() -> None:
         return httpx.Response(500)
 
     async_adapter = _make_async_adapter(httpx.MockTransport(handler))
-    sync_adapter = to_sync(async_adapter)
-    with pytest.raises(WardenBotInfraError):
+    with to_sync(async_adapter) as sync_adapter, pytest.raises(WardenBotInfraError):
         sync_adapter.send_message("hi")
 
 
@@ -141,6 +139,6 @@ def test_to_sync_supports_reset_session() -> None:
         return httpx.Response(200, json={"response": "ok"})
 
     async_adapter = _make_async_adapter(httpx.MockTransport(handler))
-    sync_adapter = to_sync(async_adapter)
-    # Just verify no exception; the AsyncHTTPChatbotAdapter.reset_session is no-op.
-    sync_adapter.reset_session("some-session-id")
+    with to_sync(async_adapter) as sync_adapter:
+        # AsyncHTTPChatbotAdapter.reset_session is a no-op.
+        sync_adapter.reset_session("some-session-id")

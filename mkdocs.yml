@@ -100,6 +100,9 @@ nav:
       - Run probes in parallel: how-to/parallel-async.md
       - CI integration: how-to/ci-integration.md
       - Dependency support: how-to/dependency-support.md
+      - Migrate from OpenAI Assistants: how-to/migrate-openai.md
+      - Isolate LangGraph state: how-to/langgraph-state.md
+      - Community release updates: how-to/community-updates.md
       - Enable LLM-judge tests: how-to/llm-judge-setup.md
       - Plant a canary token: how-to/canary-token.md
       - Customize the attack corpora: how-to/customize-corpora.md

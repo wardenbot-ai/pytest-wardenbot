@@ -42,6 +42,24 @@ def test_openai_chat_adapter_round_trips() -> None:
     assert response.latency_ms is not None and response.latency_ms >= 0
 
 
+def test_openai_responses_adapter_round_trips() -> None:
+    _require_api_key("OPENAI_API_KEY")
+    import openai  # type: ignore[import-not-found]
+
+    from pytest_wardenbot.adapters.openai_responses import OpenAIResponsesAdapter
+
+    with openai.OpenAI(timeout=_REQUEST_TIMEOUT_SECONDS, max_retries=_MAX_RETRIES) as client:
+        adapter = OpenAIResponsesAdapter(
+            model="gpt-4o-mini",
+            client=client,
+            extra_request_fields={"max_output_tokens": 32},
+        )
+        response = adapter.send_message(_PROMPT)
+
+    assert response.text.strip(), "expected a non-empty reply from the live API"
+    assert response.latency_ms is not None and response.latency_ms >= 0
+
+
 def test_anthropic_messages_adapter_round_trips() -> None:
     _require_api_key("ANTHROPIC_API_KEY")
     import anthropic  # type: ignore[import-not-found]

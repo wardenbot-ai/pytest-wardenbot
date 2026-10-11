@@ -3,6 +3,8 @@
 The required `chatbot` fixture must be configured before running the probes.
 A missing fixture produces setup errors and a nonzero exit; optional business
 facts, canary and judge cases can still skip when they are not configured.
+Generated quickstart fixtures also fail setup if `CHATBOT_URL` is unset, empty,
+or still the example placeholder; set it before running your probes.
 
 Get from `pip install` to a green test run in under 60 seconds.
 

@@ -21,6 +21,10 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  DEEPEVAL_TELEMETRY_OPT_OUT: "YES"
+  DEEPEVAL_UPDATE_WARNING_OPT_OUT: "YES"
+
 jobs:
   pre-commit:
     name: Pre-commit
@@ -148,10 +152,45 @@ jobs:
       - name: Run tests (verifies [judge] install path)
         run: pytest -ra
 
+  sdk-contracts:
+    name: Real SDK contracts (${{ matrix.dependencies }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        dependencies: [minimum, current]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install exact supported SDK floors
+        if: matrix.dependencies == 'minimum'
+        run: >-
+          pip install -e ".[dev]" "openai==1.66.3" "anthropic==0.40.0"
+          "langchain-core==0.3.0" "deepeval==2.0.0"
+      - name: Install current SDKs and the tested graph example
+        if: matrix.dependencies == 'current'
+        run: pip install -e ".[dev,openai,anthropic,langchain,judge]" "langgraph==1.2.14"
+      - name: Verify dependencies and report versions
+        run: |
+          pip check
+          pip list
+          python -c "import openai, anthropic, langchain_core, deepeval"
+      - name: Exercise real SDKs without provider requests
+        run: >-
+          pytest tests/test_sdk_contracts.py tests/test_openai_responses_adapter.py
+          tests/test_langchain_adapter.py tests/test_sync_bridge.py -ra
+      - name: Execute the graph state recipe
+        if: matrix.dependencies == 'current'
+        run: python examples/langgraph_state/chatbot.py
+
   build:
     name: Build sdist + wheel
     runs-on: ubuntu-latest
-    needs: [lint, typecheck, test]
+    needs: [lint, typecheck, test, test-with-judge, sdk-contracts, docs]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

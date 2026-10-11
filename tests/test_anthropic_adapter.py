@@ -78,13 +78,14 @@ def test_anthropic_adapter_wraps_vendor_exceptions_in_infra_error() -> None:
     assert exc_info.value.__cause__ is boom
 
 
-def test_anthropic_adapter_session_accumulates_turns() -> None:
+@pytest.mark.parametrize("session_id", ["s", ""])
+def test_anthropic_adapter_session_accumulates_turns(session_id: str) -> None:
     client = StubAnthropicClient(response_text="reply-1")
     adapter = AnthropicMessagesAdapter(client=client)
 
-    adapter.send_message("turn-1", session_id="s1")
+    adapter.send_message("turn-1", session_id=session_id)
     client.messages.response_text = "reply-2"
-    adapter.send_message("turn-2", session_id="s1")
+    adapter.send_message("turn-2", session_id=session_id)
 
     second = client.messages.calls[1]["messages"]
     assert second == [
@@ -94,12 +95,13 @@ def test_anthropic_adapter_session_accumulates_turns() -> None:
     ]
 
 
-def test_anthropic_adapter_reset_session_drops_history() -> None:
+@pytest.mark.parametrize("session_id", ["s", ""])
+def test_anthropic_adapter_reset_session_drops_history(session_id: str) -> None:
     client = StubAnthropicClient(response_text="ok")
     adapter = AnthropicMessagesAdapter(client=client)
-    adapter.send_message("first", session_id="s")
-    adapter.reset_session("s")
-    adapter.send_message("second", session_id="s")
+    adapter.send_message("first", session_id=session_id)
+    adapter.reset_session(session_id)
+    adapter.send_message("second", session_id=session_id)
 
     assert client.messages.calls[1]["messages"] == [{"role": "user", "content": "second"}]
 
@@ -174,12 +176,13 @@ async def test_async_anthropic_adapter_wraps_exceptions() -> None:
 
 
 @pytest.mark.asyncio
-async def test_async_anthropic_adapter_session_memory() -> None:
+@pytest.mark.parametrize("session_id", ["s", ""])
+async def test_async_anthropic_adapter_session_memory(session_id: str) -> None:
     client = StubAsyncAnthropicClient(response_text="r1")
     adapter = AsyncAnthropicMessagesAdapter(client=client)
-    await adapter.send_message("t1", session_id="s")
+    await adapter.send_message("t1", session_id=session_id)
     client.messages.response_text = "r2"
-    await adapter.send_message("t2", session_id="s")
+    await adapter.send_message("t2", session_id=session_id)
 
     assert client.messages.calls[1]["messages"] == [
         {"role": "user", "content": "t1"},

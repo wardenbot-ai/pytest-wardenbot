@@ -1,6 +1,6 @@
 [project]
 name = "pytest-wardenbot"
-version = "0.1.7"
+version = "0.1.8"
 description = "Pytest plugin for testing chatbots and LLM apps — prompt injection, jailbreaks, system-prompt leaks, hallucinations, brand drift."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -40,8 +40,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-openai = ["openai>=1.0"]
-anthropic = ["anthropic>=0.30"]
+openai = ["openai>=1.66.3"]
+anthropic = ["anthropic>=0.40.0"]
 langchain = ["langchain-core>=0.3"]
 async = ["pytest-asyncio>=0.24"]
 judge = ["deepeval>=2.0"]
@@ -87,6 +87,11 @@ packages = ["src/pytest_wardenbot"]
 include = [
     "/src",
     "/tests",
+    # Keep the source distribution self-testable: these are exercised by tests.
+    "/examples",
+    "/scripts/__init__.py",
+    "/scripts/check_consumer.py",
+    "/scripts/notify_community.py",
     "/README.md",
     "/LICENSE.md",
     "/pyproject.toml",

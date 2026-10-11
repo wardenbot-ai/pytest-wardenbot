@@ -4,22 +4,24 @@ A red wardenbot test is a signal, not a verdict. This guide walks through
 reading the failure, telling a real finding from a misconfiguration, and
 closing the loop with a fix.
 
-## First: ERROR or FAILURE?
+## First: finding or infrastructure failure?
 
-pytest distinguishes two non-passing outcomes, and wardenbot uses them
-deliberately:
+An `AssertionError` from a probe means the chatbot returned a response that
+failed a check. A `WardenBotInfraError` means an adapter could not complete the
+request or extract a usable response. Fix the connection, configuration or
+response shape before interpreting security results.
 
-- **FAILURE** — your chatbot ran and its *response* failed a check (it complied
-  with a jailbreak, leaked its system prompt, answered a fact wrong). A real
-  finding about the bot.
-- **ERROR** — wardenbot couldn't get a usable response at all. Every transport,
-  status, and shape problem is wrapped in `WardenBotInfraError` and surfaces as
-  a pytest ERROR, so "your bot is unreachable" never masquerades as "your bot
-  passed."
+Pytest displays **ERROR** for setup/teardown exceptions and **FAILED** for
+exceptions raised during a test call, including infrastructure exceptions.
+Read the exception type and message as well as the summary label. Missing
+required `chatbot` configuration is a setup error and exits nonzero.
 
-If you see an ERROR, fix the plumbing first — the security result is meaningless
-until the probe actually reaches your bot. Common `WardenBotInfraError` causes
-(from the bundled `HTTPChatbotAdapter`):
+Some adapters preserve the original exception as `__cause__`. The Responses
+adapter reports its exception type while suppressing provider error text and
+chaining to avoid printing sensitive payloads. Response redaction is best-effort;
+review logs before sharing them.
+
+Common `WardenBotInfraError` causes from the bundled `HTTPChatbotAdapter`:
 
 | Message contains | Cause | Fix |
 |---|---|---|
@@ -55,8 +57,8 @@ WardenBot test failed: jailbreak compliance
 - **Prompt sent** — the exact attack. Reproduce it by hand against your bot.
 - **Indicators matched** — which detection patterns tripped the check. This
   tells you *why* it failed and whether it's a true positive.
-- **Response** — the bot's reply, truncated to 500 chars to keep PII out of CI
-  logs.
+- **Response** — the bot's reply, truncated to 500 chars for readability. Truncation does not remove PII;
+  use synthetic test data and review logs before sharing them.
 - **Agent-ready remediation** — paste this block straight into Cursor or Claude
   Code; it's written as a prompt that proposes the fix.
 
