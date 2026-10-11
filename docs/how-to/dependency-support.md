@@ -24,6 +24,7 @@ pip resolves the additional requirements when installing that extra.
 | `anthropic` | Anthropic 0.49.0 | 1.13.0 |
 | `langchain` | langchain-core 0.3.0 | 1.6.9 |
 | `judge` | DeepEval 4.2.8 | 4.2.8 |
+| `mcp` | MCP SDK 2.2.0; Uvicorn 0.31.1 | MCP SDK 2.3.0 |
 
 CI's real-SDK contract matrix installs these exact floors and a separate set
 of current stable releases on Python 3.12. OpenAI and Anthropic tests construct
@@ -65,6 +66,13 @@ justifies them. The judge extra has its own transitive requirements and should
 be tested separately from the core minimum lane.
 
 ## Packaging and tooling
+
+The optional [MCP harness](mcp-harness.md) has a separate Python 3.11 floor and
+Python 3.12/3.13 current matrix. Its real SDK tests cover in-memory, stdio and
+loopback Streamable HTTP transports with 2025-11-25 and 2026-07-28 protocol modes.
+SDK 2.0.1 failed stdio construction; 2.2.0 is the verified floor. The `<3` bound
+keeps a future SDK major outside this tested integration. No MCP package is
+required for the core agent contracts or existing chatbot suite.
 
 CI builds and verifies both the sdist and wheel. A fresh environment installs
 the wheel and runs the packaged probes from an external consumer directory,

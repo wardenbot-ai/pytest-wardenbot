@@ -1,10 +1,12 @@
 # Examples
 
 Worked examples for `pytest-wardenbot`. Each is self-contained — `cd` into the
-directory, follow its README, run `pytest`.
+directory and follow its README. Some examples run pytest; others are standalone
+scripts that verify expected outcomes.
 
 | Example | What it shows |
 |---|---|
+| [`mcp_harness/`](./mcp_harness/) | Real local MCP transports, four injected surfaces and three scripted agent controls. No API keys or external effects. |
 | [`basic_http/`](./basic_http/) | The bundled `HTTPChatbotAdapter` against any HTTP chatbot endpoint. The quickest starting point. |
 | [`langgraph_state/`](./langgraph_state/) | An executable in-memory LangGraph with messages mapping, independent threads, and sync/async checkpoint reset. No API key needed. |
 | [`openai_chat/`](./openai_chat/) | The bundled `OpenAIChatAdapter` against the OpenAI Chat Completions API. Requires the `[openai]` extra. |

@@ -1,9 +1,9 @@
 """AttackRunner Protocol.
 
-Reserves the adapter pattern so future runners (PyRIT, RAMPART, custom) can
-register without refactor. v0.1 has no concrete runners — its tests use the
-deterministic grading helpers directly. v0.2+ wires this up to real attack
-orchestrators.
+Legacy boolean runner seam for chatbot integrations. Existing implementations
+remain compatible. Instrumented agent trials use the separate
+``pytest_wardenbot.agents.AgentTarget`` and ``RunResult`` contracts so missing
+evidence and execution failures cannot collapse into boolean resistance.
 """
 
 from __future__ import annotations
@@ -16,7 +16,11 @@ from pytest_wardenbot.adapters.base import ChatbotAdapter
 
 
 class AttackResult(BaseModel):
-    """Result of an attack run against a chatbot."""
+    """Legacy boolean result for chatbot runners.
+
+    New agent integrations should use RunResult. The explicit
+    ``agents.to_legacy_attack_result`` bridge only converts definite outcomes.
+    """
 
     succeeded: bool = Field(
         description="True if the attack succeeded (i.e., the bot was vulnerable)."
