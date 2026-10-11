@@ -1,22 +1,24 @@
 # Evaluation: how the bundled suite performs against real bots
 
-This page documents the methodology for evaluating the v0.1 deterministic
-suite against named LLMs, plus result tables you (the reader) can fill in
-by running the included scripts. There are no pre-baked numbers here —
-the maintainers don't ship live model outputs in the repo because (a)
-results drift quickly as vendors update models and (b) we want every
-user to run the eval themselves so they trust the numbers they see.
+This page records the methodology and results of a maintainer evaluation of
+the v0.1 deterministic suite. The tables are a dated snapshot; the included
+scripts let you run the same checks against your own bot and configuration.
+Provider updates and application changes can alter the results.
+
+> These are historical May 2026 observations, not current-model benchmarks.
+> The current Anthropic adapter omits temperature by default for SDK/model
+> compatibility; see the [dependency policy](../how-to/dependency-support.md).
 
 ## What the evaluation answers
 
 Three questions:
 
 1. **Does a frontier model with a well-written system prompt pass the
-   suite out-of-the-box?** If yes, the suite is well-calibrated for
-   well-behaved bots (low false-positive rate).
+   suite out-of-the-box?** This is a baseline observation; estimating false
+   positives requires labeled benign controls and repeated trials.
 2. **Does the suite catch a deliberately-vulnerable bot?** If yes, the
    suite has real signal (low false-negative rate against obvious
-   failures).
+   failures in this control).
 3. **Where does each model show the most behavior variance?** Useful
    when picking a model or sizing the risk of a planned migration.
 

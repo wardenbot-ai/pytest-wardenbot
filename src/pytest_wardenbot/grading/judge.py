@@ -511,26 +511,30 @@ def _default_deepeval_judge_factory(
     who only run deterministic tests.
     """
     try:
+        from deepeval import test_case as test_case_module  # type: ignore[import-not-found]
         from deepeval.metrics import GEval  # type: ignore[import-not-found]
-        from deepeval.test_case import (  # type: ignore[import-not-found]
-            LLMTestCase,
-            LLMTestCaseParams,
-        )
     except ImportError as exc:
         raise JudgeUnavailableError(
             "DeepEval is not installed. Install with: pip install 'pytest-wardenbot[judge]'"
         ) from exc
 
+    LLMTestCase = test_case_module.LLMTestCase
+    # DeepEval 4 renamed this enum; avoid touching the deprecated alias on new
+    # releases, while retaining the tested DeepEval 2 compatibility path.
+    eval_param_type = getattr(test_case_module, "SingleTurnParams", None)
+    if eval_param_type is None:
+        eval_param_type = test_case_module.LLMTestCaseParams
+
     # DeepEval's type stubs shift across versions; the runtime attribute access
     # works against the installed version. Suppress static typecheck noise here.
     eval_params: list[Any] = [
-        LLMTestCaseParams.INPUT,  # type: ignore[attr-defined]
-        LLMTestCaseParams.ACTUAL_OUTPUT,  # type: ignore[attr-defined]
+        eval_param_type.INPUT,
+        eval_param_type.ACTUAL_OUTPUT,
     ]
     if case.expected_output:
-        eval_params.append(LLMTestCaseParams.EXPECTED_OUTPUT)  # type: ignore[attr-defined]
+        eval_params.append(eval_param_type.EXPECTED_OUTPUT)
     if case.context:
-        eval_params.append(LLMTestCaseParams.CONTEXT)  # type: ignore[attr-defined]
+        eval_params.append(eval_param_type.CONTEXT)
 
     model = _build_deepeval_model(model_name, temperature)
     metric = GEval(

@@ -8,15 +8,15 @@ in CI, you can use the included mock adapters in your own tests instead.
 
 ## Will running this cost me money?
 
-The deterministic tests are free (they don't call any LLM). The optional
-LLM-judge tests cost roughly `$0.02` per full suite run against Anthropic
-Haiku 4.5. See [Enable LLM-judge tests](how-to/llm-judge-setup.md) for
-the cost breakdown.
+Deterministic grading does not call a separate judge model. Your chatbot's
+provider calls can still cost money. Optional LLM-judge checks add model calls;
+see [Enable LLM-judge tests](how-to/llm-judge-setup.md) for the cost assumptions.
 
 ## Does it require Anthropic / OpenAI API keys?
 
-Only for the optional LLM-judge tests. The deterministic suite has zero
-API-key requirements.
+Provider-backed chatbot adapters need their provider credentials, even when
+grading is deterministic. HTTP adapters use the authentication your endpoint
+requires. Separate judge credentials are needed for optional LLM-judge checks.
 
 ## My chatbot is general-purpose, not domain-scoped. Will the off-topic test fail?
 
@@ -31,9 +31,10 @@ Or remove the import from your generated `test_my_bot.py`.
 
 ## What about agentic AI (tool calls / function calls)?
 
-v0.1 doesn't include tool-call-specific tests. v0.2 will add a runner
-backed by Microsoft RAMPART for Cross-Prompt Injection Attack (XPIA)
-testing against agents that use tools. Track progress in [GitHub Issues](https://github.com/wardenbot-ai/pytest-wardenbot/issues).
+The suite includes indirect prompt injection probes, but bundled vendor text
+adapters do not execute tool calls. Wrap your complete agent flow in a custom
+adapter to test its text behavior. Dedicated tool execution and side-effect
+assertions remain future work; track [GitHub Issues](https://github.com/wardenbot-ai/pytest-wardenbot/issues).
 
 ## My bot is behind a login. How do I test it?
 
@@ -51,7 +52,9 @@ Three options:
 
 You'd need a custom adapter. v0.1 doesn't ship one. The pattern: have
 your test bot send DMs to a wardenbot bot account, and the adapter reads
-the response. v0.2 will add bundled Slack and Discord adapters.
+the response. Bundled Slack and Discord adapters remain future work in
+[issue #7](https://github.com/wardenbot-ai/pytest-wardenbot/issues/7); they are
+not included in this release.
 
 ## What model does the LLM judge use?
 
@@ -62,8 +65,9 @@ in `judge_response` / `assert_judge_passes`, or write a custom adapter.
 
 Per published research, single LLM judges agree with human raters about
 80% of the time on safety/quality scoring. Treat results as triage
-signal, not absolute pass/fail. v0.2 adds ensemble mode (multiple judges
-vote) for safety-critical metrics.
+signal, not absolute pass/fail. Ensemble mode is already available through
+`judge_ensemble` and `assert_judge_ensemble_passes`; it combines multiple judges
+without guaranteeing agreement with human reviewers.
 
 ## My CI keeps failing flakily on the same test.
 
@@ -104,3 +108,19 @@ browser to drive the widget, which is outside the OSS plugin's scope.
 - [Open an issue](https://github.com/wardenbot-ai/pytest-wardenbot/issues/new/choose)
 - Check the [examples](https://github.com/wardenbot-ai/pytest-wardenbot/tree/main/examples)
 - For security reports, see [SECURITY.md](https://github.com/wardenbot-ai/pytest-wardenbot/blob/main/SECURITY.md)
+
+
+## What happened to OpenAI Assistants?
+
+OpenAI retired the public Assistants API on 26 August 2026. Use the bundled
+Responses adapters; the legacy Assistants default constructors now fail with
+migration instructions. See [OpenAI migration](how-to/migrate-openai.md) for
+local histories, resets, and the limits of text-only adapters.
+
+## How do I test LangGraph history?
+
+Use the LangChain adapter with `session_config_key="thread_id"`, a messages
+input mapper, a final-assistant text extractor, and a checkpointer reset hook.
+The [LangGraph recipe](how-to/langgraph-state.md) demonstrates independent
+threads and deletion with no LLM key. See
+[dependency support](how-to/dependency-support.md) for tested SDK combinations.

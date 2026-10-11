@@ -35,5 +35,11 @@ from pytest_wardenbot.adapters.anthropic_msgs import AsyncAnthropicMessagesAdapt
 
 @pytest.fixture
 def chatbot():
-    return to_sync(AsyncAnthropicMessagesAdapter(model="claude-haiku-4-5"))
+    with to_sync(AsyncAnthropicMessagesAdapter(model="claude-haiku-4-5")) as adapter:
+        yield adapter
 ```
+
+The bridge keeps one loop for repeated requests. Create and use it on the same
+thread, outside an async test. Its context manager closes the loop and calls a
+public `aclose()` hook if the adapter supplies one. This legacy Messages adapter
+does not supply that hook; applications remain responsible for their SDK clients.

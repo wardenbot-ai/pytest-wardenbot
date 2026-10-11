@@ -45,5 +45,13 @@ from pytest_wardenbot.adapters.openai_chat import AsyncOpenAIChatAdapter
 
 @pytest.fixture
 def chatbot():
-    return to_sync(AsyncOpenAIChatAdapter(model="gpt-4o-mini"))
+    with to_sync(AsyncOpenAIChatAdapter(model="gpt-4o-mini")) as adapter:
+        yield adapter
 ```
+
+The bridge keeps one loop for repeated requests. Create and use it on the same
+thread, outside an async test. Its context manager closes the loop and calls a
+public `aclose()` hook if the adapter supplies one. These legacy vendor adapters
+do not supply that hook; applications remain responsible for their SDK clients.
+For OpenAI text with automatic owned-client cleanup, use
+`AsyncOpenAIResponsesAdapter` as shown in [the migration guide](../../docs/how-to/migrate-openai.md).

@@ -21,20 +21,26 @@ Auto-generated from docstrings via `mkdocstrings`.
 
 ### Vendor adapters (optional extras)
 
-These bundled adapters require their vendor SDK extra to import, so they are
-not auto-documented here (the docs build doesn't install the vendor SDKs).
-See [Add your chatbot](../how-to/add-chatbot.md) for usage.
+Adapter modules remain importable without vendor SDKs; SDK-backed default
+clients require the corresponding extra at construction time. The legacy
+Assistants adapters require an explicitly injected compatible client.
+See [Add your chatbot](../how-to/add-chatbot.md) and
+[dependency support](../how-to/dependency-support.md) for usage and tested versions.
 
 | Class (sync / async) | Module | Extra |
 |---|---|---|
+| `OpenAIResponsesAdapter` / `AsyncOpenAIResponsesAdapter` | `pytest_wardenbot.adapters.openai_responses` | `[openai]` |
 | `OpenAIChatAdapter` / `AsyncOpenAIChatAdapter` | `pytest_wardenbot.adapters.openai_chat` | `[openai]` |
 | `OpenAIAssistantsAdapter` / `AsyncOpenAIAssistantsAdapter` | `pytest_wardenbot.adapters.openai_assistants` | `[openai]` |
 | `AnthropicMessagesAdapter` / `AsyncAnthropicMessagesAdapter` | `pytest_wardenbot.adapters.anthropic_msgs` | `[anthropic]` |
 | `LangChainAdapter` / `AsyncLangChainAdapter` | `pytest_wardenbot.adapters.langchain_runnable` | `[langchain]` |
 
-The OpenAI Assistants API is deprecated (sunset 2026-08-26); constructing
-`OpenAIAssistantsAdapter` emits a `DeprecationWarning`. Prefer
-`OpenAIChatAdapter` for new work.
+The public Assistants API retired on 26 August 2026. Its legacy adapter imports
+remain available, but construction without an injected compatible client raises
+an infrastructure error. See [OpenAI migration](../how-to/migrate-openai.md).
+Responses adapters maintain local session histories; reset clears those histories,
+and does not delete old remote threads. For LangGraph state and reset hooks, see
+[the graph recipe](../how-to/langgraph-state.md).
 
 ## Business truth
 

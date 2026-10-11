@@ -119,7 +119,7 @@ class OpenAIChatAdapter:
         self._sessions: dict[str, list[dict[str, str]]] = {}
 
     def send_message(self, prompt: str, *, session_id: str | None = None) -> ChatbotResponse:
-        history = self._sessions.setdefault(session_id, []) if session_id else []
+        history = self._sessions.setdefault(session_id, []) if session_id is not None else []
         messages = _build_messages(history, prompt, self._system_prompt)
 
         start = time.perf_counter()
@@ -188,7 +188,7 @@ class AsyncOpenAIChatAdapter:
         self._sessions: dict[str, list[dict[str, str]]] = {}
 
     async def send_message(self, prompt: str, *, session_id: str | None = None) -> ChatbotResponse:
-        history = self._sessions.setdefault(session_id, []) if session_id else []
+        history = self._sessions.setdefault(session_id, []) if session_id is not None else []
         messages = _build_messages(history, prompt, self._system_prompt)
 
         start = time.perf_counter()

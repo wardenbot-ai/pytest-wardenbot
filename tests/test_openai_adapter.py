@@ -77,13 +77,14 @@ def test_openai_adapter_wraps_vendor_exceptions_in_infra_error() -> None:
     assert exc_info.value.__cause__ is boom
 
 
-def test_openai_adapter_session_accumulates_turns() -> None:
+@pytest.mark.parametrize("session_id", ["s", ""])
+def test_openai_adapter_session_accumulates_turns(session_id: str) -> None:
     client = StubOpenAIClient(response_text="reply-1")
     adapter = OpenAIChatAdapter(client=client, system_prompt="You are helpful")
 
-    adapter.send_message("turn-1", session_id="s1")
+    adapter.send_message("turn-1", session_id=session_id)
     client.completions_stub.response_text = "reply-2"
-    adapter.send_message("turn-2", session_id="s1")
+    adapter.send_message("turn-2", session_id=session_id)
 
     second_call_messages = client.completions_stub.calls[1]["messages"]
     assert second_call_messages == [
@@ -106,13 +107,14 @@ def test_openai_adapter_session_isolated_per_session_id() -> None:
     assert s2_messages == [{"role": "user", "content": "for s2"}]
 
 
-def test_openai_adapter_reset_session_drops_history() -> None:
+@pytest.mark.parametrize("session_id", ["s", ""])
+def test_openai_adapter_reset_session_drops_history(session_id: str) -> None:
     client = StubOpenAIClient(response_text="ok")
     adapter = OpenAIChatAdapter(client=client)
 
-    adapter.send_message("first", session_id="s1")
-    adapter.reset_session("s1")
-    adapter.send_message("second", session_id="s1")
+    adapter.send_message("first", session_id=session_id)
+    adapter.reset_session(session_id)
+    adapter.send_message("second", session_id=session_id)
 
     second_messages = client.completions_stub.calls[1]["messages"]
     assert second_messages == [{"role": "user", "content": "second"}]
@@ -200,12 +202,13 @@ async def test_async_openai_adapter_wraps_exceptions() -> None:
 
 
 @pytest.mark.asyncio
-async def test_async_openai_adapter_session_memory() -> None:
+@pytest.mark.parametrize("session_id", ["s", ""])
+async def test_async_openai_adapter_session_memory(session_id: str) -> None:
     client = StubAsyncOpenAIClient(response_text="r1")
     adapter = AsyncOpenAIChatAdapter(client=client)
-    await adapter.send_message("t1", session_id="s")
+    await adapter.send_message("t1", session_id=session_id)
     client.completions_stub.response_text = "r2"
-    await adapter.send_message("t2", session_id="s")
+    await adapter.send_message("t2", session_id=session_id)
 
     second = client.completions_stub.calls[1]["messages"]
     assert second == [
@@ -216,11 +219,12 @@ async def test_async_openai_adapter_session_memory() -> None:
 
 
 @pytest.mark.asyncio
-async def test_async_openai_adapter_reset_session() -> None:
+@pytest.mark.parametrize("session_id", ["s", ""])
+async def test_async_openai_adapter_reset_session(session_id: str) -> None:
     client = StubAsyncOpenAIClient(response_text="ok")
     adapter = AsyncOpenAIChatAdapter(client=client)
-    await adapter.send_message("first", session_id="s")
-    await adapter.reset_session("s")
-    await adapter.send_message("second", session_id="s")
+    await adapter.send_message("first", session_id=session_id)
+    await adapter.reset_session(session_id)
+    await adapter.send_message("second", session_id=session_id)
 
     assert client.completions_stub.calls[1]["messages"] == [{"role": "user", "content": "second"}]

@@ -13,8 +13,8 @@ Two Protocols are exposed: `ChatbotAdapter` (sync) and `AsyncChatbotAdapter`
 The shipped tests in v0.1 are synchronous and consume a `ChatbotAdapter`.
 Users with an `AsyncChatbotAdapter` (their bot is behind an async-only API,
 or they prefer `httpx.AsyncClient` for parallel fan-out in their own tests)
-can wrap it with `pytest_wardenbot.adapters.to_sync(...)` to satisfy the
-sync fixture contract, or fan probes out concurrently with
+can use `with pytest_wardenbot.adapters.to_sync(...) as chatbot:` to satisfy
+this contract on a persistent, thread-owned loop, or fan probes out concurrently with
 `pytest_wardenbot.runners.run_probes` (see the "Run probes in parallel" how-to).
 """
 
@@ -71,7 +71,9 @@ class ChatbotAdapter(Protocol):
         stateless, the adapter may ignore `session_id`.
 
         Adapters raise `WardenBotInfraError` for transport / status / shape
-        failures so they surface as pytest ERRORs (not FAILUREs).
+        failures to distinguish infrastructure faults from security assertions.
+        Pytest labels depend on phase: call-time exceptions are FAILED, while
+        fixture setup failures are ERROR.
         """
         ...
 
@@ -93,7 +95,9 @@ class AsyncChatbotAdapter(Protocol):
 
     The shipped tests in v0.1 are synchronous; pass an async adapter through
     `pytest_wardenbot.adapters.to_sync(...)` to consume it from the shipped
-    `chatbot` fixture, or fan probes out concurrently with
+    `chatbot` fixture. Use the bridge as a context manager or close it explicitly;
+    it invokes the adapter's public `aclose()` hook when available. Alternatively,
+    fan probes out concurrently with
     `pytest_wardenbot.runners.run_probes`.
 
     Like `ChatbotAdapter`, async adapters MAY expose an optional

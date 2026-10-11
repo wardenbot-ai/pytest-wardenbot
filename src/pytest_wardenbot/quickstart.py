@@ -167,11 +167,12 @@ def chatbot():
     class that satisfies `pytest_wardenbot.adapters.base.ChatbotAdapter`.
     """
     url = os.environ.get("CHATBOT_URL", _PLACEHOLDER_URL)
-    if url == _PLACEHOLDER_URL:
-        pytest.skip(
+    if not url.strip() or url == _PLACEHOLDER_URL:
+        pytest.fail(
             "CHATBOT_URL is unset (still pointing at the quickstart placeholder). "
             "Set it to your chatbot's endpoint:  "
-            "export CHATBOT_URL=https://your-real-chatbot.example.com/chat"
+            "export CHATBOT_URL=https://your-real-chatbot.example.com/chat",
+            pytrace=False,
         )
     token = os.environ.get("CHATBOT_TOKEN", "")
     headers = {{"Authorization": f"Bearer {{token}}"}} if token else None

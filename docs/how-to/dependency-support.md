@@ -18,16 +18,35 @@ pip resolves the additional requirements when installing that extra.
 
 ## Optional SDKs
 
-| Extra | Declared dependency floor | Validation |
+| Extra | Exact tested floor | Current version tested on 2026-10-11 |
 | --- | --- | --- |
-| `openai` | OpenAI 1.0 | Adapter tests use stub clients; real SDK coverage is tracked separately. |
-| `anthropic` | Anthropic 0.30 | Adapter tests use stub clients; real SDK coverage is tracked separately. |
-| `langchain` | langchain-core 0.3 | Adapter tests use stub objects; real SDK coverage is tracked separately. |
-| `judge` | DeepEval 2.0 | CI runs the full suite with the current resolved judge extra. |
+| `openai` | OpenAI 1.66.3 | 3.29.0 |
+| `anthropic` | Anthropic 0.40.0 | 1.13.0 |
+| `langchain` | langchain-core 0.3.0 | 1.6.9 |
+| `judge` | DeepEval 2.0.0 | 4.2.8 |
+
+CI's real-SDK contract matrix installs these exact floors and a separate set
+of current stable releases on Python 3.12. OpenAI and Anthropic tests construct
+real clients and use in-process HTTP transports to check serialization, output,
+error handling, concurrent independent sessions and reset behavior. LangChain
+tests execute real Runnables; a real DeepEval GEval metric uses an offline model.
+No provider API calls or credentials are needed for these contract tests.
+
+The OpenAI floor includes Responses support. The old Anthropic 0.30 floor
+failed default client construction with current httpx because it passes the
+removed `proxies` argument; 0.40.0 passes the same contract. Current vendor SDKs
+use httpx2 internally, while the plugin's HTTP adapter still uses httpx.
+
+The current lane also executes the LangGraph state recipe with
+`langgraph==1.2.14`; the observed checkpoint version is 4.2.0. LangGraph is not
+part of the LangChain extra, and the minimum LangChain lane does not claim
+compatibility with current LangGraph. See [the state recipe](langgraph-state.md).
 
 A dependency floor is a resolver constraint, not evidence that every release
-above it has been tested. The adapter unit tests check request construction,
+above it has been tested. Unit tests and real-SDK contracts check request construction,
 responses, errors, and conversation behavior without provider credentials.
+The async-to-sync bridge also exercises repeated real SDK requests against a
+local HTTP server, catching connection reuse across event-loop lifetimes.
 The manual live-API smoke workflow checks selected installed SDKs against real
 services and requires provider credentials; it is not the pull-request gate.
 

@@ -1,22 +1,20 @@
 """OpenAI Assistants API adapter (sync + async).
 
-Requires the ``[openai]`` extra::
+OpenAI retired the public Assistants API on 2026-08-26; it is unavailable.
+Use ``OpenAIResponsesAdapter`` or ``AsyncOpenAIResponsesAdapter`` for new
+OpenAI text integrations. See the official migration guide:
+https://developers.openai.com/api/docs/assistants/migration
 
-    pip install "pytest-wardenbot[openai]"
+These class names remain importable for legacy fixtures and explicitly injected
+compatible proxies. Construction without ``client=`` raises an actionable
+``WardenBotInfraError`` before importing an SDK or making a network request.
+An injected client must expose the legacy ``beta.threads`` interface;
+construction emits a ``DeprecationWarning`` that the public service has retired.
+An ordinary current OpenAI client does not restore the retired service.
 
-.. warning::
-
-    OpenAI's Assistants API is **deprecated** (sunset 2026-08-26); the forward
-    path is the Responses API. This adapter is a stopgap so teams still running
-    on Assistants can test their bots today. Constructing either adapter emits a
-    ``DeprecationWarning``. Plan the migration to the Responses API (and
-    ``OpenAIChatAdapter``) before the sunset.
-
-``session_id`` maps to an OpenAI **thread**: pass it to keep multi-turn context
-across calls, omit it for a stateless one-shot (a throwaway thread is created
-for the call and deleted afterwards). ``reset_session(session_id)`` deletes the
-thread bound to that ID. A user-supplied client can be injected via ``client``
-for tests / custom configuration (custom base_url, proxy, alternate auth).
+With a compatible injected client, ``session_id`` maps to a legacy thread;
+``reset_session`` attempts to delete that thread. Ephemeral thread cleanup and
+reset deletion are best-effort for this legacy compatibility seam.
 
 This adapter tests the assistant's *text* behaviour. If a run pauses for tool
 outputs (``requires_action``), the adapter raises ``WardenBotInfraError`` rather
@@ -35,28 +33,37 @@ from pytest_wardenbot._errors import WardenBotInfraError
 from pytest_wardenbot._redaction import redact_response_payload
 from pytest_wardenbot.adapters.base import ChatbotResponse
 
-_INSTALL_HINT = (
-    "OpenAIAssistantsAdapter requires the [openai] extra. "
-    "Install with: pip install 'pytest-wardenbot[openai]'"
-)
-
 _DEPRECATION_MESSAGE = (
-    "OpenAI's Assistants API is deprecated (sunset 2026-08-26). "
-    "OpenAIAssistantsAdapter is a stopgap; migrate to the Responses API "
-    "(and OpenAIChatAdapter) before the sunset."
+    "OpenAI's public Assistants API retired on 2026-08-26 and is unavailable. "
+    "Migrate to OpenAIResponsesAdapter / AsyncOpenAIResponsesAdapter. "
+    "This legacy adapter only accepts an explicitly injected compatible client."
 )
 
 # Run statuses that mean the run has finished, for better or worse.
 _TERMINAL_STATES = frozenset({"completed", "failed", "cancelled", "expired", "incomplete"})
 
 
-def _import_openai() -> Any:
+def _validate_legacy_client(client: Any) -> None:
+    """Validate the injected legacy seam without SDK construction or requests."""
     try:
-        import openai  # type: ignore[import-not-found]
-
-        return openai
-    except ImportError as exc:
-        raise ImportError(_INSTALL_HINT) from exc
+        threads = client.beta.threads
+        methods = (
+            threads.create,
+            threads.delete,
+            threads.messages.create,
+            threads.messages.list,
+            threads.runs.create,
+            threads.runs.retrieve,
+        )
+        if not all(callable(method) for method in methods):
+            raise TypeError("Legacy thread methods must be callable.")
+    except Exception as exc:
+        raise WardenBotInfraError(
+            "Injected Assistants client must expose callable beta.threads create/delete, "
+            "messages create/list, and runs create/retrieve methods. "
+            "The public Assistants service is retired; use OpenAIResponsesAdapter "
+            "for current OpenAI integrations."
+        ) from exc
 
 
 def _extract_text(message: Any) -> str:
@@ -108,13 +115,13 @@ def _timeout_error(timeout_s: float, status: str) -> WardenBotInfraError:
 
 
 class OpenAIAssistantsAdapter:
-    """Synchronous OpenAI Assistants API adapter (deprecated API; see module docs).
+    """Synchronous adapter for explicitly injected legacy Assistants clients.
 
     Example::
 
         @pytest.fixture
         def chatbot():
-            return OpenAIAssistantsAdapter(assistant_id="asst_...")
+            return OpenAIAssistantsAdapter(assistant_id="asst_...", client=legacy_proxy)
 
     Response payloads stored in ``ChatbotResponse.raw`` are redacted by default;
     pass ``keep_sensitive_response_fields=True`` to keep the unredacted payload.
@@ -134,8 +141,8 @@ class OpenAIAssistantsAdapter:
     ) -> None:
         warnings.warn(_DEPRECATION_MESSAGE, DeprecationWarning, stacklevel=2)
         if client is None:
-            openai = _import_openai()
-            client = openai.OpenAI()
+            raise WardenBotInfraError(_DEPRECATION_MESSAGE)
+        _validate_legacy_client(client)
         self._client: Any = client
         self._assistant_id = assistant_id
         self._timeout_s = timeout_s
@@ -223,9 +230,10 @@ class OpenAIAssistantsAdapter:
 
 
 class AsyncOpenAIAssistantsAdapter:
-    """Async counterpart to ``OpenAIAssistantsAdapter`` (deprecated API; see module docs).
+    """Async counterpart for explicitly injected legacy Assistants clients.
 
-    Same shape, error wrapping, and redaction default; uses ``openai.AsyncOpenAI``.
+    Same legacy interface, error wrapping, and redaction default.
+    No default SDK client is constructed; the public service is retired.
     """
 
     name = "async-openai-assistants"
@@ -242,8 +250,8 @@ class AsyncOpenAIAssistantsAdapter:
     ) -> None:
         warnings.warn(_DEPRECATION_MESSAGE, DeprecationWarning, stacklevel=2)
         if client is None:
-            openai = _import_openai()
-            client = openai.AsyncOpenAI()
+            raise WardenBotInfraError(_DEPRECATION_MESSAGE)
+        _validate_legacy_client(client)
         self._client: Any = client
         self._assistant_id = assistant_id
         self._timeout_s = timeout_s

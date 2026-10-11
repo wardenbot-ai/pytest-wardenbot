@@ -5,6 +5,54 @@ All notable changes to `pytest-wardenbot` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.8] — 2026-10-11
+
+### Added
+
+- Sync and async OpenAI Responses text adapters with locally isolated session
+  history, reset, serialized same-session calls and cancellation handling.
+  Requests use `store=False`, repeat instructions and replay complete output
+  items. Encrypted reasoning is retained for replay and redacted from public
+  raw payloads by default. Incomplete or tool output raises infrastructure errors.
+- Executable Responses example and migration guide for retired Assistants APIs.
+- LangChain input mapping, configurable session keys and explicit reset hooks,
+  plus a tested LangGraph checkpoint/thread isolation recipe. One-shot calls
+  to stateful runnables use temporary sessions and clean up after completion.
+- Offline contract tests with real OpenAI, Anthropic, LangChain and DeepEval
+  SDKs at exact minimum and current versions; CI runs the current graph recipe.
+- Opt-in community release/CI webhooks for Slack and Discord with a no-send
+  preview, independent delivery results and setup instructions (#9).
+
+### Changed
+
+- Default Assistants constructors now fail with migration guidance before
+  importing an SDK or making a request. Existing classes remain importable;
+  explicitly injected compatible legacy clients remain available with a warning.
+- Unknown LangChain outputs and invalid text extractors now raise infrastructure
+  errors. Stateful reset requires a hook that clears the backing history.
+- OpenAI extra now requires SDK 1.66.3 or later for Responses; Anthropic requires
+  0.40.0 or later after reproducing an older HTTP-client constructor failure.
+- DeepEval uses its current parameter enum while retaining the older SDK path.
+
+### Fixed
+
+- The sync bridge now keeps one event loop for the lifetime of its wrapper,
+  allowing async SDK connections to survive successive requests. Use its
+  context manager or `close()` to clean up the loop and supported adapter resources.
+- Generated quickstart fixtures now fail setup on missing or empty `CHATBOT_URL`,
+  preventing an unconfigured consumer from returning a successful all-skipped run.
+- Empty-string session IDs now preserve history in OpenAI Chat and Anthropic
+  adapters, consistent with reset behavior and other non-None session IDs.
+- Failure-triage documentation now distinguishes exception types from pytest's
+  setup/call outcome labels, and explains the limits of payload redaction.
+
+### Validation
+
+Responses passed a bounded live API round trip on 11 October 2026. Its offline
+contract tests also exercise the minimum and current SDK versions without credentials.
+Community posting remains disabled until maintainers configure webhook secrets
+and explicitly enable the workflow; no live channel delivery is claimed.
+
 ## [0.1.7] — 2026-10-11
 
 ### Fixed

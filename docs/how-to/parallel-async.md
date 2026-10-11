@@ -12,7 +12,7 @@ pip install "pytest-wardenbot[async]"   # pytest-asyncio
 ```
 
 You need an `AsyncChatbotAdapter` — the bundled `AsyncHTTPChatbotAdapter`,
-`AsyncOpenAIChatAdapter`, `AsyncAnthropicMessagesAdapter`,
+`AsyncOpenAIResponsesAdapter`, `AsyncOpenAIChatAdapter`, `AsyncAnthropicMessagesAdapter`,
 `AsyncLangChainAdapter`, or your own class with an async `send_message`.
 
 ## The recipe
@@ -65,3 +65,27 @@ for throughput, lower it to stay under your bot's rate limit. A
 that result's `.error` (and `.ok` is `False`) instead of sinking the batch, so
 you can report every unreachable probe at once. Real bugs (non-infra
 exceptions) propagate.
+
+
+## Use an async adapter from sync tests
+
+A sync `chatbot` fixture can drive an async adapter on one persistent loop:
+
+```python
+from pytest_wardenbot.adapters import to_sync
+from pytest_wardenbot.adapters.openai_responses import AsyncOpenAIResponsesAdapter
+
+
+@pytest.fixture
+def chatbot():
+    with to_sync(AsyncOpenAIResponsesAdapter(model="gpt-4o-mini")) as adapter:
+        yield adapter
+```
+
+Create, send, reset, and close each bridge on one thread. Do not call it inside
+an already running event loop; await the async adapter directly there. Do not
+move an adapter previously used on another loop into a bridge. Close is
+idempotent and invokes the adapter's public `aclose()` hook on the owned loop,
+then closes the loop even if the hook raises. Injected clients remain subject
+to the adapter's ownership policy; no private SDK client is inspected. Adapters
+without an `aclose()` hook retain responsibility for their other resources.

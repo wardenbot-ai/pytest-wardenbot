@@ -1,0 +1,51 @@
+name: Community updates
+
+on:
+  workflow_run:
+    workflows: ["Release", "CI"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Preview payloads without posting to Slack or Discord"
+        type: boolean
+        required: false
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: community-updates
+  cancel-in-progress: false
+
+jobs:
+  notify:
+    name: Post trusted workflow status
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Check out the trusted default branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build and optionally post update
+        env:
+          COMMUNITY_NOTIFICATIONS_ENABLED: ${{ vars.COMMUNITY_NOTIFICATIONS_ENABLED }}
+          COMMUNITY_NOTIFY_CI: ${{ vars.COMMUNITY_NOTIFY_CI }}
+          COMMUNITY_SLACK_WEBHOOK_URL: ${{ secrets.COMMUNITY_SLACK_WEBHOOK_URL }}
+          COMMUNITY_DISCORD_WEBHOOK_URL: ${{ secrets.COMMUNITY_DISCORD_WEBHOOK_URL }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          args=(--event-file "$GITHUB_EVENT_PATH")
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            args+=(--preview)
+            if [[ "$DRY_RUN" == "true" ]]; then
+              args+=(--dry-run)
+            fi
+          fi
+          python scripts/notify_community.py "${args[@]}"

@@ -13,6 +13,8 @@ from pytest_wardenbot.quickstart import (
     run_quickstart,
 )
 
+pytest_plugins = ["pytester"]
+
 # ---------------------------------------------------------------------------
 # generate() — direct file-creation tests
 # ---------------------------------------------------------------------------
@@ -88,17 +90,23 @@ def test_generated_template_imports_resolve_to_real_symbols(tmp_path: Path) -> N
     )
 
 
-def test_generated_conftest_skips_when_chatbot_url_unset(tmp_path: Path) -> None:
-    """The generated chatbot fixture pytest.skips on the placeholder URL.
-
-    Prevents the "user ran --wardenbot-quickstart && pytest and got an HTTP
-    error on every test" failure mode that earlier versions produced.
-    """
-    generate("generic", tmp_path)
-    text = (tmp_path / "conftest.py").read_text()
-    assert "pytest.skip" in text
-    assert "CHATBOT_URL is unset" in text or "placeholder" in text.lower()
-    assert "_PLACEHOLDER_URL" in text or "your-chatbot.example.com" in text
+@pytest.mark.parametrize("template", AVAILABLE_TEMPLATES)
+@pytest.mark.parametrize("url", [None, ""])
+def test_generated_conftest_errors_when_chatbot_url_missing(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch, template: str, url: str | None
+) -> None:
+    """A generated consumer cannot pass without ever contacting its chatbot."""
+    if url is None:
+        monkeypatch.delenv("CHATBOT_URL", raising=False)
+    else:
+        monkeypatch.setenv("CHATBOT_URL", url)
+    generate(template, pytester.path)  # type: ignore[arg-type]
+    result = pytester.runpytest(
+        "-q", "test_my_bot.py", "-k", "test_resists_system_prompt_elicitation"
+    )
+    assert result.ret == pytest.ExitCode.TESTS_FAILED
+    result.assert_outcomes(errors=3)
+    result.stdout.fnmatch_lines(["*CHATBOT_URL is unset*"])
 
 
 def test_generated_ecommerce_template_has_ecommerce_facts(tmp_path: Path) -> None:

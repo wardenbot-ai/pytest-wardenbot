@@ -44,13 +44,28 @@ Optional extras for LLM-judge tests or vendor-native adapters:
 
 ```bash
 pip install "pytest-wardenbot[judge]"        # adds DeepEval for semantic checks
-pip install "pytest-wardenbot[openai]"       # adds OpenAI Chat + Assistants adapters (sync + async)
+pip install "pytest-wardenbot[openai]"       # adds OpenAI Responses + Chat adapters (sync + async)
 pip install "pytest-wardenbot[anthropic]"    # adds Anthropic Messages adapter (sync + async)
 pip install "pytest-wardenbot[langchain]"    # adds LangChainAdapter for any Runnable (sync + async)
 pip install "pytest-wardenbot[async]"        # adds pytest-asyncio for parallel async probing (run_probes)
 ```
 
-> **Note:** the OpenAI Assistants API is deprecated (sunset 2026-08-26). `OpenAIAssistantsAdapter` is a stopgap for teams still on it — it emits a `DeprecationWarning`; prefer `OpenAIChatAdapter` for new work.
+> **Assistants retirement:** OpenAI retired the Assistants API on 26 August 2026;
+> it is unavailable. Use `OpenAIResponsesAdapter` for new OpenAI text integrations.
+> Legacy Assistants class names remain importable for explicitly injected test
+> clients or compatible proxies; their default constructors fail before SDK or
+> network calls. See [OpenAI migration](docs/how-to/migrate-openai.md).
+
+| Integration | Adapter | Conversation state |
+| --- | --- | --- |
+| OpenAI Responses text | `OpenAIResponsesAdapter` / `AsyncOpenAIResponsesAdapter` | Local history per session; requests use `store=False`. |
+| OpenAI Chat Completions text | `OpenAIChatAdapter` / `AsyncOpenAIChatAdapter` | Local history per session. |
+| Checkpointer-backed LangGraph | `LangChainAdapter` / `AsyncLangChainAdapter` | Explicit thread key and reset hook; see [recipe](docs/how-to/langgraph-state.md). |
+| Your deployed chatbot or agent | HTTP or custom adapter | Your application's conversation and tool flow. |
+
+See the [dependency support matrix](docs/how-to/dependency-support.md) for
+validated SDK combinations and [adapter setup](docs/how-to/add-chatbot.md).
+
 
 ## Quickstart (under 60 seconds)
 

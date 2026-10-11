@@ -3,7 +3,7 @@
 See https://github.com/wardenbot-ai/pytest-wardenbot for documentation.
 """
 
-__version__ = "0.1.7"
+__version__ = "0.1.8"
 
 from pytest_wardenbot._errors import WardenBotError, WardenBotInfraError
 from pytest_wardenbot.adapters.base import (

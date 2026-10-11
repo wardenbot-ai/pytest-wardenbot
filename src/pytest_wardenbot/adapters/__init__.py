@@ -10,16 +10,19 @@ Bundled adapters (no extras needed):
 Vendor-specific adapters (require the corresponding extra):
     pytest_wardenbot.adapters.openai_chat      [openai]
         OpenAIChatAdapter, AsyncOpenAIChatAdapter
+    pytest_wardenbot.adapters.openai_responses [openai]
+        OpenAIResponsesAdapter, AsyncOpenAIResponsesAdapter
     pytest_wardenbot.adapters.anthropic_msgs   [anthropic]
         AnthropicMessagesAdapter, AsyncAnthropicMessagesAdapter
-    pytest_wardenbot.adapters.openai_assistants   [openai]  (deprecated API)
+    pytest_wardenbot.adapters.openai_assistants   (injected legacy clients only)
         OpenAIAssistantsAdapter, AsyncOpenAIAssistantsAdapter
     pytest_wardenbot.adapters.langchain_runnable   [langchain]
         LangChainAdapter, AsyncLangChainAdapter
 
 Bridge helper:
     to_sync(async_adapter) -> wraps an AsyncChatbotAdapter as a
-    ChatbotAdapter for use with the v0.1 sync shipped tests.
+    ChatbotAdapter for use with the v0.1 sync shipped tests. Use as a context
+    manager or close explicitly; one persistent loop is owned by each bridge.
 """
 
 from pytest_wardenbot.adapters._sync_bridge import to_sync
