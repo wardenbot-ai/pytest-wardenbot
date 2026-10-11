@@ -105,7 +105,7 @@ jobs:
         # lane uses an older harness without installing the [async] extra.
         run: |
           python -m pip install --upgrade pip
-          pip install -e . "pytest==8.0.0" "pytest-asyncio==0.23.8" "pytest-cov==5.0.0"
+          pip install -e . "pytest==8.1.1" "pytest-asyncio==0.23.8" "pytest-cov==5.0.0"
 
       - name: Report resolved versions
         run: pip list
@@ -209,7 +209,7 @@ jobs:
           "$RUNNER_TEMP/consumer-venv/bin/python" -m pip install dist/*.whl
       - name: Select minimum supported pytest
         if: matrix.pytest == 'minimum'
-        run: '"$RUNNER_TEMP/consumer-venv/bin/python" -m pip install "pytest==8.0.0"'
+        run: '"$RUNNER_TEMP/consumer-venv/bin/python" -m pip install "pytest==8.1.1"'
       - name: Run external consumer checks
         working-directory: ${{ runner.temp }}
         run: '"$RUNNER_TEMP/consumer-venv/bin/python" "$GITHUB_WORKSPACE/scripts/check_consumer.py"'
