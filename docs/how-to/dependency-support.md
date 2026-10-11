@@ -77,6 +77,12 @@ required for the core agent contracts or existing chatbot suite.
 CI builds and verifies both the sdist and wheel. A fresh environment installs
 the wheel and runs the packaged probes from an external consumer directory,
 covering plugin entry-point discovery and consumer fixture configuration.
+Both the chatbot suite and the packaged agent suite run on minimum/current
+pytest from installed wheels. The agent checks also verify versioned selection,
+paired baselines, missing configuration, required-coverage deselection and
+recorded violations. The reference Responses/MCP agent has offline SDK tests
+at the supported OpenAI/MCP floors and current versions; its installed example
+uses the real stdio transport without provider requests.
 
 Ruff and Pyright are pinned to the same versions in the dev extra and
 pre-commit hooks. Update both files together and review any resulting lint or

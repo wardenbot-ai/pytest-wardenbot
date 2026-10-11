@@ -27,7 +27,7 @@ from mcp.server import MCPServer  # type: ignore[import-not-found]
 from pytest_wardenbot._errors import WardenBotInfraError
 from pytest_wardenbot.agents.contracts import HarnessTrace, Scenario
 from pytest_wardenbot.mcp._client import MCPClient
-from pytest_wardenbot.mcp._server import build_server
+from pytest_wardenbot.mcp._server import DOCUMENT, build_server
 from pytest_wardenbot.mcp._wire import event_from_dict, scenario_to_dict
 
 Transport = Literal["memory", "stdio", "http"]
@@ -87,11 +87,22 @@ class MCPHarness:
         protocol_version: str = "2026-07-28",
         startup_timeout: float = 5,
         shutdown_timeout: float = 5,
+        attack_enabled: bool = True,
+        document_text: str = DOCUMENT,
+        injection_text: str | None = None,
     ) -> None:
         if transport not in {"memory", "stdio", "http"}:
             raise ValueError("Unsupported local MCP transport")
         if protocol_version not in SUPPORTED_PROTOCOL_VERSIONS:
             raise ValueError("Unsupported MCP protocol version; supported: 2025-11-25, 2026-07-28")
+        if not isinstance(attack_enabled, bool):
+            raise ValueError("attack_enabled must be a boolean")
+        if not isinstance(document_text, str) or not document_text.strip():
+            raise ValueError("A benign document must contain text")
+        if injection_text is not None and (
+            not isinstance(injection_text, str) or not injection_text.strip()
+        ):
+            raise ValueError("An injection override must contain text")
         if any(
             isinstance(value, bool)
             or not isinstance(value, int | float)
@@ -105,6 +116,9 @@ class MCPHarness:
         self.protocol_version = protocol_version
         self.startup_timeout = startup_timeout
         self.shutdown_timeout = shutdown_timeout
+        self.attack_enabled = attack_enabled
+        self.document_text = document_text
+        self.injection_text = injection_text
         self.resources: dict[str, TrialResources] = {}
         self._traces: dict[str, HarnessTrace] = {}
 
@@ -121,6 +135,9 @@ class MCPHarness:
                     {
                         "scenario": scenario_to_dict(self.scenario),
                         "trial_id": trial_id,
+                        "attack_enabled": self.attack_enabled,
+                        "document_text": self.document_text,
+                        "injection_text": self.injection_text,
                     }
                 ),
                 encoding="utf-8",
@@ -135,7 +152,14 @@ class MCPHarness:
             with _stdio_errlog() as errlog:
                 yield stdio_client(parameters, errlog=errlog)
             return
-        server = build_server(self.scenario, trial_id, directory / "events.jsonl")
+        server = build_server(
+            self.scenario,
+            trial_id,
+            directory / "events.jsonl",
+            attack_enabled=self.attack_enabled,
+            document_text=self.document_text,
+            injection_text=self.injection_text,
+        )
         if self.transport == "memory":
             yield server
             return
@@ -197,7 +221,14 @@ class MCPHarness:
                         resources.protocol_version = client.protocol_version
                         if resources.protocol_version != self.protocol_version:
                             raise WardenBotInfraError("MCP protocol negotiation failed")
-                        yield MCPClient(client, self.scenario, trial_id, directory / "events.jsonl")
+                        yield MCPClient(
+                            client,
+                            self.scenario,
+                            trial_id,
+                            directory / "events.jsonl",
+                            attack_enabled=self.attack_enabled,
+                            injection_text=self.injection_text,
+                        )
                 completed = True
             except asyncio.CancelledError:
                 raise

@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
+import traceback
+from types import SimpleNamespace
+
 import pytest
 
 from pytest_wardenbot import (
@@ -70,12 +74,18 @@ def test_anthropic_adapter_omits_system_kwarg_when_unset() -> None:
 
 
 def test_anthropic_adapter_wraps_vendor_exceptions_in_infra_error() -> None:
-    boom = RuntimeError("server overloaded")
+    boom = RuntimeError("synthetic-secret vendor payload")
     client = StubAnthropicClient(raise_exc=boom)
     adapter = AnthropicMessagesAdapter(client=client)
-    with pytest.raises(WardenBotInfraError, match="server overloaded") as exc_info:
+    with pytest.raises(
+        WardenBotInfraError, match=r"Anthropic API call failed \(RuntimeError\)"
+    ) as exc_info:
         adapter.send_message("hi")
-    assert exc_info.value.__cause__ is boom
+    rendered = "".join(traceback.format_exception(exc_info.value))
+    assert "synthetic-secret" not in repr(exc_info.value)
+    assert "synthetic-secret" not in rendered
+    assert exc_info.value.__cause__ is None
+    assert exc_info.value.__suppress_context__
 
 
 @pytest.mark.parametrize("session_id", ["s", ""])
@@ -123,6 +133,75 @@ def test_anthropic_adapter_redacts_raw_by_default() -> None:
     assert result.raw["x-api-key"] == "[REDACTED]"
 
 
+def test_anthropic_adapter_does_not_store_object_repr_as_raw_payload() -> None:
+    class Message:
+        def __init__(self) -> None:
+            self.content = [SimpleNamespace(type="text", text="ok")]
+
+        def __repr__(self) -> str:
+            return "Message(synthetic-secret)"
+
+    class Messages:
+        def create(self, **kwargs: object) -> Message:
+            del kwargs
+            return Message()
+
+    client = SimpleNamespace(messages=Messages())
+    response = AnthropicMessagesAdapter(client=client).send_message("hi")
+    assert response.raw == {"unavailable": "Response object does not support model_dump()."}
+    assert "synthetic-secret" not in repr(response.raw)
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        None,
+        "malformed-secret",
+        object(),
+        [
+            SimpleNamespace(
+                type="text",
+                text={"secret": "malformed-secret"},  # pragma: allowlist secret
+            )
+        ],
+    ],
+)
+def test_anthropic_adapter_rejects_malformed_text_without_leaking(content: object) -> None:
+    class Messages:
+        def create(self, **kwargs: object) -> object:
+            del kwargs
+            return SimpleNamespace(content=content)
+
+    adapter = AnthropicMessagesAdapter(client=SimpleNamespace(messages=Messages()))
+    with pytest.raises(WardenBotInfraError) as exc_info:
+        adapter.send_message("hi")
+    rendered = "".join(traceback.format_exception(exc_info.value))
+    assert "malformed-secret" not in rendered
+    assert "object at" not in rendered
+    assert exc_info.value.__cause__ is None
+    assert exc_info.value.__suppress_context__
+
+
+def test_anthropic_adapter_preserves_empty_text_and_hides_model_dump_failure() -> None:
+    class Message:
+        def __init__(self) -> None:
+            self.content = [SimpleNamespace(type="text", text="")]
+
+        def model_dump(self) -> dict[str, object]:
+            raise RuntimeError("dump-secret")
+
+    class Messages:
+        def create(self, **kwargs: object) -> Message:
+            del kwargs
+            return Message()
+
+    client = SimpleNamespace(messages=Messages())
+    result = AnthropicMessagesAdapter(client=client).send_message("hi")
+    assert result.text == ""
+    assert result.raw == {"unavailable": "Response payload could not be serialized."}
+    assert "dump-secret" not in repr(result)
+
+
 def test_anthropic_adapter_install_hint_on_missing_dep(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -131,6 +210,27 @@ def test_anthropic_adapter_install_hint_on_missing_dep(
     monkeypatch.setitem(sys.modules, "anthropic", None)
     with pytest.raises(ImportError, match=r"pytest-wardenbot\[anthropic\]"):
         AnthropicMessagesAdapter()
+
+
+def test_sync_anthropic_client_close_respects_ownership(monkeypatch: pytest.MonkeyPatch) -> None:
+    import pytest_wardenbot.adapters.anthropic_msgs as module
+
+    class ClosableClient(StubAnthropicClient):
+        closed = 0
+
+        def close(self) -> None:
+            self.closed += 1
+
+    owned = ClosableClient()
+    monkeypatch.setattr(
+        module, "_import_anthropic", lambda: SimpleNamespace(Anthropic=lambda: owned)
+    )
+    AnthropicMessagesAdapter().close()
+    assert owned.closed == 1
+
+    injected = ClosableClient()
+    AnthropicMessagesAdapter(client=injected).close()
+    assert injected.closed == 0
 
 
 # ---------------------------------------------------------------------------
@@ -167,12 +267,60 @@ async def test_async_anthropic_adapter_sends_explicit_temperature_in_extra_body(
 
 @pytest.mark.asyncio
 async def test_async_anthropic_adapter_wraps_exceptions() -> None:
-    boom = ValueError("bad request")
+    boom = ValueError("synthetic-secret vendor payload")
     client = StubAsyncAnthropicClient(raise_exc=boom)
     adapter = AsyncAnthropicMessagesAdapter(client=client)
-    with pytest.raises(WardenBotInfraError, match="bad request") as exc_info:
+    with pytest.raises(
+        WardenBotInfraError, match=r"Anthropic API call failed \(ValueError\)"
+    ) as exc_info:
         await adapter.send_message("hi")
-    assert exc_info.value.__cause__ is boom
+    rendered = "".join(traceback.format_exception(exc_info.value))
+    assert "synthetic-secret" not in repr(exc_info.value)
+    assert "synthetic-secret" not in rendered
+    assert exc_info.value.__cause__ is None
+    assert exc_info.value.__suppress_context__
+
+
+@pytest.mark.asyncio
+async def test_async_anthropic_client_close_respects_ownership(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import pytest_wardenbot.adapters.anthropic_msgs as module
+
+    class ClosableClient(StubAsyncAnthropicClient):
+        closed = 0
+
+        async def close(self) -> None:
+            self.closed += 1
+
+    owned = ClosableClient()
+    monkeypatch.setattr(
+        module,
+        "_import_anthropic",
+        lambda: SimpleNamespace(AsyncAnthropic=lambda: owned),
+    )
+    await AsyncAnthropicMessagesAdapter().aclose()
+    assert owned.closed == 1
+
+    injected = ClosableClient()
+    await AsyncAnthropicMessagesAdapter(client=injected).aclose()
+    assert injected.closed == 0
+
+
+@pytest.mark.asyncio
+async def test_async_anthropic_caller_cancellation_propagates() -> None:
+    class HangingMessages:
+        async def create(self, **kwargs: object) -> object:
+            del kwargs
+            await asyncio.Event().wait()
+            return object()
+
+    client = SimpleNamespace(messages=HangingMessages())
+    task = asyncio.create_task(AsyncAnthropicMessagesAdapter(client=client).send_message("hi"))
+    await asyncio.sleep(0)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
 
 
 @pytest.mark.asyncio

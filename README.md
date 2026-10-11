@@ -7,11 +7,12 @@
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit)
 
-Pytest plugin for testing chatbots and LLM apps — prompt injection, jailbreaks, system-prompt leaks, hallucinations, brand drift.
+Pytest security tests for chatbots and tool-using agents — prompt injection,
+MCP boundary checks, data leaks and semantic regressions.
 
 📖 **Documentation:** [pytest-wardenbot.wardenbot.ai](https://pytest-wardenbot.wardenbot.ai/)
 
-> **Status: pre-release.** The 0.1 series is in active development. APIs may change before the first stable release. The v0.2 roadmap is tracked in [GitHub Issues](https://github.com/wardenbot-ai/pytest-wardenbot/issues).
+> **Status: pre-release.** The 0.2 series is in active development. APIs may change before the first stable release. Follow ongoing work in [GitHub Issues](https://github.com/wardenbot-ai/pytest-wardenbot/issues).
 
 ---
 
@@ -23,6 +24,10 @@ Run pytest against your chatbot and find out if it leaks its system prompt, comp
 - **Deterministic-first.** v0.1 ships 29 tests graded with regex, substring, and schema checks, without a separate judge model. Your chatbot's API usage may still cost money. Optional LLM-judge tests (DeepEval) ship as an extra for semantic checks.
 - **Agent-ready failures.** When a test fails, the failure message includes a structured Markdown remediation prompt you can paste into Cursor or Claude Code.
 - **Public adapter checks.** The bundled OpenAI and Anthropic adapters have mock-based tests and a scheduled live API smoke workflow. Check the [latest workflow results](https://github.com/wardenbot-ai/pytest-wardenbot/actions/workflows/live-api-smoke.yml) for the current live status.
+- **Instrumented agent scenarios.** Eight versioned cases cover MCP tool results,
+  descriptions, resources and prompts, each with a benign baseline. A recording
+  sink proves effects; required-coverage mode prevents missing evidence from
+  becoming a successful CI run.
 
 ### What "passing" means (and doesn't)
 
@@ -78,8 +83,23 @@ The optional [MCP harness](docs/how-to/mcp-harness.md) exercises tool results,
 tool descriptions, resources and prompts over real local MCP transports, with
 scripted vulnerable/resistant/unexposed controls. It needs no provider credentials.
 See [agent trials](docs/how-to/agent-trials.md) for the contract and application
-integration responsibilities. A packaged agent scenario corpus and live application
-pilot remain roadmap work; the existing chatbot tests continue unchanged.
+integration responsibilities.
+
+After configuring your `agent_target` and `agent_observer` fixtures:
+
+```bash
+pytest --pyargs pytest_wardenbot.agent_tests --wardenbot-agent-required
+# Select one versioned scenario and its benign baseline:
+pytest --pyargs pytest_wardenbot.agent_tests \
+  --wardenbot-agent-scenario=mcp.tool-result.forbidden-tool@1 \
+  --wardenbot-agent-required
+```
+
+The [scenario guide](docs/how-to/agent-scenarios.md) includes a complete local
+fixture setup. The [reference agent](docs/how-to/reference-agent.md) and
+[pilot methodology](docs/about/agent-pilot.md) exercise a bounded model/tool loop
+with paired benign and attack trials. Existing chatbot tests remain in the
+separate `pytest_wardenbot.tests` suite.
 
 
 ## Quickstart (under 60 seconds)

@@ -1,7 +1,7 @@
 [project]
 name = "pytest-wardenbot"
-version = "0.1.9"
-description = "Pytest plugin for testing chatbots and LLM apps — prompt injection, jailbreaks, system-prompt leaks, hallucinations, brand drift."
+version = "0.2.0"
+description = "Pytest security tests for chatbots and tool-using agents — prompt injection, MCP boundary checks, data leaks and semantic regressions."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "Apache-2.0"
@@ -93,6 +93,8 @@ include = [
     "/scripts/__init__.py",
     "/scripts/check_consumer.py",
     "/scripts/notify_community.py",
+    "/scripts/evaluation/__init__.py",
+    "/scripts/evaluation/agent_pilot.py",
     "/README.md",
     "/LICENSE.md",
     "/pyproject.toml",

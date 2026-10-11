@@ -177,12 +177,16 @@ def chatbot():
     token = os.environ.get("CHATBOT_TOKEN", "")
     headers = {{"Authorization": f"Bearer {{token}}"}} if token else None
 
-    return HTTPChatbotAdapter(
+    adapter = HTTPChatbotAdapter(
         url=url,
         headers=headers,
         request_field="message",   # TODO: change if your bot expects a different field
         response_field="response", # TODO: change if your bot returns a different field
     )
+    try:
+        yield adapter
+    finally:
+        adapter.close()
 
 
 @pytest.fixture(

@@ -58,8 +58,10 @@ class _Response:
     def __init__(self, raw: dict[str, Any]) -> None:
         self.raw = raw
 
-    def model_dump(self, *, mode: str) -> dict[str, Any]:
+    def model_dump(self, *, mode: str, by_alias: bool, exclude_unset: bool) -> dict[str, Any]:
         assert mode == "json"
+        assert by_alias is True
+        assert exclude_unset is True
         return self.raw  # Deliberately aliased; adapter must take its own copy.
 
     def __repr__(self) -> str:
@@ -621,6 +623,10 @@ async def test_real_sdk_request_replay_refusal_and_reset(asynchronous: bool) -> 
         assert calls[1]["input"][1]["type"] == "reasoning"
         assert calls[1]["input"][1]["encrypted_content"] == "encrypted-reasoning-contract"
         assert calls[1]["input"][2]["content"][0]["refusal"] == "I cannot help."
+        assert "status" not in calls[1]["input"][1]
+        assert "content" not in calls[1]["input"][1]
+        assert "phase" not in calls[1]["input"][2]
+        assert "logprobs" not in calls[1]["input"][2]["content"][0]
         assert all(call["instructions"] == "Contract instructions." for call in calls)
         assert all(call["store"] is False and "temperature" not in call for call in calls)
         await _reset(adapter, "s")

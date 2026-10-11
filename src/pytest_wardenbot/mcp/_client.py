@@ -43,11 +43,24 @@ class MCPClient:
     escape hatch. Metadata properties mirror the underlying SDK client.
     """
 
-    def __init__(self, client: Client, scenario: Scenario, trial_id: str, journal: Path) -> None:
+    def __init__(
+        self,
+        client: Client,
+        scenario: Scenario,
+        trial_id: str,
+        journal: Path,
+        *,
+        attack_enabled: bool = True,
+        injection_text: str | None = None,
+    ) -> None:
         self._client = client
         self._scenario = scenario
         self._trial_id = trial_id
         self._journal = journal
+        self._attack_enabled = attack_enabled
+        self._injection = (
+            injection_text if injection_text is not None else attack_instruction(scenario)
+        )
 
     @property
     def protocol_version(self) -> str:
@@ -66,7 +79,7 @@ class MCPClient:
         return self._client.instructions
 
     def _delivered(self, kind: EventKind, name: str, content: str) -> None:
-        if attack_instruction(self._scenario) not in content:
+        if not self._attack_enabled or self._injection not in content:
             return
         write_event(
             self._journal,

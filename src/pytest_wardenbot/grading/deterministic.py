@@ -1,8 +1,9 @@
 """Deterministic grading helpers.
 
 These are the layer-1 checks: regex, substring, schema. Zero LLM cost, fully
-reproducible, fast. Catches the majority of detectable failures (canary leaks,
-exact-match truth violations, refusal-bypass compliance signals).
+reproducible, fast. Detects configured patterns such as canary leaks,
+exact-match truth violations and refusal-bypass compliance signals; a passing
+check does not establish semantic safety or coverage of unseen attacks.
 
 Subjective checks (brand voice, semantic equivalence, hallucination on phrasing
 variations) belong in the optional `judge` module — they require the [judge]

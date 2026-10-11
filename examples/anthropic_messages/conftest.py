@@ -26,11 +26,15 @@ You are the customer-support assistant for Example Corp.
 def chatbot():
     if not os.environ.get("ANTHROPIC_API_KEY"):
         pytest.skip("ANTHROPIC_API_KEY not set; needed for the Anthropic adapter example.")
-    return AnthropicMessagesAdapter(
+    adapter = AnthropicMessagesAdapter(
         model="claude-haiku-4-5",
         system_prompt=SYSTEM_PROMPT,
         max_tokens=1024,
     )
+    try:
+        yield adapter
+    finally:
+        adapter.close()
 
 
 @pytest.fixture(

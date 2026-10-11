@@ -17,15 +17,30 @@ Also registers:
 Most shipped tests live under `pytest_wardenbot.tests`; invoke with:
 
     pytest --pyargs pytest_wardenbot.tests
+
+The separate instrumented agent suite uses ``agent_target`` and
+``agent_observer`` fixtures, paired scenario inputs, and explicit coverage:
+
+    pytest --pyargs pytest_wardenbot.agent_tests --wardenbot-agent-required
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
+from warnings import WarningMessage
 
 import pytest
 
+from pytest_wardenbot import _agent_plugin
+from pytest_wardenbot._agent_plugin import (  # noqa: F401 -- pytest discovers these fixtures
+    agent_observer,
+    agent_target,
+    wardenbot_agent_attack_enabled,
+    wardenbot_agent_limits,
+    wardenbot_agent_result,
+    wardenbot_agent_scenario,
+)
 from pytest_wardenbot._corpus_override import resolve_corpus
 from pytest_wardenbot.adapters.base import ChatbotAdapter
 from pytest_wardenbot.business_truth import BusinessTruthFact
@@ -148,6 +163,7 @@ spend in CI.
 def pytest_addoption(parser: pytest.Parser) -> None:
     """Register pytest-wardenbot CLI options."""
     group = parser.getgroup("wardenbot", "pytest-wardenbot options")
+    _agent_plugin.add_options(group)
     group.addoption(
         "--wardenbot-quickstart",
         nargs="?",
@@ -188,6 +204,7 @@ def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line("markers", "severity_high: high-severity wardenbot test")
     config.addinivalue_line("markers", "severity_medium: medium-severity wardenbot test")
     config.addinivalue_line("markers", "severity_low: low-severity wardenbot test")
+    _agent_plugin.configure(config)
 
 
 @pytest.hookimpl(trylast=True)
@@ -210,9 +227,9 @@ def pytest_sessionstart(session: pytest.Session) -> None:
     """
     config = session.config
     if not config.getoption("pyargs") or not any(
-        arg.split("::", 1)[0] == "pytest_wardenbot.tests"
-        or arg.split("::", 1)[0].startswith("pytest_wardenbot.tests.")
+        arg.split("::", 1)[0] == package or arg.split("::", 1)[0].startswith(package + ".")
         for arg in config.args
+        for package in ("pytest_wardenbot.tests", "pytest_wardenbot.agent_tests")
     ):
         return
 
@@ -294,6 +311,7 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
     so imported shipped tests parametrize correctly — not only those collected
     from ``pytest_wardenbot.tests``. Honors user corpus overrides.
     """
+    _agent_plugin.generate_tests(metafunc)
     spec = _CORPUS_TESTS.get(metafunc.function.__name__)
     if spec is None:
         return
@@ -302,6 +320,25 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
         return
     corpus = resolve_corpus(metafunc, fixture_name, default_corpus)
     metafunc.parametrize(param_names, corpus, ids=[entry[-1] for entry in corpus])
+
+
+@pytest.hookimpl(hookwrapper=True, tryfirst=True)
+def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo[Any]):
+    outcome = yield
+    _agent_plugin.record_report(item, outcome.get_result())
+
+
+def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
+    _agent_plugin.session_finish(session)
+
+
+def pytest_terminal_summary(terminalreporter: Any) -> None:
+    _agent_plugin.terminal_summary(terminalreporter)
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_warning_recorded(warning_message: WarningMessage, nodeid: str) -> None:
+    _agent_plugin.sanitize_warning(warning_message, nodeid)
 
 
 @pytest.fixture

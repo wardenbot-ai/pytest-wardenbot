@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import traceback
 from typing import Any
 
 import httpx
@@ -153,11 +154,20 @@ def test_http_adapter_propagates_session_id() -> None:
 
 def test_http_adapter_raises_on_missing_response_field_with_helpful_message() -> None:
     def handler(_: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, json={"unexpected_key": "value"})
+        return httpx.Response(200, json={"unexpected_key": "missing-field-secret"})
 
     adapter = _make_http_adapter(httpx.MockTransport(handler))
-    with pytest.raises(WardenBotInfraError, match=r"response.*not found"):
+    adapter._url = (
+        "https://user:pass@chatbot.test/private/path?token=url-secret"  # pragma: allowlist secret
+    )
+    with pytest.raises(WardenBotInfraError, match="could not be extracted") as exc_info:
         adapter.send_message("hi")
+    rendered = "".join(traceback.format_exception(exc_info.value))
+    assert "missing-field-secret" not in rendered
+    assert "url-secret" not in rendered
+    assert "user:pass" not in rendered
+    assert exc_info.value.__cause__ is None
+    assert exc_info.value.__suppress_context__
 
 
 def test_http_adapter_raises_on_non_json_response() -> None:
@@ -173,44 +183,80 @@ def test_http_adapter_raises_on_non_json_response() -> None:
         adapter.send_message("hi")
 
 
-def test_http_adapter_raises_on_non_object_json_response() -> None:
+@pytest.mark.parametrize("payload", [["array-secret"], "scalar-secret"])
+def test_http_adapter_raises_on_non_object_json_response(payload: Any) -> None:
     def handler(_: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, json=["a", "b", "c"])
+        return httpx.Response(200, json=payload)
 
     adapter = _make_http_adapter(httpx.MockTransport(handler))
-    with pytest.raises(WardenBotInfraError, match="non-object JSON"):
+    adapter._url = (
+        "https://user:pass@chatbot.test/private/path?token=url-secret"  # pragma: allowlist secret
+    )
+    with pytest.raises(WardenBotInfraError, match="non-object JSON") as exc_info:
         adapter.send_message("hi")
+    rendered = "".join(traceback.format_exception(exc_info.value))
+    assert "array-secret" not in rendered
+    assert "scalar-secret" not in rendered
+    assert "url-secret" not in rendered
+    assert "user:pass" not in rendered
+    assert exc_info.value.__cause__ is None
+    assert exc_info.value.__suppress_context__
 
 
 def test_http_adapter_wraps_http_errors_in_infra_error() -> None:
     def handler(_: httpx.Request) -> httpx.Response:
-        return httpx.Response(500, json={"error": "boom"})
+        return httpx.Response(500, json={"error": "body-secret"})
 
     adapter = _make_http_adapter(httpx.MockTransport(handler))
+    adapter._url = (
+        "https://user:pass@chatbot.test/private/path?token=url-secret"  # pragma: allowlist secret
+    )
     with pytest.raises(WardenBotInfraError, match="HTTP 500") as exc_info:
         adapter.send_message("hi")
-    # Original exception is preserved as the cause for debugging.
-    assert isinstance(exc_info.value.__cause__, httpx.HTTPStatusError)
+    rendered = "".join(traceback.format_exception(exc_info.value))
+    assert "body-secret" not in rendered
+    assert "url-secret" not in rendered
+    assert "user:pass" not in rendered
+    assert exc_info.value.__cause__ is None
+    assert exc_info.value.__suppress_context__
 
 
 def test_http_adapter_wraps_timeout_in_infra_error() -> None:
     def handler(_: httpx.Request) -> httpx.Response:
-        raise httpx.TimeoutException("simulated timeout")
+        raise httpx.TimeoutException("timeout-secret")
 
     adapter = _make_http_adapter(httpx.MockTransport(handler))
+    adapter._url = (
+        "https://user:pass@chatbot.test/private/path?token=url-secret"  # pragma: allowlist secret
+    )
     with pytest.raises(WardenBotInfraError, match="timed out") as exc_info:
         adapter.send_message("hi")
-    assert isinstance(exc_info.value.__cause__, httpx.TimeoutException)
+    rendered = "".join(traceback.format_exception(exc_info.value))
+    assert "timeout-secret" not in rendered
+    assert "url-secret" not in rendered
+    assert "user:pass" not in rendered
+    assert "30.0s" in str(exc_info.value)
+    assert exc_info.value.__cause__ is None
+    assert exc_info.value.__suppress_context__
 
 
 def test_http_adapter_wraps_connect_error_in_infra_error() -> None:
     def handler(_: httpx.Request) -> httpx.Response:
-        raise httpx.ConnectError("simulated connect failure")
+        raise httpx.ConnectError("connect-secret")
 
     adapter = _make_http_adapter(httpx.MockTransport(handler))
-    with pytest.raises(WardenBotInfraError, match="Network error") as exc_info:
+    adapter._url = (
+        "https://user:pass@chatbot.test/private/path?token=url-secret"  # pragma: allowlist secret
+    )
+    with pytest.raises(WardenBotInfraError, match=r"request failed \(ConnectError\)") as exc_info:
         adapter.send_message("hi")
-    assert isinstance(exc_info.value.__cause__, httpx.ConnectError)
+    rendered = "".join(traceback.format_exception(exc_info.value))
+    assert "connect-secret" not in rendered
+    assert "url-secret" not in rendered
+    assert "user:pass" not in rendered
+    assert "ConnectError" in str(exc_info.value)
+    assert exc_info.value.__cause__ is None
+    assert exc_info.value.__suppress_context__
 
 
 # ---------------------------------------------------------------------------

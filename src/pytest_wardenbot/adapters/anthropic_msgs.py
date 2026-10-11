@@ -57,24 +57,46 @@ def _extract_text(message: Any) -> str:
     """
     try:
         blocks = message.content
-    except AttributeError as exc:
-        raise WardenBotInfraError(f"Anthropic response missing .content. Got: {message!r}") from exc
+    except Exception:
+        raise WardenBotInfraError("Anthropic response is missing .content.") from None
+    if not isinstance(blocks, list | tuple):
+        raise WardenBotInfraError("Anthropic response content is malformed.") from None
 
     text_parts: list[str] = []
     for block in blocks:
-        block_text = getattr(block, "text", None)
-        if isinstance(block_text, str):
-            text_parts.append(block_text)
+        try:
+            block_type = block.type
+        except Exception:
+            raise WardenBotInfraError(
+                "Anthropic response contains a malformed content block."
+            ) from None
+        if block_type != "text":
+            raise WardenBotInfraError("Anthropic response contains unsupported content.") from None
+        try:
+            block_text = block.text
+        except Exception:
+            raise WardenBotInfraError(
+                "Anthropic response contains a malformed text block."
+            ) from None
+        if not isinstance(block_text, str):
+            raise WardenBotInfraError("Anthropic response text block is not text.") from None
+        text_parts.append(block_text)
     return "".join(text_parts)
 
 
 def _message_to_raw(message: Any) -> dict[str, Any]:
     """Best-effort dict view of an Anthropic message for ChatbotResponse.raw."""
-    if hasattr(message, "model_dump"):
-        return message.model_dump()
     if isinstance(message, dict):
         return message
-    return {"repr": repr(message)}
+    model_dump = getattr(message, "model_dump", None)
+    if callable(model_dump):
+        try:
+            raw = model_dump()
+        except Exception:
+            return {"unavailable": "Response payload could not be serialized."}
+        if isinstance(raw, dict):
+            return raw
+    return {"unavailable": "Response object does not support model_dump()."}
 
 
 class AnthropicMessagesAdapter:
@@ -106,6 +128,7 @@ class AnthropicMessagesAdapter:
         extra_request_fields: dict[str, Any] | None = None,
         keep_sensitive_response_fields: bool = False,
     ) -> None:
+        self._owns_client = client is None
         if client is None:
             anthropic = _import_anthropic()
             client = anthropic.Anthropic()
@@ -140,8 +163,8 @@ class AnthropicMessagesAdapter:
             message = self._client.messages.create(**kwargs)
         except Exception as exc:
             raise WardenBotInfraError(
-                f"Anthropic API call failed: {type(exc).__name__}: {exc}"
-            ) from exc
+                f"Anthropic API call failed ({type(exc).__name__})."
+            ) from None
         elapsed_ms = (time.perf_counter() - start) * 1000
 
         text = _extract_text(message)
@@ -155,6 +178,11 @@ class AnthropicMessagesAdapter:
 
     def reset_session(self, session_id: str) -> None:
         self._sessions.pop(session_id, None)
+
+    def close(self) -> None:
+        """Close an internally created Anthropic client; injected clients stay caller-owned."""
+        if self._owns_client:
+            self._client.close()
 
     def __repr__(self) -> str:
         return f"AnthropicMessagesAdapter(model={self._model!r})"
@@ -181,6 +209,7 @@ class AsyncAnthropicMessagesAdapter:
         extra_request_fields: dict[str, Any] | None = None,
         keep_sensitive_response_fields: bool = False,
     ) -> None:
+        self._owns_client = client is None
         if client is None:
             anthropic = _import_anthropic()
             client = anthropic.AsyncAnthropic()
@@ -215,8 +244,8 @@ class AsyncAnthropicMessagesAdapter:
             message = await self._client.messages.create(**kwargs)
         except Exception as exc:
             raise WardenBotInfraError(
-                f"Anthropic API call failed: {type(exc).__name__}: {exc}"
-            ) from exc
+                f"Anthropic API call failed ({type(exc).__name__})."
+            ) from None
         elapsed_ms = (time.perf_counter() - start) * 1000
 
         text = _extract_text(message)
@@ -230,6 +259,11 @@ class AsyncAnthropicMessagesAdapter:
 
     async def reset_session(self, session_id: str) -> None:
         self._sessions.pop(session_id, None)
+
+    async def aclose(self) -> None:
+        """Close an internally created Anthropic client; injected clients stay caller-owned."""
+        if self._owns_client:
+            await self._client.close()
 
     def __repr__(self) -> str:
         return f"AsyncAnthropicMessagesAdapter(model={self._model!r})"

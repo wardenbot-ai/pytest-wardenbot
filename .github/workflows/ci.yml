@@ -190,6 +190,29 @@ jobs:
         if: matrix.dependencies == 'current'
         run: python examples/langgraph_state/chatbot.py
 
+  test-integrations:
+    name: Full suite (all integration extras)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DEEPEVAL_TELEMETRY_OPT_OUT: "YES"
+      DEEPEVAL_UPDATE_WARNING_OPT_OUT: "YES"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install the complete tested integration environment
+        run: >-
+          pip install -e ".[dev,judge,mcp,openai,anthropic,langchain]"
+          "langgraph==1.2.14" "pytest-xdist==3.8.0"
+      - name: Check dependency resolution and the full suite together
+        run: |
+          pip check
+          coverage run -m pytest -ra
+          coverage report --fail-under=90
+
   mcp-contracts:
     name: MCP harness (Python ${{ matrix.python }}, ${{ matrix.dependencies }})
     runs-on: ubuntu-latest
@@ -215,10 +238,13 @@ jobs:
           cache: pip
       - name: Install exact MCP dependency floors
         if: matrix.dependencies == 'minimum'
-        run: pip install -e ".[dev,mcp]" "mcp==2.2.0" "uvicorn==0.31.1"
+        run: pip install -e ".[dev,mcp,openai]" "mcp==2.2.0" "uvicorn==0.31.1" "openai==1.66.3"
       - name: Install current supported MCP SDK
         if: matrix.dependencies == 'current'
-        run: pip install -e ".[dev,mcp]"
+        run: pip install -e ".[dev,mcp,openai]"
+      - name: Check required coverage with distributed pytest
+        if: matrix.python == '3.12' && matrix.dependencies == 'current'
+        run: pip install "pytest-xdist==3.8.0"
       - name: Verify optional dependencies
         run: |
           pip check
@@ -228,7 +254,7 @@ jobs:
         run: pyright
       - name: Exercise real local transports and agent outcomes
         run: |
-          coverage run -m pytest tests/test_agent*.py tests/test_mcp*.py -ra
+          coverage run -m pytest tests/test_agent*.py tests/test_mcp*.py tests/test_reference_agent.py -ra
           coverage xml
       - name: Upload MCP coverage to Codecov
         if: matrix.python == '3.12' && matrix.dependencies == 'current'
@@ -241,11 +267,13 @@ jobs:
           name: pytest-wardenbot-mcp
       - name: Run the controlled MCP example
         run: python examples/mcp_harness/run_controls.py
+      - name: Run the reference agent with offline model controls
+        run: python scripts/evaluation/agent_pilot.py --output /tmp/reference-agent-controls.json
 
   build:
     name: Build sdist + wheel
     runs-on: ubuntu-latest
-    needs: [lint, typecheck, test, test-with-judge, sdk-contracts, mcp-contracts, docs]
+    needs: [lint, typecheck, test, test-with-judge, sdk-contracts, test-integrations, mcp-contracts, docs]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -309,10 +337,14 @@ jobs:
         run: '"$RUNNER_TEMP/consumer-venv/bin/python" "$GITHUB_WORKSPACE/scripts/check_consumer.py"'
 
   consumer-mcp:
-    name: Fresh-wheel MCP consumer
+    name: Fresh-wheel MCP consumer (pytest ${{ matrix.pytest }})
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        pytest: [minimum, current]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -328,9 +360,12 @@ jobs:
           "$RUNNER_TEMP/mcp-consumer/bin/python" - <<'PY'
           import glob, subprocess, sys
           wheel, = glob.glob("dist/*.whl")
-          subprocess.check_call([sys.executable, "-m", "pip", "install", wheel + "[mcp]"])
+          subprocess.check_call([sys.executable, "-m", "pip", "install", wheel + "[mcp,openai]"])
           subprocess.check_call([sys.executable, "-m", "pip", "check"])
           PY
+      - name: Select minimum supported pytest
+        if: matrix.pytest == 'minimum'
+        run: '"$RUNNER_TEMP/mcp-consumer/bin/python" -m pip install "pytest==8.1.1"'
       - name: Exercise installed subprocess package and controls
         working-directory: ${{ runner.temp }}
         run: |
@@ -343,3 +378,12 @@ jobs:
           assert len(outcomes) == 12
           print("Installed MCP wheel: all 12 control outcomes verified")
           PY
+      - name: Verify installed pytest agent scenarios and required coverage
+        working-directory: ${{ runner.temp }}
+        run: '"$RUNNER_TEMP/mcp-consumer/bin/python" "$GITHUB_WORKSPACE/scripts/check_consumer.py" --agents'
+      - name: Verify installed reference agent with an offline model
+        working-directory: ${{ runner.temp }}
+        run: >-
+          "$RUNNER_TEMP/mcp-consumer/bin/python"
+          "$GITHUB_WORKSPACE/scripts/evaluation/agent_pilot.py"
+          --transport stdio --output reference-agent-controls.json

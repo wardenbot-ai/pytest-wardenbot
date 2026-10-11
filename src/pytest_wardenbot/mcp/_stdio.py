@@ -7,7 +7,7 @@ import os
 import sys
 from pathlib import Path
 
-from pytest_wardenbot.mcp._server import build_server
+from pytest_wardenbot.mcp._server import DOCUMENT, build_server
 from pytest_wardenbot.mcp._wire import scenario_from_dict
 
 
@@ -16,7 +16,14 @@ def main() -> None:
     config = json.loads((directory / "config.json").read_text(encoding="utf-8"))
     (directory / "pid").write_text(str(os.getpid()), encoding="ascii")
     scenario = scenario_from_dict(config["scenario"])
-    build_server(scenario, config["trial_id"], directory / "events.jsonl").run()
+    build_server(
+        scenario,
+        config["trial_id"],
+        directory / "events.jsonl",
+        attack_enabled=config.get("attack_enabled", True),
+        document_text=config.get("document_text", DOCUMENT),
+        injection_text=config.get("injection_text"),
+    ).run()
 
 
 if __name__ == "__main__":

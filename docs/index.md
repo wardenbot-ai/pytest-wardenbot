@@ -1,10 +1,10 @@
 # pytest-wardenbot
 
-Pytest plugin for testing chatbots and LLM apps. Run a curated test suite
-against your chatbot to catch behavior regressions before your customers do.
+Pytest security tests for chatbots and tool-using agents. Run a curated test suite
+against your application to catch behavior regressions before your customers do.
 
 !!! note "Pre-release"
-    The 0.1 series is in active development. APIs may change before the first stable
+    The 0.2 series is in active development. APIs may change before the first stable
     release. See the [changelog](changelog.md) for what's landed.
 
 ## Why this exists
@@ -35,6 +35,21 @@ Markdown into your IDE, iterate.
 
 [Full quickstart →](quickstart.md){ .md-button .md-button--primary }
 [See what's tested →](tests/index.md){ .md-button }
+
+## Test an agent's tool boundary
+
+The agent suite adds eight versioned scenarios covering tool results,
+descriptions, resources and prompts. Each has a benign baseline. Trusted
+instrumentation records effects separately from model claims, and missing
+exposure remains inconclusive. Required-coverage mode returns nonzero when a
+selected scenario is skipped, deselected or lacks evidence.
+
+[Configure agent scenarios →](how-to/agent-scenarios.md){ .md-button }
+[Run the reference agent →](how-to/reference-agent.md){ .md-button }
+
+The MCP harness runs locally without API credentials. The reference agent's
+live mode is opt-in and makes bounded provider calls; its offline controls
+exercise the same tool loop without network requests.
 
 ## What "passing" means (and doesn't)
 

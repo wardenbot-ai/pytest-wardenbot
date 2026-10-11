@@ -59,21 +59,37 @@ def _build_messages(
 def _extract_text(completion: Any) -> str:
     """Pull the assistant text from an OpenAI Chat Completion response."""
     try:
-        text = completion.choices[0].message.content
-    except (AttributeError, IndexError) as exc:
+        choices = completion.choices
+    except Exception:
+        raise WardenBotInfraError("OpenAI response has malformed choices.") from None
+    if not isinstance(choices, list | tuple) or not choices:
+        raise WardenBotInfraError("OpenAI response has malformed choices.") from None
+    try:
+        text = choices[0].message.content
+    except Exception:
         raise WardenBotInfraError(
-            f"OpenAI response missing choices[0].message.content. Got: {completion!r}"
-        ) from exc
-    return text or ""
+            "OpenAI response is missing choices[0].message.content."
+        ) from None
+    if text is None:
+        return ""
+    if not isinstance(text, str):
+        raise WardenBotInfraError("OpenAI response content is not text.") from None
+    return text
 
 
 def _completion_to_raw(completion: Any) -> dict[str, Any]:
     """Best-effort dict view of an OpenAI completion for ChatbotResponse.raw."""
-    if hasattr(completion, "model_dump"):
-        return completion.model_dump()
     if isinstance(completion, dict):
         return completion
-    return {"repr": repr(completion)}
+    model_dump = getattr(completion, "model_dump", None)
+    if callable(model_dump):
+        try:
+            raw = model_dump()
+        except Exception:
+            return {"unavailable": "Response payload could not be serialized."}
+        if isinstance(raw, dict):
+            return raw
+    return {"unavailable": "Response object does not support model_dump()."}
 
 
 class OpenAIChatAdapter:
@@ -107,6 +123,7 @@ class OpenAIChatAdapter:
         extra_request_fields: dict[str, Any] | None = None,
         keep_sensitive_response_fields: bool = False,
     ) -> None:
+        self._owns_client = client is None
         if client is None:
             openai = _import_openai()
             client = openai.OpenAI()
@@ -131,9 +148,7 @@ class OpenAIChatAdapter:
                 **self._extra_request_fields,
             )
         except Exception as exc:
-            raise WardenBotInfraError(
-                f"OpenAI API call failed: {type(exc).__name__}: {exc}"
-            ) from exc
+            raise WardenBotInfraError(f"OpenAI API call failed ({type(exc).__name__}).") from None
         elapsed_ms = (time.perf_counter() - start) * 1000
 
         text = _extract_text(completion)
@@ -149,6 +164,11 @@ class OpenAIChatAdapter:
 
     def reset_session(self, session_id: str) -> None:
         self._sessions.pop(session_id, None)
+
+    def close(self) -> None:
+        """Close an internally created OpenAI client; injected clients stay caller-owned."""
+        if self._owns_client:
+            self._client.close()
 
     def __repr__(self) -> str:
         return f"OpenAIChatAdapter(model={self._model!r})"
@@ -176,6 +196,7 @@ class AsyncOpenAIChatAdapter:
         extra_request_fields: dict[str, Any] | None = None,
         keep_sensitive_response_fields: bool = False,
     ) -> None:
+        self._owns_client = client is None
         if client is None:
             openai = _import_openai()
             client = openai.AsyncOpenAI()
@@ -200,9 +221,7 @@ class AsyncOpenAIChatAdapter:
                 **self._extra_request_fields,
             )
         except Exception as exc:
-            raise WardenBotInfraError(
-                f"OpenAI API call failed: {type(exc).__name__}: {exc}"
-            ) from exc
+            raise WardenBotInfraError(f"OpenAI API call failed ({type(exc).__name__}).") from None
         elapsed_ms = (time.perf_counter() - start) * 1000
 
         text = _extract_text(completion)
@@ -218,6 +237,11 @@ class AsyncOpenAIChatAdapter:
 
     async def reset_session(self, session_id: str) -> None:
         self._sessions.pop(session_id, None)
+
+    async def aclose(self) -> None:
+        """Close an internally created OpenAI client; injected clients stay caller-owned."""
+        if self._owns_client:
+            await self._client.close()
 
     def __repr__(self) -> str:
         return f"AsyncOpenAIChatAdapter(model={self._model!r})"

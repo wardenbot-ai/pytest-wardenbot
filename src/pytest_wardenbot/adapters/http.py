@@ -92,43 +92,38 @@ class HTTPChatbotAdapter:
         start = time.perf_counter()
         try:
             response = self._client.post(self._url, json=payload, headers=self._headers)
-        except httpx.TimeoutException as exc:
+        except httpx.TimeoutException:
             raise WardenBotInfraError(
-                f"Chatbot at {self._url} timed out after {self._timeout}s"
-            ) from exc
+                f"Chatbot request timed out after {self._timeout}s."
+            ) from None
         except httpx.RequestError as exc:
-            raise WardenBotInfraError(
-                f"Network error reaching chatbot at {self._url}: {exc}"
-            ) from exc
+            raise WardenBotInfraError(f"Chatbot request failed ({type(exc).__name__}).") from None
         elapsed_ms = (time.perf_counter() - start) * 1000
 
         try:
             response.raise_for_status()
-        except httpx.HTTPStatusError as exc:
-            raise WardenBotInfraError(
-                f"Chatbot at {self._url} returned HTTP {response.status_code}. "
-                f"body[:200]={response.text[:200]!r}"
-            ) from exc
+        except httpx.HTTPStatusError:
+            raise WardenBotInfraError(f"Chatbot returned HTTP {response.status_code}.") from None
 
         try:
             data = response.json()
-        except ValueError as exc:
+        except ValueError:
             raise WardenBotInfraError(
-                f"Chatbot at {self._url} returned non-JSON response. "
-                f"Status {response.status_code}; body[:200]={response.text[:200]!r}"
-            ) from exc
+                f"Chatbot returned non-JSON response (HTTP {response.status_code})."
+            ) from None
 
         if not isinstance(data, dict):
             raise WardenBotInfraError(
-                f"Chatbot at {self._url} returned non-object JSON "
-                f"({type(data).__name__}). Wrap your response in a JSON object or "
-                "supply a custom `response_field` callable."
-            )
+                "Chatbot returned non-object JSON. Wrap your response in a JSON object "
+                "or supply a custom `response_field` callable."
+            ) from None
 
         try:
             text = _extract_text_from_dict(data, self._response_field)
-        except (KeyError, TypeError) as exc:
-            raise WardenBotInfraError(str(exc)) from exc
+        except Exception:
+            raise WardenBotInfraError(
+                "Chatbot response could not be extracted using response_field."
+            ) from None
 
         stored_raw = data if self._keep_sensitive_response_fields else redact_response_payload(data)
         return ChatbotResponse(text=text, raw=stored_raw, latency_ms=elapsed_ms)
@@ -137,8 +132,12 @@ class HTTPChatbotAdapter:
         # Stateless by default. Subclass or wrap to add real session reset behavior.
         del session_id
 
+    def close(self) -> None:
+        """Close the owned HTTP client."""
+        self._client.close()
+
     def __repr__(self) -> str:
-        return f"HTTPChatbotAdapter(url={self._url!r})"
+        return "HTTPChatbotAdapter(url='<redacted>')"
 
 
 class AsyncHTTPChatbotAdapter:
@@ -187,43 +186,38 @@ class AsyncHTTPChatbotAdapter:
         start = time.perf_counter()
         try:
             response = await self._client.post(self._url, json=payload, headers=self._headers)
-        except httpx.TimeoutException as exc:
+        except httpx.TimeoutException:
             raise WardenBotInfraError(
-                f"Chatbot at {self._url} timed out after {self._timeout}s"
-            ) from exc
+                f"Chatbot request timed out after {self._timeout}s."
+            ) from None
         except httpx.RequestError as exc:
-            raise WardenBotInfraError(
-                f"Network error reaching chatbot at {self._url}: {exc}"
-            ) from exc
+            raise WardenBotInfraError(f"Chatbot request failed ({type(exc).__name__}).") from None
         elapsed_ms = (time.perf_counter() - start) * 1000
 
         try:
             response.raise_for_status()
-        except httpx.HTTPStatusError as exc:
-            raise WardenBotInfraError(
-                f"Chatbot at {self._url} returned HTTP {response.status_code}. "
-                f"body[:200]={response.text[:200]!r}"
-            ) from exc
+        except httpx.HTTPStatusError:
+            raise WardenBotInfraError(f"Chatbot returned HTTP {response.status_code}.") from None
 
         try:
             data = response.json()
-        except ValueError as exc:
+        except ValueError:
             raise WardenBotInfraError(
-                f"Chatbot at {self._url} returned non-JSON response. "
-                f"Status {response.status_code}; body[:200]={response.text[:200]!r}"
-            ) from exc
+                f"Chatbot returned non-JSON response (HTTP {response.status_code})."
+            ) from None
 
         if not isinstance(data, dict):
             raise WardenBotInfraError(
-                f"Chatbot at {self._url} returned non-object JSON "
-                f"({type(data).__name__}). Wrap your response in a JSON object or "
-                "supply a custom `response_field` callable."
-            )
+                "Chatbot returned non-object JSON. Wrap your response in a JSON object "
+                "or supply a custom `response_field` callable."
+            ) from None
 
         try:
             text = _extract_text_from_dict(data, self._response_field)
-        except (KeyError, TypeError) as exc:
-            raise WardenBotInfraError(str(exc)) from exc
+        except Exception:
+            raise WardenBotInfraError(
+                "Chatbot response could not be extracted using response_field."
+            ) from None
 
         stored_raw = data if self._keep_sensitive_response_fields else redact_response_payload(data)
         return ChatbotResponse(text=text, raw=stored_raw, latency_ms=elapsed_ms)
@@ -237,7 +231,7 @@ class AsyncHTTPChatbotAdapter:
         await self._client.aclose()
 
     def __repr__(self) -> str:
-        return f"AsyncHTTPChatbotAdapter(url={self._url!r})"
+        return "AsyncHTTPChatbotAdapter(url='<redacted>')"
 
 
 def _extract_text_from_dict(

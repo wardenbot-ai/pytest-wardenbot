@@ -33,12 +33,16 @@ from pytest_wardenbot.adapters.http import HTTPChatbotAdapter
 
 @pytest.fixture
 def chatbot():
-    return HTTPChatbotAdapter(
+    adapter = HTTPChatbotAdapter(
         url=os.environ["CHATBOT_URL"],
         headers={"Authorization": f"Bearer {os.environ['CHATBOT_TOKEN']}"},
         request_field="message",       # the key in the request body that holds the prompt
         response_field="response",     # the key in the response body that holds the text
     )
+    try:
+        yield adapter
+    finally:
+        adapter.close()
 ```
 
 For non-standard response shapes, pass a callable to `response_field`:
@@ -142,3 +146,21 @@ adapters already declare it.
 | `text` | `str` | yes | The chatbot's text response. The grading helpers read from here. |
 | `raw` | `dict \| None` | optional | The raw API response. Useful for debugging failures. |
 | `latency_ms` | `float \| None` | optional | Wall-clock latency of the call. Future tests may use this. |
+
+## Client ownership and diagnostics
+
+HTTP adapters own their clients: call `close()` for sync adapters and
+`await aclose()` for async adapters when your fixture finishes. OpenAI Responses,
+OpenAI Chat and Anthropic Messages expose the same cleanup methods for clients
+they create. If you inject a vendor client with `client=`, you own its lifetime;
+closing the adapter does not close that shared client.
+
+Adapter infrastructure errors show status codes and error categories without
+endpoint URLs, response bodies or provider exception text. HTTP adapter
+representations hide the endpoint, since even path segments can contain secrets.
+Custom response-field extraction errors also omit raw exceptions. Troubleshoot
+against provider status and your application's private request logs as needed.
+
+Successful response `text` and existing chatbot assertion messages can still
+contain application content. Redacting infrastructure errors does not sanitize
+your application's logs, custom fixture exceptions or arbitrary text answers.

@@ -5,10 +5,10 @@ use tools. It is separate from the existing `ChatbotAdapter` and shipped text
 tests. Core contracts require no MCP or provider SDK, credentials, or community
 notification webhooks.
 
-This release provides the contracts and controlled MCP harness. A packaged
-pytest agent scenario corpus, coverage-selection options, and live application
-pilot are later roadmap work. The [MCP harness guide](mcp-harness.md) demonstrates
-the current controlled integration.
+Use the [packaged agent scenarios](agent-scenarios.md) for versioned pytest nodes,
+paired benign/attack cases and required-coverage checks. The
+[MCP harness guide](mcp-harness.md) covers the controlled integration; the
+[reference agent](reference-agent.md) connects a model to the real tool loop.
 
 ## Outcomes and evidence
 

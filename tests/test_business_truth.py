@@ -178,6 +178,87 @@ def test_numeric_range_raises_on_inverted_range() -> None:
         assert_truth_fact_match("text with 42", fact)
 
 
+@pytest.mark.parametrize("response", ["$12345", "$49000", "1e49", "49,999", "49.9"])
+def test_numeric_range_never_accepts_partial_number(response: str) -> None:
+    fact = BusinessTruthFact(
+        question="Price?", expected_answer="49", match_type="numeric_range", numeric_range=(49, 49)
+    )
+    with pytest.raises(AssertionError):
+        assert_truth_fact_match(response, fact)
+
+
+@pytest.mark.parametrize("response", ["Price is $99; account number 49.", "It is $49 or $50."])
+def test_numeric_range_rejects_ambiguous_numbers(response: str) -> None:
+    fact = BusinessTruthFact(
+        question="Price?", expected_answer="49", match_type="numeric_range", numeric_range=(40, 60)
+    )
+    with pytest.raises(AssertionError):
+        assert_truth_fact_match(response, fact)
+
+
+@pytest.mark.parametrize("response", ["$49.", "$49 (49 USD)", "+4.9e1 dollars"])
+def test_numeric_range_accepts_one_distinct_complete_value(response: str) -> None:
+    fact = BusinessTruthFact(
+        question="Price?", expected_answer="49", match_type="numeric_range", numeric_range=(49, 49)
+    )
+    assert_truth_fact_match(response, fact)
+
+
+def test_numeric_pattern_selects_price_without_unrelated_account_number() -> None:
+    fact = BusinessTruthFact(
+        question="Price?",
+        expected_answer="49",
+        match_type="numeric_range",
+        numeric_range=(49, 49),
+        numeric_pattern=r"price is \$(?P<value>\d+(?:\.\d+)?)\b",
+    )
+    assert_truth_fact_match("The price is $49; account number 99.", fact)
+    with pytest.raises(AssertionError):
+        assert_truth_fact_match("The price is $99; account number 49.", fact)
+
+
+@pytest.mark.parametrize("pattern", [r"(?P<value>none)", r"(?P<value>\d+)?missing"])
+def test_numeric_pattern_rejects_non_numeric_or_unmatched_group(pattern: str) -> None:
+    fact = BusinessTruthFact(
+        question="q",
+        expected_answer="49",
+        match_type="numeric_range",
+        numeric_range=(49, 49),
+        numeric_pattern=pattern,
+    )
+    with pytest.raises(AssertionError):
+        assert_truth_fact_match("none missing", fact)
+
+
+def test_numeric_pattern_requires_named_value_group() -> None:
+    fact = BusinessTruthFact(
+        question="q",
+        expected_answer="49",
+        match_type="numeric_range",
+        numeric_range=(49, 49),
+        numeric_pattern=r"\d+",
+    )
+    with pytest.raises(ValueError, match="named"):
+        assert_truth_fact_match("49", fact)
+
+
+@pytest.mark.parametrize("bound", [float("inf"), float("-inf"), float("nan")])
+def test_numeric_range_rejects_non_finite_bounds(bound: float) -> None:
+    fact = BusinessTruthFact(
+        question="q", expected_answer="49", match_type="numeric_range", numeric_range=(bound, 60)
+    )
+    with pytest.raises(ValueError, match="finite"):
+        assert_truth_fact_match("49", fact)
+
+
+def test_numeric_range_rejects_overflowed_values() -> None:
+    fact = BusinessTruthFact(
+        question="q", expected_answer="49", match_type="numeric_range", numeric_range=(49, 49)
+    )
+    with pytest.raises(AssertionError):
+        assert_truth_fact_match("1e9999", fact)
+
+
 # ---------------------------------------------------------------------------
 # regex matching
 # ---------------------------------------------------------------------------
