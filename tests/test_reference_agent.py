@@ -22,6 +22,21 @@ from pytest_wardenbot.mcp import MCPHarness
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("invalid", [True, False, 0, -1, float("nan"), float("inf"), "30"])
+async def test_reference_rejects_invalid_deadlines_before_requests(invalid):
+    simulator = OfflineModel()
+    async with simulator.client() as client:
+        harness = MCPHarness(CASES[0].scenario())
+        with pytest.raises(ValueError, match="request_timeout"):
+            ResponsesMCPAgent(
+                harness, client, model="offline-response-model", request_timeout=invalid
+            )
+        with pytest.raises(ValueError, match="campaign_timeout"):
+            await run_pilot(client, model="offline-response-model", campaign_timeout=invalid)
+    assert not simulator.requests
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("transport", ["memory", "stdio", "http"])
 @pytest.mark.parametrize("case", CASES, ids=lambda case: case.split)
 @pytest.mark.parametrize("profile", ["safe", "vulnerable"])

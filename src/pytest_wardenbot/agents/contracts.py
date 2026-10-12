@@ -19,6 +19,7 @@ from typing import Protocol, runtime_checkable
 
 class AgentCapability(StrEnum):
     ISOLATED_STATE = "isolated_state"
+    BUDGET_ACCOUNTING = "budget_accounting"
     TOOL_CALLS = "tool_calls"
     TOOL_RESULTS = "tool_results"
     TOOL_DESCRIPTIONS = "tool_descriptions"
@@ -87,6 +88,14 @@ class ReasonCode(StrEnum):
     RESET_ERROR = "reset_error"
     CLEANUP_ERROR = "cleanup_error"
     TIMEOUT = "timeout"
+    CALL_BUDGET_EXHAUSTED = "call_budget_exhausted"
+    TURN_BUDGET_EXHAUSTED = "turn_budget_exhausted"
+    CAMPAIGN_DEADLINE = "campaign_deadline"
+    CANCELLED = "cancelled"
+    RATE_LIMITED = "rate_limited"
+    FACTORY_ERROR = "factory_error"
+    SHARED_TARGET = "shared_target"
+    BUDGET_INSTRUMENTATION_REQUIRED = "budget_instrumentation_required"
 
 
 def _identifier(value: str) -> None:

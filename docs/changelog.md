@@ -5,6 +5,20 @@ All notable changes to `pytest-wardenbot` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- Bounded concurrent agent campaigns with global call/turn budgets, cooperative
+  deadlines and cancellation cleanup, isolated factory-owned targets, explicit
+  incomplete coverage and supplied usage accounting. Targets must opt in to
+  instrumentation; actual observed violations survive later execution failures.
+- Explicit safe rate-limit retries with call accounting and stable keys for
+  provider-deduplicated writes. Operations are never retried by default.
+- Bounded async chatbot probes with isolated sessions, ordered per-input outcomes,
+  supplied usage, and cleanup. Real MCP/reference examples exercise campaign caps
+  without provider requests.
+
 ## [0.2.0] — 2026-10-11
 
 ### Added

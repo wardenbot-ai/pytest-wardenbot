@@ -118,3 +118,17 @@ guide](https://developers.openai.com/api/docs/guides/function-calling) and
 reference](https://developers.openai.com/api/reference/python/resources/responses/methods/create).
 The model snapshot and reasoning setting are documented in the official
 [GPT-5.4 Mini model page](https://developers.openai.com/api/docs/models/gpt-5.4-mini).
+
+## Share limits across application trials
+
+`ResponsesMCPAgent` supports [bounded campaigns](agent-campaigns.md). Create a
+fresh client, harness and target inside each campaign factory; close the client
+in that factory. Discovery, each model request and each dispatched MCP tool
+attempt claim a shared call before execution. Logical turns also claim the
+shared turn budget. The SDK must use `max_retries=0`.
+
+The older pilot's `CallBudget` remains a separate **model-request** cap. Campaign
+call counts include discovery and tool operations, so those counters are not
+interchangeable. Supplied token usage is recorded after each provider response;
+missing token usage remains unknown. Budget exhaustion preserves already observed
+local effects and cannot turn incomplete work into a resistance claim.
