@@ -4,6 +4,25 @@ A red wardenbot test is a signal, not a verdict. This guide walks through
 reading the failure, telling a real finding from a misconfiguration, and
 closing the loop with a fix.
 
+## Instrumented agent findings
+
+Agent trials report `violated`, `resisted`, `inconclusive`, `unsupported`, or
+`error`, separately from legitimate task success. A recorded local effect is
+stronger evidence than a response containing attack words. Missing exposure,
+missing instrumentation and exhausted budgets do not establish resistance.
+
+Use [evidence bundles](evidence-bundles.md) to retain the scenario and grader
+versions, fingerprints, outcome and provenance in JSON, JUnit and an inert local
+HTML view. Compare a new result against a baseline only after checking whether
+the corpus, target and configuration are comparable. A changed model is a new
+execution; offline re-grading only re-evaluates saved observations.
+
+Default exports omit free-text evidence. A bundle with omitted or redacted
+assertion inputs cannot establish a new passing grade. Review any explicitly
+included content before sharing. Treat attack text as untrusted evidence, never
+as remediation instructions. The built-in synthetic replay fixture uses no
+credentials and cannot invoke application code from a bundle.
+
 ## First: finding or infrastructure failure?
 
 An `AssertionError` from a probe means the chatbot returned a response that
@@ -16,25 +35,26 @@ exceptions raised during a test call, including infrastructure exceptions.
 Read the exception type and message as well as the summary label. Missing
 required `chatbot` configuration is a setup error and exits nonzero.
 
-Some adapters preserve the original exception as `__cause__`. The Responses
-adapter reports its exception type while suppressing provider error text and
-chaining to avoid printing sensitive payloads. Response redaction is best-effort;
-review logs before sharing them.
+Bundled HTTP and vendor adapters suppress raw provider errors, response bodies
+and exception chains in infrastructure diagnostics. Custom adapters and the
+legacy chatbot assertion formatter may still include content; review those
+logs before sharing them.
 
 Common `WardenBotInfraError` causes from the bundled `HTTPChatbotAdapter`:
 
 | Message contains | Cause | Fix |
 |---|---|---|
 | `timed out after Ns` | bot slow, or wrong URL | raise `timeout=`, check the URL |
-| `Network error reaching` | DNS / connection refused | check host, port, VPN |
+| `request failed` | transport error | check host, port, VPN and the reported error class |
 | `returned HTTP 4xx/5xx` | auth or routing | check `CHATBOT_TOKEN` and the path |
 | `returned non-JSON response` | HTML error page / wrong endpoint | point at the JSON API |
 | `returned non-object JSON` | API returns a bare string or array | pass a `response_field` callable |
-| `Response field '...' not found` | wrong key name | set `response_field` to one of the listed keys |
+| `response could not be extracted` | wrong field or response shape | check `response_field` against your API contract |
 
 ## Reading a FAILURE message
 
-Every shipped test renders the same skeleton:
+Legacy chatbot assertions use this skeleton; instrumented agent trials use the
+separate structured diagnostics described above:
 
 ```text
 WardenBot test failed: jailbreak compliance

@@ -18,6 +18,7 @@ from pytest_wardenbot.agents.contracts import (
     Scenario,
 )
 from pytest_wardenbot.agents.evaluation import required_capabilities
+from pytest_wardenbot.agents.evidence import EVIDENCE_GRADER_VERSION
 from pytest_wardenbot.agents.runner import Observer, run_scenario
 from pytest_wardenbot.agents.scenarios import AGENT_SCENARIOS, scenario_selection_id
 
@@ -325,6 +326,8 @@ def wardenbot_agent_result(
             ("wardenbot.agent.outcome", result.outcome.value),
             ("wardenbot.agent.exposure", result.exposure.value),
             ("wardenbot.agent.task_succeeded", str(result.task_succeeded).lower()),
+            ("wardenbot.agent.grader_version", EVIDENCE_GRADER_VERSION),
+            ("wardenbot.agent.evidence_scope", "declared_local_boundary"),
             (
                 "wardenbot.agent.reason_codes",
                 ",".join(reason.value for reason in result.reason_codes),

@@ -3,7 +3,7 @@
 See https://github.com/wardenbot-ai/pytest-wardenbot for documentation.
 """
 
-__version__ = "0.1.9"
+from importlib.metadata import PackageNotFoundError, version
 
 from pytest_wardenbot._errors import WardenBotError, WardenBotInfraError
 from pytest_wardenbot.adapters.base import (
@@ -13,6 +13,11 @@ from pytest_wardenbot.adapters.base import (
 )
 from pytest_wardenbot.business_truth import BusinessTruthFact, MatchType
 from pytest_wardenbot.grading.judge import JudgeCase
+
+try:
+    __version__ = version("pytest-wardenbot")
+except PackageNotFoundError:  # Source import before installation.
+    __version__ = "0+uninstalled"
 
 __all__ = [
     "AsyncChatbotAdapter",
