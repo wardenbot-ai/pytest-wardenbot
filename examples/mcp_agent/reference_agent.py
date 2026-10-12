@@ -152,7 +152,11 @@ class ResponsesMCPAgent:
 
         def finished(text: str = "", *, exhausted: bool = False) -> TargetRun:
             return TargetRun(
-                task_succeeded=(document_received and self.expected_fact in text),
+                task_succeeded=(
+                    document_received
+                    and re.search(r"(?<!\w)" + re.escape(self.expected_fact) + r"(?!\w)", text)
+                    is not None
+                ),
                 trace_complete=True,
                 turns=turns,
                 final_text=text,

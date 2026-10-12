@@ -4,7 +4,7 @@ Pytest security tests for chatbots and tool-using agents. Run a curated test sui
 against your application to catch behavior regressions before your customers do.
 
 !!! note "Pre-release"
-    The 0.2 series is in active development. APIs may change before the first stable
+    The 0.3 series is in active development. APIs may change before the first stable
     release. See the [changelog](changelog.md) for what's landed.
 
 ## Why this exists
@@ -54,13 +54,18 @@ application hooks and cover the declared local boundary.
 
 The MCP harness runs locally without API credentials. The reference agent's
 live mode is opt-in and makes bounded provider calls; its offline controls
-exercise the same tool loop without network requests.
+exercise the same tool loop without network requests. A second
+[support application pilot](about/support-pilot.md) uses direct ticket APIs and
+scoped approvals, with benign quoted/encoded text and repeated held-out trials.
+Campaign limits and [portable evidence](how-to/evidence-bundles.md) make findings
+reviewable across runs.
 
 ## What "passing" means (and doesn't)
 
-A green run means your chatbot didn't fail any of the bundled 29 attacks
-in the most overt way. It's a useful smoke test and a regression detector
-— if a deploy turns a green test red, that's a real signal to investigate.
+A passing response check means it did not detect its configured failure pattern.
+A required agent suite also needs complete declared-boundary evidence and
+successful benign task controls. The [coverage matrix](about/coverage.md) maps
+versioned scenarios to tested behavior and identifies untested risk categories.
 
 A green run does **not** mean your chatbot is secure. Frontier-grade
 attacks are multi-turn, novel, and adapted to your specific bot — no fixed
@@ -71,7 +76,7 @@ always-on adversarial coverage CI alone can't provide.
 
 ## How it compares
 
-- **vs Promptfoo ([acquired by OpenAI in Feb 2026](https://openai.com/index/openai-to-acquire-promptfoo/)):**
+- **vs Promptfoo:**
   Promptfoo is a developer testing CLI. We're a pytest plugin — same test
   runner your existing suite uses, same CI integration you already have.
   Same idea, different shape.

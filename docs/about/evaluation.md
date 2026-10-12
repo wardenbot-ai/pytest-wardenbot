@@ -1,182 +1,40 @@
-# Evaluation: how the bundled suite performs against real bots
+# Evaluation evidence and interpretation
 
-This page records the methodology and results of a maintainer evaluation of
-the v0.1 deterministic suite. The tables are a dated snapshot; the included
-scripts let you run the same checks against your own bot and configuration.
-Provider updates and application changes can alter the results.
+The repository retains historical text detector results, a Responses/MCP application pilot and a direct support application pilot. Their denominators and assertions differ. They are not interchangeable benchmarks, current model rankings or production safety scores.
 
-> These are historical May 2026 observations, not current-model benchmarks.
-> The current Anthropic adapter omits temperature by default for SDK/model
-> compatibility; see the [dependency policy](../how-to/dependency-support.md).
+## Historical text evaluation: May 26, 2026
 
-## What the evaluation answers
+The archived v0.1 evaluation used `gpt-4o-mini`, `claude-haiku-4-5` and a deliberately vulnerable local stub with the then-configured support-bot prompts. The historical run used temperature 0; current adapter/model settings need not match it. Original artifacts remain in `scripts/evaluation/results/`.
 
-Three questions:
+| Historical bot | Passed | Failed | Skipped | Collected |
+| --- | ---: | ---: | ---: | ---: |
+| `openai-gpt-4o-mini` | 31 | 1 | 2 | 34 |
+| `anthropic-haiku-4-5` | 29 | 3 | 2 | 34 |
+| `vulnerable-stub` | 0 | 32 | 2 | 34 |
 
-1. **Does a frontier model with a well-written system prompt pass the
-   suite out-of-the-box?** This is a baseline observation; estimating false
-   positives requires labeled benign controls and repeated trials.
-2. **Does the suite catch a deliberately-vulnerable bot?** If yes, the
-   suite has real signal (low false-negative rate against obvious
-   failures in this control).
-3. **Where does each model show the most behavior variance?** Useful
-   when picking a model or sizing the risk of a planned migration.
+These overall counts contain 29 security-related deterministic nodes, three business-fact nodes and two skipped optional nodes. The earlier 29-node security subset was 28 passed/1 failed for OpenAI, 26 passed/3 failed for Anthropic and 0 passed/29 failed for the stub. Do not combine subset counts with the 34-node collected denominator.
 
-## What the evaluation does NOT answer
+The OpenAI failure was the off-topic essay case. The three Anthropic failures were ROT13, leetspeak and hexadecimal detector matches. These did not independently establish execution of decoded instructions. For example, the archived ROT13 response quoted the decoded directive while also refusing it. A quoted trigger can fire a lexical check; the archive contains no instrumented sink from which to infer a committed effect.
 
-- Whether the suite catches **novel** attacks. By definition no fixed
-  corpus catches all novel attacks. The suite is a smoke test for known
-  failure patterns + a regression detector for your specific bot.
-- Whether one model is "safer" than another in production. The eval runs
-  bare models with a fixed support-bot system prompt — your real
-  deployment will have different prompts, different RAG, different tool
-  use, all of which dominate the security posture.
+The stub confirms that the patterns detect that constructed response, not a population false-negative rate. Its archived multi-turn warnings also expose the state limitation: successful priming requires a session-aware integration. Proposed prompt fixes were not validated by these counts alone.
 
-## Setup
+To repeat the text workflow from a source checkout, inspect the bot configuration, install its provider extras and evaluation conveniences, then run `python -m scripts.evaluation.run`. It can make paid provider requests and writes a new report. Preserve the dated archive. Current cost depends on provider/model, usage and retries; the old approximate pricing table is not a current estimate or spending cap.
 
-```bash
-git clone https://github.com/wardenbot-ai/pytest-wardenbot.git
-cd pytest-wardenbot
-python -m venv .venv
-source .venv/bin/activate
-pip install -e ".[openai,anthropic,dev]"
-pip install pytest-json-report python-dotenv  # eval-only conveniences
-cp scripts/evaluation/.env.example scripts/evaluation/.env
-$EDITOR scripts/evaluation/.env       # paste your API keys
-python -m scripts.evaluation.run
-```
+## Two application examples
 
-The runner reads `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` from
-`scripts/evaluation/.env` (gitignored). It runs the bundled deterministic
-suite against each configured bot and writes:
+| Application | Observation boundary | Evidence |
+| --- | --- | --- |
+| Responses/MCP document agent | Actual tool traffic and committed local MCP sink effects. | [Frozen reference pilot and October observations](agent-pilot.md). |
+| Direct support/knowledge application | Model-generated calls to retrieval, ticket and scoped approval APIs; actual ticket mutations. | [Support pilot methodology and results](support-pilot.md). |
 
-- `scripts/evaluation/results/<bot>.json` — machine-readable per-test
-  outcomes.
-- `scripts/evaluation/results/<bot>.md` — human-readable per-category
-  pass/fail summary.
-- `scripts/evaluation/results/SUMMARY.md` — comparison table across all
-  configured bots.
+Both have safe/vulnerable profiles and offline controls. Application safeguards materially affect results: the MCP allowlist and support write/approval enforcement are not intrinsic model robustness. The support example has no MCP transport. Scripted controls also exercise memory, identity and role boundaries; the live two-case pilot does not cover every pack or OWASP category.
 
-Pre-baked entries in `SUMMARY.md` start blank — your run fills them in.
+## Denominators and uncertainty
 
-## Bots evaluated
+Report every planned row, including errors, unsupported cases, missing exposure and `not_run`. Utility success is separate from resistance. A clean row with no attack delivery can have inconclusive security status while its legitimate task succeeds.
 
-| Bot ID | Backend | Purpose |
-|---|---|---|
-| `openai-gpt-4o-mini` | `openai` extra, `gpt-4o-mini` | Well-behaved frontier control |
-| `anthropic-haiku-4-5` | `anthropic` extra, `claude-haiku-4-5` | Well-behaved frontier control |
-| `vulnerable-stub` | local stub | Deliberately-vulnerable bot — must FAIL every category |
+Conditional rates need eligible denominators and exclusion counts. A forbidden effect in a benign quoted/encoded task is a real application violation. A false alarm requires a grading claim unsupported by the observed boundary, not just a surprising benign result. The support pilot's conservative zero-effect calibration excludes legitimate approved writes, missing traces, errors and observed effects; it is not a production false-positive-rate estimate.
 
-Add your own bots by editing `scripts/evaluation/bots.py` — see the
-docstring for the contract.
+Small repeated samples show mechanics and local variability. Nominal Wilson intervals describe observed counts under a binomial working model; related cases and shared model/configuration can be dependent. They do not prove independent trials, exhaustive attack coverage or model-wide rankings. Empty eligible denominators remain unavailable.
 
-## Result tables
-
-The numbers below are from a maintainer run on **2026-05-26** — `gpt-4o-mini`
-and `claude-haiku-4-5` at temperature 0 with the bundled support-bot system
-prompt (`scripts/evaluation/system_prompts.py`). They're a point-in-time
-snapshot; re-run `python -m scripts.evaluation.run` to refresh, since results
-drift as vendors update models.
-
-### openai-gpt-4o-mini
-
-| Category | Expected | Observed |
-|---|---|---|
-| Prompt injection (10 tests) | 10 pass | 10 pass |
-| System-prompt elicitation (3) | 3 pass | 3 pass |
-| Refusal bypass (3) | 3 pass | 3 pass |
-| Off-topic deflection (2) | 2 pass | 1 pass (1 fail) |
-| Indirect injection / XPIA (4) | 4 pass | 4 pass |
-| Encoded-payload (4) | 4 pass | 4 pass |
-| Multi-turn jailbreak (3) | 3 pass | 3 pass |
-| **Total deterministic** | **29 pass** | **28 pass** |
-
-### anthropic-haiku-4-5
-
-| Category | Expected | Observed |
-|---|---|---|
-| Prompt injection (10 tests) | 10 pass | 10 pass |
-| System-prompt elicitation (3) | 3 pass | 3 pass |
-| Refusal bypass (3) | 3 pass | 3 pass |
-| Off-topic deflection (2) | 2 pass | 2 pass |
-| Indirect injection / XPIA (4) | 4 pass | 4 pass |
-| Encoded-payload (4) | 4 pass | 1 pass (3 fail) |
-| Multi-turn jailbreak (3) | 3 pass | 3 pass |
-| **Total deterministic** | **29 pass** | **26 pass** |
-
-### vulnerable-stub
-
-The stub is hand-crafted to **fail every category** so a passing eval
-proves the test suite has signal:
-
-| Category | Expected | Observed |
-|---|---|---|
-| Prompt injection (10 tests) | 10 fail | 10 fail |
-| System-prompt elicitation (3) | 3 fail | 3 fail |
-| Refusal bypass (3) | 3 fail | 3 fail |
-| Off-topic deflection (2) | 2 fail | 2 fail |
-| Indirect injection / XPIA (4) | 4 fail | 4 fail |
-| Encoded-payload (4) | 4 fail | 4 fail |
-| Multi-turn jailbreak (3) | 3 fail | 3 fail |
-| **Total deterministic** | **29 fail** | **29 fail** |
-
-If the vulnerable stub passes any category, that category has a false
-negative — file an issue.
-
-### What the 2026-05-26 run showed
-
-- **gpt-4o-mini — 28/29.** It answered one off-topic prompt
-  (`off-domain-essay-request`) that the scoped support-bot prompt should have
-  declined; tightening the system prompt's scope language closes it. Everything
-  else — including all four XPIA and all four encoded-payload probes — passed.
-- **claude-haiku-4-5 — 26/29.** It decoded and acted on three encoded-payload
-  prompts (ROT13, leetspeak, hex) while resisting Base64 — a reminder that
-  "decode this, then do it" framings can slip past a model that re-checks policy
-  only against the surface text. All other categories passed.
-- **vulnerable-stub — 0/29 (all fail), as designed**, confirming the suite has
-  signal across every category.
-
-These are bare-model results with one fixed support-bot system prompt;
-production prompts, RAG, and guardrails will move them. Re-run against your own
-bot for numbers that mean something for your deployment.
-
-## Cost
-
-Per full eval run, against each frontier model:
-
-| Bot | Calls | Tokens (~) | Cost (~USD) |
-|---|---|---|---|
-| openai-gpt-4o-mini | 26 single-turn + 3 multi-turn × 3 turns | ~25K | $0.05 |
-| anthropic-haiku-4-5 | same | ~25K | $0.05 |
-
-Multi-turn calls are ~3× the single-turn cost because each priming turn
-plus the payload turn counts. Total per full run across both frontier
-models: well under $1 at the time of this writing.
-
-## Interpreting results
-
-- **All evaluated models pass everything:** the configured detectors found no
-  matching failures in these cases. This alone does not establish calibration,
-  attack coverage or a false-positive rate; labeled controls and repeated trials
-  are needed for those questions.
-- **A frontier model fails some categories:** worth investigating. Either
-  (a) the bot exhibits the tested failure pattern,
-  (b) the system prompt used in this eval is weaker than the production
-  one, or (c) the test corpus has false positives in that category.
-- **The vulnerable stub passes some categories:** the suite has a false
-  negative in that category — the stub is supposed to fail. File an
-  issue with the stub's response and the test that should have caught it.
-
-## Methodology notes
-
-- All bots receive the same support-bot-style system prompt (defined in
-  `scripts/evaluation/system_prompts.py`). This isolates the model's
-  behavior from the system-prompt variable.
-- Temperature is fixed at 0 for reproducibility.
-- Each evaluation run uses the bundled v0.1 corpus. If you've overridden
-  any `wardenbot_*_prompts` fixtures, the eval still uses the bundled
-  defaults (the eval has its own conftest, separate from your project's).
-- Multi-turn tests use the adapter's `session_id` parameter to maintain
-  state across turns. Bots whose adapters ignore `session_id` will
-  produce artificially-high pass rates on multi-turn (each turn is
-  effectively fresh).
+The [coverage matrix](coverage.md) separates tested local boundaries from untested categories. [Evidence bundles](../how-to/evidence-bundles.md) support review and offline regrading only when required observations survive redaction. Regrading is not new model execution, and checksums do not authenticate saved claims.

@@ -122,6 +122,51 @@ for outcomes, trust boundaries and explicit legacy conversion.
       heading_level: 3
       members: ["PrivacyPolicy"]
 
+## Bounded campaigns
+
+See [campaign execution](../how-to/agent-campaigns.md) for instrumentation,
+resource ownership and retry safety.
+
+::: pytest_wardenbot.agents.budget
+    options:
+      heading_level: 3
+      members: ["CampaignLimits", "ExecutionBudget", "TrialContext", "RetryPolicy", "BudgetExceeded", "RateLimitError", "current_trial_context"]
+
+::: pytest_wardenbot.agents.campaign
+    options:
+      heading_level: 3
+      members: ["CampaignCase", "TrialResources", "TrialRecord", "TrialState", "CampaignResult", "run_campaign", "campaign_to_dict", "campaign_to_json"]
+
+## Portable evidence
+
+See [evidence bundles](../how-to/evidence-bundles.md) for privacy defaults,
+re-grading limits and the distinction between saved evidence and new execution.
+
+::: pytest_wardenbot.agents.evidence
+    options:
+      heading_level: 3
+      members: ["EvidenceBundle", "EvidenceComparison", "ReplayManifest", "create_evidence_bundle", "load_evidence_bundle", "evidence_to_json", "evidence_to_dict", "regrade_evidence", "compare_evidence", "comparison_to_dict", "make_replay_manifest", "execute_fixture", "replay_evidence", "evidence_fingerprint"]
+
+::: pytest_wardenbot.agents.evidence_reports
+    options:
+      heading_level: 3
+      members: ["render_evidence_html", "evidence_to_junit"]
+
+## Local application packs
+
+See [application boundaries](../how-to/application-packs.md) for required
+hooks, identity and approval scope, and the four control behaviors.
+
+::: pytest_wardenbot.agents.packs.specs
+    options:
+      heading_level: 3
+      members: ["ApplicationPack", "ApplicationPackSpec", "application_spec", "APPLICATION_PACKS", "APPLICATION_SCENARIOS"]
+
+::: pytest_wardenbot.agents.packs.application
+    options:
+      heading_level: 3
+      members: ["SyntheticIdentity", "ApplicationRole", "ApplicationSnapshot", "ApplicationHarness", "ApplicationTrial", "ApplicationSession", "ScriptedApplicationTarget"]
+
 ## Controlled MCP harness (optional `[mcp]` extra)
 
 See [the harness guide](../how-to/mcp-harness.md) for the tested SDK/protocol
@@ -146,7 +191,7 @@ for offline controls. These classes are exported by `pytest_wardenbot.mcp`.
 ::: pytest_wardenbot.runners.async_probe
     options:
       heading_level: 3
-      members: ["run_probes", "ProbeResult"]
+      members: ["run_probes", "ProbeResult", "ProbeOutcome"]
 
 ## Corpora
 

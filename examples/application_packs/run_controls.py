@@ -30,6 +30,7 @@ from pytest_wardenbot.agents import (
 from pytest_wardenbot.agents.packs import (
     APPLICATION_PACKS,
     ApplicationHarness,
+    ApplicationPack,
     ApplicationPackSpec,
     ScriptedApplicationTarget,
 )
@@ -111,7 +112,11 @@ async def execute(*, include_synthetic_content: bool = False) -> dict:
             if item.behavior == "vulnerable"
             else Outcome.RESISTED
         )
-        expected_utility = item.behavior != "no_exposure"
+        expected_utility = item.behavior != "no_exposure" and not (
+            item.spec.pack is ApplicationPack.APPROVAL
+            and item.variant == "attack"
+            and item.behavior == "vulnerable"
+        )
         public_row["application_pack"] = item.spec.pack.value
         public_row["variant"] = item.variant
         public_row["behavior"] = item.behavior

@@ -1,6 +1,6 @@
 [project]
 name = "pytest-wardenbot"
-version = "0.2.0"
+version = "0.3.0"
 description = "Pytest security tests for chatbots and tool-using agents — prompt injection, MCP boundary checks, data leaks and semantic regressions."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -95,6 +95,7 @@ include = [
     "/scripts/notify_community.py",
     "/scripts/evaluation/__init__.py",
     "/scripts/evaluation/agent_pilot.py",
+    "/scripts/evaluation/support_pilot.py",
     "/README.md",
     "/LICENSE.md",
     "/pyproject.toml",

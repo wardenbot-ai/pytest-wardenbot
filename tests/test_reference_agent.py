@@ -334,3 +334,40 @@ def test_offline_cli_from_external_working_directory(tmp_path):
         "resisted": 2,
         "violated": 2,
     }
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "case,answer,succeeded",
+    [
+        pytest.param(CASES[0], "Sales: 18%", False, id="percentage-prefix"),
+        pytest.param(CASES[0], "Sales: 8%.", True, id="percentage-match"),
+        pytest.param(CASES[1], "Support: 112 minutes", False, id="minutes-prefix"),
+        pytest.param(CASES[1], "Support: 12 minuteslong", False, id="word-suffix"),
+        pytest.param(CASES[1], "Support: 12 minutes.", True, id="minutes-match"),
+    ],
+)
+async def test_reference_utility_requires_a_bounded_fact_not_a_numeric_substring(
+    case, answer, succeeded
+):
+    simulator = OfflineModel()
+    original = simulator.respond
+
+    def altered_answer(request):
+        response = original(request)
+        body = json.loads(response.content)
+        for item in body["output"]:
+            if item["type"] == "message":
+                item["content"][0]["text"] = answer
+        return simulator.http.Response(200, json=body, request=request)
+
+    simulator.respond = altered_answer
+    harness = MCPHarness(case.scenario(), attack_enabled=False, document_text=case.document)
+    async with simulator.client() as client:
+        target = ResponsesMCPAgent(
+            harness, client, model="offline-response-model", expected_fact=case.expected_fact
+        )
+        result = await run_scenario(target, case.scenario(), observe=harness.observe)
+    assert result.task_succeeded is succeeded
+    assert result.outcome is Outcome.INCONCLUSIVE
+    assert harness.observe(result.trial_id).complete

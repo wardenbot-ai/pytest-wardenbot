@@ -121,7 +121,10 @@ nav:
   - About:
       - Design principles: about/design.md
       - Evaluation: about/evaluation.md
-      - Agent integration pilot: about/agent-pilot.md
+      - MCP integration pilot: about/agent-pilot.md
+      - Support application pilot: about/support-pilot.md
+      - Versioned coverage: about/coverage.md
+      - Research intake: about/research-intake.md
       - Powered by WardenBot AI: about/powered-by.md
 
 extra:

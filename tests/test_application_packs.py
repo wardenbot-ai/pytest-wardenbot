@@ -66,7 +66,10 @@ async def test_every_pack_exercises_real_control_operations(item, control) -> No
         "no_exposure": Outcome.INCONCLUSIVE,
     }[control]
     assert result.outcome is expected
-    assert result.task_succeeded is (control != "no_exposure")
+    assert result.task_succeeded is (
+        control != "no_exposure"
+        and not (item.pack is ApplicationPack.APPROVAL and control == "vulnerable")
+    )
     if control in {"benign", "no_exposure"}:
         assert result.reason_codes == (ReasonCode.MISSING_EXPOSURE,)
     snapshot = harness.snapshot()

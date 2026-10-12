@@ -82,7 +82,10 @@ pytest from installed wheels. The agent checks also verify versioned selection,
 paired baselines, missing configuration, required-coverage deselection and
 recorded violations. The reference Responses/MCP agent has offline SDK tests
 at the supported OpenAI/MCP floors and current versions; its installed example
-uses the real stdio transport without provider requests.
+uses the real stdio transport without provider requests. The independent support
+application example uses only the OpenAI extra and direct local application APIs;
+its clean-wheel check explicitly verifies that MCP is absent. Both SDK floors
+and current versions exercise its offline model loop.
 
 Ruff and Pyright are pinned to the same versions in the dev extra and
 pre-commit hooks. Update both files together and review any resulting lint or

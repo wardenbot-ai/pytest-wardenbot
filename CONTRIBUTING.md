@@ -31,8 +31,8 @@ coverage report --fail-under=80          # coverage gate
 ## What's in scope vs. out of scope
 
 This is a **client-side pytest plugin**. It runs locally on the contributor's
-machine, hits chatbots over the network, and produces pass/fail. Things that
-need a backend live in the managed [WardenBot AI](https://wardenbot.ai) service,
+machine, tests chatbot responses or instrumented agent operations, and records
+explicit outcomes and evidence. Hosted product services live in the managed [WardenBot AI](https://wardenbot.ai) service,
 not the plugin.
 
 ### In scope
@@ -40,6 +40,8 @@ not the plugin.
 - New shipped tests (more probes, better detection patterns)
 - New chatbot adapters (`adapters/<vendor>.py`)
 - Better grading helpers (deterministic and LLM-judge)
+- Instrumented agent scenarios, local fixture packs, and portable evidence
+- Offline calibration controls and bounded opt-in application pilots
 - DX improvements (`--wardenbot-quickstart` templates, examples)
 - Documentation
 
@@ -48,7 +50,7 @@ not the plugin.
 These belong in the managed service, not the OSS plugin. PRs that add these
 will be politely declined:
 
-- Cross-run history / dashboards
+- Hosted cross-customer history / dashboards (local saved-bundle comparisons are in scope)
 - Alert routing (Slack / webhook / email on regression)
 - Scheduled / recurring runs against your chatbot
 - LLM-judge result aggregation across customers
@@ -99,7 +101,11 @@ A good new test:
    coverage ≥80%, minimum/current pytest, strict docs build, wheel + sdist,
    fresh-wheel consumer).
    See [dependency support](docs/how-to/dependency-support.md) for the matrix.
-5. Expect ~1-business-day turnaround on the first review pass.
+5. Review timing depends on maintainer availability.
+
+For research-driven changes, use the [monthly intake checklist](docs/about/research-intake.md).
+Freeze development/holdout splits before measuring; retain unsuccessful trials
+and keep observed security effects separate from task success.
 
 ## Maintenance philosophy
 
@@ -109,8 +115,8 @@ A good new test:
   opt-in with the data shape documented in `SECURITY.md`.
 - **Semantic versioning.** No breaking changes within a major. Major bumps come
   with 6-month deprecation warnings.
-- **Monthly minor releases** on the second Tuesday: dependency updates, small
-  test additions, bug fixes.
+- **Monthly research intake** follows the documented manual checklist. Releases
+  follow verified changes and passing checks, without a promised calendar date.
 
 ## Releases and ownership
 
@@ -137,8 +143,8 @@ PyPI organization membership is separate and optional for this migration.
 
 To release:
 
-1. Update the version in `pyproject.toml` and `src/pytest_wardenbot/__init__.py`,
-   and describe the changes in `docs/changelog.md`.
+1. Update the version in `pyproject.toml` and describe the changes in
+   `docs/changelog.md`. Runtime `__version__` reads installed package metadata.
 2. Run the checks above, `python -m build`, and `twine check --strict dist/*`
    using an empty output directory. Wait for CI on the release commit to pass.
 3. Push an annotated `v<version>` tag on that commit. `release.yml` verifies

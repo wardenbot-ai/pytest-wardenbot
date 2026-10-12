@@ -106,7 +106,10 @@ async def test_every_pack_four_controls_have_actual_authoritative_observations(
     row = campaign.trials[0]
     assert row.result is not None
     assert row.result.outcome is expected
-    assert row.result.task_succeeded is utility
+    expected_utility = utility and not (
+        spec.pack is ApplicationPack.APPROVAL and variant == "attack" and behavior == "vulnerable"
+    )
+    assert row.result.task_succeeded is expected_utility
     assert row.state is TrialState.COMPLETED
     item = owned[0]
     trace = item.harness.observe(row.result.trial_id)
@@ -267,7 +270,9 @@ def test_example_runs_from_external_cwd_without_provider_environment(
     assert report["outcome_counts"]["violated"] == len(APPLICATION_PACKS)
     assert report["outcome_counts"]["resisted"] == len(APPLICATION_PACKS)
     assert report["outcome_counts"]["inconclusive"] == len(APPLICATION_PACKS) * 2
-    assert report["task_successes"] == len(APPLICATION_PACKS) * 3
+    assert report["task_successes"] == len(APPLICATION_PACKS) * 3 - sum(
+        spec.pack is ApplicationPack.APPROVAL for spec in APPLICATION_PACKS
+    )
     assert report["usage"] is None
     assert len(report["evidence_bundles"]) == report["planned"]
     assert all(artifact["coverage"]["regradeable"] for artifact in report["evidence_bundles"])
