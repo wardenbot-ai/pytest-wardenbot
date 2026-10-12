@@ -28,6 +28,10 @@ Run pytest against your chatbot and find out if it leaks its system prompt, comp
   descriptions, resources and prompts, each with a benign baseline. A recording
   sink proves effects; required-coverage mode prevents missing evidence from
   becoming a successful CI run.
+- **Application boundary packs.** Opt-in retrieval, memory, synthetic tenant/role
+  and approval checks exercise controlled local operations. Each includes benign,
+  vulnerable, resistant and no-exposure controls. See the
+  [application integration guide](docs/how-to/application-packs.md).
 
 ### What "passing" means (and doesn't)
 

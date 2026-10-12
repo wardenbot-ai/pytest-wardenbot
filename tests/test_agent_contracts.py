@@ -172,7 +172,17 @@ def test_independently_observed_processing_requires_matching_surface_and_deliver
 @pytest.mark.parametrize("surface", list(AttackSurface))
 def test_surface_delivery_and_capability_are_distinct(surface):
     case = scenario(surface=surface)
-    delivery = event(EventKind(surface.value), surface=surface)
+    delivery_kind = {
+        AttackSurface.TOOL_DESCRIPTION: EventKind.TOOL_DESCRIPTION,
+        AttackSurface.TOOL_RESULT: EventKind.TOOL_RESULT,
+        AttackSurface.RESOURCE: EventKind.RESOURCE,
+        AttackSurface.PROMPT: EventKind.PROMPT,
+        AttackSurface.RETRIEVAL_DOCUMENT: EventKind.RETRIEVAL_DOCUMENT,
+        AttackSurface.MEMORY: EventKind.MEMORY_READ,
+        AttackSurface.IDENTITY: EventKind.IDENTITY_CONTEXT,
+        AttackSurface.APPROVAL: EventKind.APPROVAL_REQUEST,
+    }[surface]
+    delivery = event(delivery_kind, surface=surface)
     assert grade((delivery,), case=case).outcome is Outcome.RESISTED
     assert AgentCapability.ISOLATED_STATE in required_capabilities(case)
     assert len(required_capabilities(case)) == 2

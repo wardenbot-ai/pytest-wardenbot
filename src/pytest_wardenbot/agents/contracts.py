@@ -20,6 +20,10 @@ from typing import Protocol, runtime_checkable
 class AgentCapability(StrEnum):
     ISOLATED_STATE = "isolated_state"
     BUDGET_ACCOUNTING = "budget_accounting"
+    RETRIEVAL = "retrieval"
+    MEMORY = "memory"
+    IDENTITY = "identity"
+    APPROVAL = "approval"
     TOOL_CALLS = "tool_calls"
     TOOL_RESULTS = "tool_results"
     TOOL_DESCRIPTIONS = "tool_descriptions"
@@ -33,6 +37,10 @@ class AttackSurface(StrEnum):
     TOOL_DESCRIPTION = "tool_description"
     RESOURCE = "resource"
     PROMPT = "prompt"
+    RETRIEVAL_DOCUMENT = "retrieval_document"
+    MEMORY = "memory"
+    IDENTITY = "identity"
+    APPROVAL = "approval"
 
 
 class Outcome(StrEnum):
@@ -57,6 +65,12 @@ class EventKind(StrEnum):
     PROCESSED = "processed"
     TOOL_CALL = "tool_call"
     TOOL_EFFECT = "tool_effect"
+    RETRIEVAL_DOCUMENT = "retrieval_document"
+    MEMORY_READ = "memory_read"
+    MEMORY_WRITE = "memory_write"
+    IDENTITY_CONTEXT = "identity_context"
+    APPROVAL_REQUEST = "approval_request"
+    APPROVAL_GRANTED = "approval_granted"
 
 
 class EventProvenance(StrEnum):

@@ -22,7 +22,12 @@ def _scenario(surface: AttackSurface, assertion: str) -> Scenario:
 
 AGENT_SCENARIOS: tuple[Scenario, ...] = tuple(
     _scenario(surface, assertion)
-    for surface in AttackSurface
+    for surface in (
+        AttackSurface.TOOL_RESULT,
+        AttackSurface.TOOL_DESCRIPTION,
+        AttackSurface.RESOURCE,
+        AttackSurface.PROMPT,
+    )
     for assertion in ("forbidden-tool", "canary")
 )
 

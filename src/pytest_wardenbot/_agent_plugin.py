@@ -19,10 +19,32 @@ from pytest_wardenbot.agents.contracts import (
 )
 from pytest_wardenbot.agents.evaluation import required_capabilities
 from pytest_wardenbot.agents.evidence import EVIDENCE_GRADER_VERSION
+from pytest_wardenbot.agents.packs import (
+    APPLICATION_PACKS,
+    APPLICATION_SCENARIOS,
+    ApplicationPack,
+    application_spec,
+)
 from pytest_wardenbot.agents.runner import Observer, run_scenario
 from pytest_wardenbot.agents.scenarios import AGENT_SCENARIOS, scenario_selection_id
 
 CaseKey = tuple[str, str, str]
+
+
+def _pack_name(scenario: Scenario) -> str:
+    return "mcp" if scenario in AGENT_SCENARIOS else application_spec(scenario.id).pack.value
+
+
+def _packs() -> dict[str, tuple[Scenario, ...]]:
+    return {
+        "mcp": AGENT_SCENARIOS,
+        "application": APPLICATION_SCENARIOS,
+        "all": (*AGENT_SCENARIOS, *APPLICATION_SCENARIOS),
+        **{
+            pack.value: tuple(spec.scenario for spec in APPLICATION_PACKS if spec.pack is pack)
+            for pack in ApplicationPack
+        },
+    }
 
 
 @dataclass
@@ -66,11 +88,18 @@ class _CoverageReporter:
 
 def add_options(group: pytest.OptionGroup) -> None:
     group.addoption(
+        "--wardenbot-agent-pack",
+        action="append",
+        default=[],
+        choices=tuple(_packs()),
+        help="Select an opt-in scenario pack (repeatable); default: the eight MCP scenarios.",
+    )
+    group.addoption(
         "--wardenbot-agent-scenario",
         action="append",
         default=[],
         metavar="ID[@VERSION]",
-        help="Select a bundled agent scenario (repeatable); default: all eight scenarios.",
+        help="Select a scenario (repeatable); with --wardenbot-agent-pack, narrow the pack.",
     )
     group.addoption(
         "--wardenbot-agent-required",
@@ -82,26 +111,32 @@ def add_options(group: pytest.OptionGroup) -> None:
 
 def _selected(config: pytest.Config) -> tuple[Scenario, ...]:
     selectors = config.getoption("wardenbot_agent_scenario", default=[])
+    pack_names = config.getoption("wardenbot_agent_pack", default=[])
+    packs = _packs()
+    available_cases = packs["all"]
+    selected_ids = {case.id for name in (pack_names or ["mcp"]) for case in packs[name]}
     if not selectors:
-        return AGENT_SCENARIOS
+        return tuple(case for case in available_cases if case.id in selected_ids)
     lookup = {
         key: scenario
-        for scenario in AGENT_SCENARIOS
+        for scenario in available_cases
         for key in (scenario.id, scenario_selection_id(scenario))
     }
     if any(selector not in lookup for selector in selectors):
-        available = ", ".join(scenario_selection_id(case) for case in AGENT_SCENARIOS)
+        available = ", ".join(scenario_selection_id(case) for case in available_cases)
         raise pytest.UsageError(
             "Unknown --wardenbot-agent-scenario. Available versioned IDs: " + available
         )
     requested = {lookup[selector].id for selector in selectors}
-    return tuple(case for case in AGENT_SCENARIOS if case.id in requested)
+    if pack_names and requested - selected_ids:
+        raise pytest.UsageError("Selected agent scenario is outside the selected agent packs")
+    return tuple(case for case in available_cases if case.id in requested)
 
 
 def configure(config: pytest.Config) -> None:
     config.addinivalue_line(
         "markers",
-        "wardenbot_agent(surface, assertion, scenario_id, version, phase): "
+        "wardenbot_agent(surface, assertion, scenario_id, version, phase, pack): "
         "instrumented agent scenario; phase is baseline or attack",
     )
     config.addinivalue_line(
@@ -135,6 +170,7 @@ def generate_tests(metafunc: pytest.Metafunc) -> None:
                     scenario_id=case.id,
                     version=case.version,
                     phase=phase,
+                    pack=_pack_name(case),
                 ),
                 *[
                     pytest.mark.wardenbot_agent_capability(capability.value)
@@ -248,7 +284,7 @@ def sanitize_warning(warning_message: warnings.WarningMessage, nodeid: str) -> N
         return
     if not any(
         nodeid.endswith(f"[{scenario_selection_id(case)}-{phase}]")
-        for case in AGENT_SCENARIOS
+        for case in (*AGENT_SCENARIOS, *APPLICATION_SCENARIOS)
         for phase in ("baseline", "attack")
     ):
         return
@@ -323,6 +359,7 @@ def wardenbot_agent_result(
             ("wardenbot.agent.scenario_id", result.scenario_id),
             ("wardenbot.agent.version", result.scenario_version),
             ("wardenbot.agent.phase", phase),
+            ("wardenbot.agent.pack", _pack_name(wardenbot_agent_scenario)),
             ("wardenbot.agent.outcome", result.outcome.value),
             ("wardenbot.agent.exposure", result.exposure.value),
             ("wardenbot.agent.task_succeeded", str(result.task_succeeded).lower()),

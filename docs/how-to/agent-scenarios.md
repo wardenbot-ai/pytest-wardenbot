@@ -82,7 +82,7 @@ closed loop is not supported by the packaged suite's fixture recipe.
 
 ## Select and rerun a scenario
 
-The stable IDs are:
+The default MCP pack keeps these eight stable IDs:
 
 | Input surface | Forbidden-tool assertion | Canary assertion |
 |---|---|---|
@@ -113,6 +113,28 @@ from pytest_wardenbot.agent_tests.test_security import test_agent_security
 Collection and fixture overrides work both for this import and for `--pyargs`.
 Fixtures `wardenbot_agent_scenario` and `wardenbot_agent_attack_enabled` are
 parametrized by the plugin; application factories consume them directly.
+
+### Opt into application packs
+
+[Application packs](application-packs.md) add controlled retrieval, persistent
+memory, synthetic identity separation and approval checks. They require their
+own application hooks and are separate from the default MCP pack:
+
+```bash
+pytest --pyargs pytest_wardenbot.agent_tests \
+  --wardenbot-agent-pack=application --wardenbot-agent-required
+pytest --pyargs pytest_wardenbot.agent_tests --wardenbot-agent-pack=memory
+```
+
+Pack names are `mcp`, `retrieval`, `memory`, `identity`, `approval`, `application`
+(all four application groups), and `all`. Repeat the option to combine packs;
+duplicate selections do not duplicate tests. With no pack or scenario option,
+the original eight MCP cases remain the default.
+
+An explicit application scenario ID selects that scenario without a pack flag.
+When both options are supplied, scenario IDs must belong to the selected packs;
+the scenario option narrows that selection. Required coverage includes both
+phases of every selected scenario, including deselected or unsupported nodes.
 
 ## Interpret outcomes and task utility
 

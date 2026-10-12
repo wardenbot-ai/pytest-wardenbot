@@ -14,18 +14,17 @@ import sys
 from typing import Literal
 
 from pytest_wardenbot.agents import (
-    AttackSurface,
     Outcome,
     Scenario,
     result_to_dict,
     run_scenario,
 )
-from pytest_wardenbot.mcp import MCPHarness, ScriptedMCPAgentTarget
+from pytest_wardenbot.mcp import MCP_SURFACES, MCPHarness, ScriptedMCPAgentTarget
 
 
 async def main(transport: Literal["memory", "stdio", "http"], protocol: str) -> int:
     outcomes = []
-    for surface in AttackSurface:
+    for surface in MCP_SURFACES:
         scenario = Scenario(
             id=f"mcp-{surface.value}",
             version="1",

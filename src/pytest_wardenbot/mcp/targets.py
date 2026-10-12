@@ -22,7 +22,18 @@ class ScriptedMCPAgentTarget:
     controls verify the mechanics and cannot establish model robustness.
     """
 
-    capabilities = frozenset(AgentCapability)
+    capabilities = frozenset(
+        {
+            AgentCapability.ISOLATED_STATE,
+            AgentCapability.TOOL_CALLS,
+            AgentCapability.TOOL_RESULTS,
+            AgentCapability.TOOL_DESCRIPTIONS,
+            AgentCapability.RESOURCES,
+            AgentCapability.PROMPTS,
+            AgentCapability.TRACE,
+            AgentCapability.BUDGET_ACCOUNTING,
+        }
+    )
 
     def __init__(
         self,

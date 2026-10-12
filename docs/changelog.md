@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Opt-in application packs for poisoned retrieval, persistent memory, synthetic
+  tenant/role separation, and approval-before-write. A controlled local support
+  application records actual operations and includes benign, vulnerable,
+  resistant and no-exposure controls, with shared campaign accounting.
+- Repeatable `--wardenbot-agent-pack` selection, pack metadata and required
+  baseline/attack coverage. Existing users retain the default eight MCP scenarios.
+
 - Portable versioned evidence bundles with corpus, target and configuration
   fingerprints, explicit grader versions and provenance. Strict offline loading,
   evidence re-grading, bound synthetic fixture replay and baseline comparisons
