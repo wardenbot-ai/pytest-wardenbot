@@ -352,6 +352,11 @@ jobs:
       - name: Replay portable evidence with the installed core wheel
         working-directory: ${{ runner.temp }}
         run: '"$RUNNER_TEMP/consumer-venv/bin/python" "$GITHUB_WORKSPACE/examples/evidence/run_controls.py"'
+      - name: Verify installed application packs and required coverage
+        working-directory: ${{ runner.temp }}
+        run: |
+          "$RUNNER_TEMP/consumer-venv/bin/python" "$GITHUB_WORKSPACE/examples/application_packs/run_controls.py"
+          "$RUNNER_TEMP/consumer-venv/bin/python" "$GITHUB_WORKSPACE/scripts/check_consumer.py" --applications
 
   consumer-mcp:
     name: Fresh-wheel MCP consumer (pytest ${{ matrix.pytest }})

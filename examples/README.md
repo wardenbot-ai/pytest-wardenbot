@@ -6,6 +6,7 @@ scripts that verify expected outcomes.
 
 | Example | What it shows |
 |---|---|
+| [`application_packs/`](./application_packs/) | Local retrieval, persistent memory, synthetic identity and approval controls, with campaign and evidence integration. No SDKs or credentials. |
 | [`evidence/`](./evidence/) | Portable finding bundles, separate-process fixture replay, offline re-grading and local HTML/JUnit. Core install only. |
 | [`agent_campaign/`](./agent_campaign/) | Shared budgets, isolated trials, explicit incomplete coverage and offline model/tool accounting. |
 | [`mcp_agent/`](./mcp_agent/) | Reference Responses tool loop, offline SDK controls and a bounded opt-in live pilot with benign/attack pairs. |

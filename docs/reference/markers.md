@@ -58,7 +58,7 @@ The separate `pytest_wardenbot.agent_tests` suite uses:
 
 | Marker | Metadata |
 |---|---|
-| `wardenbot_agent` | `surface`, `assertion`, `scenario_id`, `version`, `phase` (`baseline` or `attack`) |
+| `wardenbot_agent` | `surface`, `assertion`, `scenario_id`, `version`, `phase` (`baseline` or `attack`), `pack` |
 | `wardenbot_agent_capability` | Required capability name such as `isolated_state`, `tool_results`, or `tool_calls` |
 
 These markers accompany each generated scenario node. Pytest 8.3 and later
@@ -79,10 +79,16 @@ pytest --pyargs pytest_wardenbot.agent_tests \
 ```
 
 For required coverage, define the expected scenarios with
-`--wardenbot-agent-scenario` and add `--wardenbot-agent-required`. Excluding
+`--wardenbot-agent-scenario` or `--wardenbot-agent-pack` and add `--wardenbot-agent-required`. Excluding
 required nodes with a marker expression, skip, or xfail leaves coverage
 incomplete and returns a nonzero exit. See the agent scenarios how-to for
 fixture setup and outcome semantics.
+
+Application groups are opt-in: `--wardenbot-agent-pack=application` selects
+retrieval, memory, identity and approval checks; a group such as
+`--wardenbot-agent-pack=memory` selects only that pack. On pytest 8.3+, use
+`-m "wardenbot_agent(pack='memory')"` to filter already selected nodes.
+Filtering never adds a pack that was not selected. The default remains MCP.
 
 ## Adding your own markers
 

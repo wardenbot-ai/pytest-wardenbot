@@ -24,7 +24,7 @@ from pytest_wardenbot.agents.contracts import (
     TargetRun,
 )
 from pytest_wardenbot.agents.evaluation import evaluate
-from pytest_wardenbot.mcp import MCPClient, MCPHarness, ScriptedMCPAgentTarget
+from pytest_wardenbot.mcp import MCP_SURFACES, MCPClient, MCPHarness, ScriptedMCPAgentTarget
 from pytest_wardenbot.mcp._server import DOCUMENT_PROMPT, DOCUMENT_TOOL, DOCUMENT_URI, SINK_TOOL
 
 mcp = pytest.importorskip("mcp")
@@ -42,6 +42,22 @@ def scenario(surface=AttackSurface.TOOL_RESULT):
     )
 
 
+@pytest.mark.parametrize(
+    "surface", [surface for surface in AttackSurface if surface not in MCP_SURFACES]
+)
+def test_non_mcp_surfaces_cannot_use_mcp_fixture(surface):
+    with pytest.raises(ValueError, match="supported MCP input surface"):
+        MCPHarness(scenario(surface))
+
+
+def test_scripted_mcp_target_declares_only_implemented_surfaces():
+    from pytest_wardenbot.agents.evaluation import required_capabilities
+
+    for surface in AttackSurface:
+        supported = required_capabilities(scenario(surface)) <= ScriptedMCPAgentTarget.capabilities
+        assert supported is (surface in MCP_SURFACES)
+
+
 def assert_closed(resources):
     assert resources.closed
     if resources.process_id is not None:
@@ -55,7 +71,7 @@ def assert_closed(resources):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("transport", ["memory", "stdio", "http"])
 @pytest.mark.parametrize("protocol", ["2025-11-25", "2026-07-28"])
-@pytest.mark.parametrize("surface", list(AttackSurface))
+@pytest.mark.parametrize("surface", MCP_SURFACES)
 @pytest.mark.parametrize(
     "behavior,outcome",
     [
@@ -215,7 +231,7 @@ async def receive_primitive(client, surface):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("transport", ["memory", "stdio", "http"])
-@pytest.mark.parametrize("surface", list(AttackSurface))
+@pytest.mark.parametrize("surface", MCP_SURFACES)
 async def test_response_lost_after_server_generation_does_not_count_as_delivery(
     transport, surface, monkeypatch
 ):
@@ -253,7 +269,7 @@ async def test_response_lost_after_server_generation_does_not_count_as_delivery(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("surface", list(AttackSurface))
+@pytest.mark.parametrize("surface", MCP_SURFACES)
 async def test_successful_response_without_actual_injection_is_not_exposure(surface, monkeypatch):
     method = {
         AttackSurface.TOOL_DESCRIPTION: "list_tools",

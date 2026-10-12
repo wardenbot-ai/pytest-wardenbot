@@ -44,8 +44,13 @@ instrumentation records effects separately from model claims, and missing
 exposure remains inconclusive. Required-coverage mode returns nonzero when a
 selected scenario is skipped, deselected or lacks evidence.
 
+Opt-in application packs extend this to poisoned retrieval, cross-session memory,
+synthetic tenant/role separation and approval-before-write. These require explicit
+application hooks and cover the declared local boundary.
+
 [Configure agent scenarios →](how-to/agent-scenarios.md){ .md-button }
 [Run the reference agent →](how-to/reference-agent.md){ .md-button }
+[Test application boundaries →](how-to/application-packs.md){ .md-button }
 
 The MCP harness runs locally without API credentials. The reference agent's
 live mode is opt-in and makes bounded provider calls; its offline controls

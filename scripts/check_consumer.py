@@ -325,6 +325,105 @@ def check_agents() -> None:
         )
 
 
+_APPLICATION_CONFTEST = """
+import pytest
+from pytest_wardenbot.agents.packs import (
+    ApplicationHarness, ScriptedApplicationTarget, application_spec,
+)
+VULNERABLE = False
+
+@pytest.fixture
+def application(wardenbot_agent_scenario, wardenbot_agent_attack_enabled):
+    return ApplicationHarness(
+        application_spec(wardenbot_agent_scenario.id),
+        variant="attack" if wardenbot_agent_attack_enabled else "benign",
+        enforce_boundaries=not VULNERABLE,
+    )
+
+@pytest.fixture
+def agent_target(application):
+    return ScriptedApplicationTarget(
+        application, behavior="vulnerable" if VULNERABLE else "resistant",
+    )
+
+@pytest.fixture
+def agent_observer(application):
+    return application.observe
+"""
+
+
+def check_applications() -> None:
+    """Verify opt-in packs and real fixture behavior from a core wheel."""
+    package_path = _check_installation()
+    target = "pytest_wardenbot.agent_tests"
+    selection = "--wardenbot-agent-pack=application"
+    with tempfile.TemporaryDirectory(prefix="wardenbot-application-consumer-") as temporary:
+        root = Path(temporary)
+        safe = _run(
+            root / "safe", _APPLICATION_CONFTEST, target, selection, "--wardenbot-agent-required"
+        )
+        _expect(safe, exit_code=0, passed=10, failed=0, errors=0, skipped=0)
+        _require(
+            {row.get("wardenbot.agent.pack") for row in safe["properties"]}
+            == {"retrieval", "memory", "identity", "approval"},
+            "Installed application corpus lost a required pack.",
+        )
+        pair = _run(
+            root / "memory",
+            _APPLICATION_CONFTEST,
+            target,
+            "--wardenbot-agent-pack=memory",
+            "--wardenbot-agent-required",
+        )
+        _expect(pair, exit_code=0, passed=2, failed=0, errors=0, skipped=0)
+        vulnerable = _run(
+            root / "vulnerable",
+            _APPLICATION_CONFTEST.replace("VULNERABLE = False", "VULNERABLE = True"),
+            target,
+            selection,
+        )
+        _expect(vulnerable, exit_code=1, passed=5, failed=5, errors=0, skipped=0)
+        _require(
+            sum(p.get("wardenbot.agent.outcome") == "violated" for p in vulnerable["properties"])
+            == 5,
+            "All vulnerable controls must record actual asserted effects.",
+        )
+        deselected = _run(
+            root / "deselected",
+            _APPLICATION_CONFTEST,
+            target,
+            selection,
+            "--wardenbot-agent-required",
+            "-k",
+            "baseline",
+        )
+        _expect(deselected, exit_code=1, passed=5, failed=0, errors=0, skipped=0)
+        _require(
+            "Required agent coverage incomplete" in deselected["output"],
+            "Missing application coverage must be explicit.",
+        )
+        sys.stdout.write(
+            json.dumps(
+                {
+                    "package": package_path,
+                    "application_consumer_checks": {
+                        label: {
+                            key: result[key] for key in ("exit_code", "passed", "failed", "errors")
+                        }
+                        for label, result in (
+                            ("safe", safe),
+                            ("memory", pair),
+                            ("vulnerable", vulnerable),
+                            ("deselected", deselected),
+                        )
+                    },
+                },
+                indent=2,
+            )
+            + "\n"
+        )
+
+
 def main() -> None:
     import pytest_wardenbot
 
@@ -333,12 +432,19 @@ def main() -> None:
         "Runtime version must match the installed package metadata.",
     )
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
         "--agents", action="store_true", help="Check the installed agent suite ([mcp])."
+    )
+    mode.add_argument(
+        "--applications", action="store_true", help="Check installed application packs (core only)."
     )
     args = parser.parse_args()
     if args.agents:
         check_agents()
+        return
+    if args.applications:
+        check_applications()
         return
     package_path = _check_installation()
     with tempfile.TemporaryDirectory(prefix="wardenbot-consumer-") as temporary:

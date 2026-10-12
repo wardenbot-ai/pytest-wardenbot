@@ -637,7 +637,14 @@ async def execute_fixture(
         final_text="The synthetic note says 8%.",
     )
     trace = HarnessTrace(trial_id, tuple(events), complete=True)
-    capabilities = frozenset(AgentCapability)
+    capabilities = frozenset(
+        {
+            AgentCapability.ISOLATED_STATE,
+            AgentCapability.TOOL_CALLS,
+            AgentCapability.TOOL_RESULTS,
+            AgentCapability.TRACE,
+        }
+    )
     result = evaluate(scenario, target, trace, trial_id=trial_id, capabilities=capabilities)
     return create_evidence_bundle(
         result,

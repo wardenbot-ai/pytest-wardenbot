@@ -26,13 +26,19 @@ from mcp.server import MCPServer  # type: ignore[import-not-found]
 
 from pytest_wardenbot._errors import WardenBotInfraError
 from pytest_wardenbot.agents.budget import BudgetExceeded, RateLimitError
-from pytest_wardenbot.agents.contracts import HarnessTrace, Scenario
+from pytest_wardenbot.agents.contracts import AttackSurface, HarnessTrace, Scenario
 from pytest_wardenbot.mcp._client import MCPClient
 from pytest_wardenbot.mcp._server import DOCUMENT, build_server
 from pytest_wardenbot.mcp._wire import event_from_dict, scenario_to_dict
 
 Transport = Literal["memory", "stdio", "http"]
 SUPPORTED_PROTOCOL_VERSIONS = frozenset({"2025-11-25", "2026-07-28"})
+MCP_SURFACES = (
+    AttackSurface.TOOL_RESULT,
+    AttackSurface.TOOL_DESCRIPTION,
+    AttackSurface.RESOURCE,
+    AttackSurface.PROMPT,
+)
 _PACKAGE_ROOT = str(Path(__file__).resolve().parents[2])
 
 
@@ -92,6 +98,8 @@ class MCPHarness:
         document_text: str = DOCUMENT,
         injection_text: str | None = None,
     ) -> None:
+        if not isinstance(scenario, Scenario) or scenario.surface not in MCP_SURFACES:
+            raise ValueError("MCP harness requires a supported MCP input surface")
         if transport not in {"memory", "stdio", "http"}:
             raise ValueError("Unsupported local MCP transport")
         if protocol_version not in SUPPORTED_PROTOCOL_VERSIONS:

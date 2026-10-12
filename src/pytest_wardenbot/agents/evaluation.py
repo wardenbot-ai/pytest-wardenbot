@@ -27,12 +27,20 @@ _SURFACE_CAPABILITY = {
     AttackSurface.TOOL_DESCRIPTION: AgentCapability.TOOL_DESCRIPTIONS,
     AttackSurface.RESOURCE: AgentCapability.RESOURCES,
     AttackSurface.PROMPT: AgentCapability.PROMPTS,
+    AttackSurface.RETRIEVAL_DOCUMENT: AgentCapability.RETRIEVAL,
+    AttackSurface.MEMORY: AgentCapability.MEMORY,
+    AttackSurface.IDENTITY: AgentCapability.IDENTITY,
+    AttackSurface.APPROVAL: AgentCapability.APPROVAL,
 }
 _DELIVERY_KIND = {
     AttackSurface.TOOL_RESULT: EventKind.TOOL_RESULT,
     AttackSurface.TOOL_DESCRIPTION: EventKind.TOOL_DESCRIPTION,
     AttackSurface.RESOURCE: EventKind.RESOURCE,
     AttackSurface.PROMPT: EventKind.PROMPT,
+    AttackSurface.RETRIEVAL_DOCUMENT: EventKind.RETRIEVAL_DOCUMENT,
+    AttackSurface.MEMORY: EventKind.MEMORY_READ,
+    AttackSurface.IDENTITY: EventKind.IDENTITY_CONTEXT,
+    AttackSurface.APPROVAL: EventKind.APPROVAL_REQUEST,
 }
 _DEFAULT_LIMITS = RunLimits()
 
