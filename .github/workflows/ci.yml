@@ -266,7 +266,7 @@ jobs:
         run: pyright
       - name: Exercise real local transports and agent outcomes
         run: |
-          coverage run -m pytest tests/test_agent*.py tests/test_mcp*.py tests/test_reference_agent.py -ra
+          coverage run -m pytest tests/test_agent*.py tests/test_campaign*.py tests/test_mcp*.py tests/test_reference_agent.py -ra
           coverage xml
       - name: Upload MCP coverage to Codecov
         if: matrix.python == '3.12' && matrix.dependencies == 'current'
@@ -279,6 +279,8 @@ jobs:
           name: pytest-wardenbot-mcp
       - name: Run the controlled MCP example
         run: python examples/mcp_harness/run_controls.py
+      - name: Run isolated campaign controls
+        run: python examples/agent_campaign/run_controls.py
       - name: Run the reference agent with offline model controls
         run: python scripts/evaluation/agent_pilot.py --output /tmp/reference-agent-controls.json
 
@@ -399,3 +401,6 @@ jobs:
           "$RUNNER_TEMP/mcp-consumer/bin/python"
           "$GITHUB_WORKSPACE/scripts/evaluation/agent_pilot.py"
           --transport stdio --output reference-agent-controls.json
+      - name: Verify installed campaign controls
+        working-directory: ${{ runner.temp }}
+        run: '"$RUNNER_TEMP/mcp-consumer/bin/python" "$GITHUB_WORKSPACE/examples/agent_campaign/run_controls.py"'

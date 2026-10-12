@@ -1,89 +1,263 @@
-"""Parallel async probe runner.
-
-The shipped tests send one prompt per test and run serially. Against a real bot
-that serialization dominates wall-clock time — a 29-probe suite at ~1s/call is
-~29s. `run_probes` fans the whole batch out concurrently against an
-`AsyncChatbotAdapter` (bounded by a semaphore so you don't blow past rate
-limits) and returns per-prompt results **in input order**, which you then grade
-with the same deterministic helpers (`assert_no_jailbreak_compliance`, etc.).
-
-This is the native-async counterpart to the sync shipped tests: instead of
-bundling `@pytest.mark.asyncio` tests into the discoverable suite (which would
-force `pytest-asyncio` on every user under `--strict-markers` and risk silent
-false-passes when no async plugin is active), wardenbot ships the runner and a
-recipe — you write one async test that awaits it. See the "Run probes in
-parallel" how-to.
-
-A send that raises `WardenBotInfraError` (unreachable / malformed bot) is
-captured in that probe's `ProbeResult.error` rather than sinking the whole
-batch — inspect `.error` / `.ok` and decide how to surface it. Other exceptions
-propagate (a real bug should not be swallowed).
-"""
+"""Bounded, isolated async chatbot probes with ordered outcomes."""
 
 from __future__ import annotations
 
 import asyncio
+import math
 from collections.abc import Sequence
-from dataclasses import dataclass
+from contextlib import suppress
+from dataclasses import dataclass, replace
+from enum import StrEnum
+from uuid import uuid4
 
 from pytest_wardenbot._errors import WardenBotInfraError
 from pytest_wardenbot.adapters.base import AsyncChatbotAdapter, ChatbotResponse
+from pytest_wardenbot.agents.budget import (
+    BudgetExceeded,
+    CampaignLimits,
+    ExecutionBudget,
+    RateLimitError,
+    RetryPolicy,
+    TrialContext,
+)
+from pytest_wardenbot.agents.contracts import ReasonCode
+
+
+class ProbeOutcome(StrEnum):
+    """Execution outcomes, independent of any security grading."""
+
+    COMPLETED = "completed"
+    ERROR = "error"
+    TIMEOUT = "timeout"
+    CANCELLED = "cancelled"
+    BUDGET_EXCEEDED = "budget_exceeded"
+    NOT_RUN = "not_run"
 
 
 @dataclass(frozen=True)
 class ProbeResult:
-    """The outcome of one probe in a parallel batch."""
+    """One requested probe; missing execution never implies a passed check."""
 
     attack_id: str
-    """The corpus entry's id (echoed for correlating results back to prompts)."""
-
     prompt: str
-    """The prompt that was sent."""
-
     response: ChatbotResponse | None
-    """The chatbot's response, or `None` if the send raised an infra error."""
-
     error: WardenBotInfraError | None
-    """The captured `WardenBotInfraError`, or `None` if the send succeeded."""
+    outcome: ProbeOutcome = ProbeOutcome.COMPLETED
+    session_id: str | None = None
+    attempts: int = 0
+    usage: dict[str, int | float] | None = None
 
     @property
     def ok(self) -> bool:
-        """True if the send succeeded (a response is available to grade)."""
-        return self.error is None
+        """Whether a completed response is available to grade."""
+        return (
+            self.outcome == ProbeOutcome.COMPLETED
+            and self.response is not None
+            and self.error is None
+        )
+
+
+async def _drain(tasks: Sequence[asyncio.Task[object]]) -> None:
+    """Finish owned tasks even if the caller receives another cancellation."""
+    waiter = asyncio.gather(*tasks, return_exceptions=True)
+    cancelled = False
+    while not waiter.done():
+        try:
+            await asyncio.shield(waiter)
+        except asyncio.CancelledError:
+            cancelled = True
+    if cancelled:
+        raise asyncio.CancelledError
+
+
+async def _reset(adapter: AsyncChatbotAdapter, session_id: str, cleanup_seconds: float) -> None:
+    # Keep cleanup owned and bounded, including during external cancellation.
+    task = asyncio.create_task(asyncio.wait_for(adapter.reset_session(session_id), cleanup_seconds))
+    cancelled = False
+    while not task.done():
+        try:
+            await asyncio.shield(task)
+        except asyncio.CancelledError:
+            cancelled = True
+        except Exception:
+            break
+    try:
+        task.result()
+    except TimeoutError:
+        raise WardenBotInfraError("Probe session reset timed out") from None
+    if cancelled:
+        raise asyncio.CancelledError
 
 
 async def run_probes(
     adapter: AsyncChatbotAdapter,
     prompts: Sequence[tuple[str, str]],
     *,
-    concurrency: int = 5,
+    concurrency: int | None = None,
+    limits: CampaignLimits | None = None,
+    retry: RetryPolicy | None = None,
+    timeout_seconds: float | None = None,
 ) -> list[ProbeResult]:
-    """Send every `(prompt, attack_id)` concurrently, bounded by `concurrency`.
+    """Run isolated single-turn probes and return every request in input order.
 
-    Args:
-        adapter: the async chatbot adapter under test.
-        prompts: `(prompt, attack_id)` pairs. For corpora with wider shapes
-            (encoded-payload / indirect injection are `(prompt, trigger_words,
-            attack_id)`), pass `[(p, aid) for p, _, aid in CORPUS]`. Multi-turn
-            corpora are sequential, not a single-send fan-out — drive those with
-            the sync multi-turn test instead.
-        concurrency: max sends in flight at once (default 5). Tune to your bot's
-            rate limit.
+    ``limits`` bounds the entire batch, including retry attempts. By default the
+    batch allows one send per input, runs at concurrency 5, and has a 300 second
+    deadline. ``timeout_seconds`` optionally bounds each send including its
+    retry waits. Session resets have a separate bounded cleanup allowance.
 
-    Returns:
-        `ProbeResult`s in the same order as `prompts`. Infra errors are captured
-        per-probe (see `ProbeResult.error` / `.ok`), not raised.
+    Each send receives a unique session ID, reset before and after execution.
+    Custom adapters must implement the public async ``reset_session`` protocol
+    (stateless adapters can use a no-op). Results describe execution, not safety.
+    Infra errors are captured; bugs and external cancellation propagate only
+    after siblings have been cancelled and drained. No whole-probe replay occurs.
+    Retry is disabled unless explicitly declared safe with ``RetryPolicy``.
     """
-    if concurrency < 1:
-        raise ValueError("concurrency must be >= 1")
-    semaphore = asyncio.Semaphore(concurrency)
+    effective_concurrency = (
+        concurrency if concurrency is not None else (limits.concurrency if limits else 5)
+    )
+    if (
+        isinstance(effective_concurrency, bool)
+        or not isinstance(effective_concurrency, int)
+        or effective_concurrency < 1
+    ):
+        raise ValueError("concurrency must be >= 1 and an integer")
+    if timeout_seconds is not None and (
+        isinstance(timeout_seconds, bool)
+        or not isinstance(timeout_seconds, int | float)
+        or not math.isfinite(timeout_seconds)
+        or timeout_seconds <= 0
+    ):
+        raise ValueError("timeout_seconds must be positive and finite")
+    if retry is not None and retry.max_retries and retry.side_effecting:
+        raise ValueError(
+            "Probe adapters cannot transmit idempotency keys; write retries are unsupported"
+        )
+    limits = limits or CampaignLimits(
+        max_calls=max(1, len(prompts)),
+        max_turns=max(1, len(prompts)),
+        concurrency=effective_concurrency,
+    )
+    budget = ExecutionBudget(limits)
+    semaphore = asyncio.Semaphore(effective_concurrency)
+    results = [
+        ProbeResult(aid, prompt, None, None, ProbeOutcome.NOT_RUN, f"probe-{uuid4().hex}")
+        for prompt, aid in prompts
+    ]
+    started: set[int] = set()
 
-    async def _probe(prompt: str, attack_id: str) -> ProbeResult:
+    async def _probe(index: int) -> None:
+        result = results[index]
+        session_id = result.session_id
+        assert session_id is not None
+        attempts = 0
         async with semaphore:
+            if budget.remaining_seconds <= 0:
+                return
+            started.add(index)
+            context = TrialContext(session_id, budget)
             try:
-                response = await adapter.send_message(prompt)
-            except WardenBotInfraError as exc:
-                return ProbeResult(attack_id=attack_id, prompt=prompt, response=None, error=exc)
-            return ProbeResult(attack_id=attack_id, prompt=prompt, response=response, error=None)
+                context.turn()
+                await asyncio.wait_for(
+                    adapter.reset_session(session_id),
+                    min(limits.cleanup_timeout_seconds, budget.remaining_seconds),
+                )
 
-    return list(await asyncio.gather(*(_probe(prompt, attack_id) for prompt, attack_id in prompts)))
+                async def send() -> ChatbotResponse:
+                    nonlocal attempts
+                    attempts += 1
+                    return await adapter.send_message(result.prompt, session_id=session_id)
+
+                call = context.call(send, retry=retry)
+                response = await asyncio.wait_for(
+                    call,
+                    min(timeout_seconds or budget.remaining_seconds, budget.remaining_seconds),
+                )
+                supplied = response.raw.get("usage") if response.raw is not None else None
+                if isinstance(supplied, dict):
+                    # Retain only actual supplied numeric fields; nested/unknown fields
+                    # are not estimates and are not replaced with fabricated zeros.
+                    usage = {
+                        key: value
+                        for key, value in supplied.items()
+                        if key
+                        in {
+                            "input_tokens",
+                            "output_tokens",
+                            "total_tokens",
+                            "prompt_tokens",
+                            "completion_tokens",
+                            "estimated_cost_usd",
+                        }
+                        and not isinstance(value, bool)
+                        and isinstance(value, int | float)
+                        and (isinstance(value, int) or math.isfinite(value))
+                        and value >= 0
+                    }
+                    context.record_usage(usage)
+                result = replace(
+                    result,
+                    response=response,
+                    outcome=ProbeOutcome.COMPLETED,
+                    usage=dict(context.usage) if context.usage else None,
+                )
+            except BudgetExceeded as exc:
+                outcome = (
+                    ProbeOutcome.TIMEOUT
+                    if exc.reason == ReasonCode.CAMPAIGN_DEADLINE
+                    else ProbeOutcome.BUDGET_EXCEEDED
+                )
+                result = replace(result, outcome=outcome)
+            except TimeoutError:
+                result = replace(result, outcome=ProbeOutcome.TIMEOUT)
+            except RateLimitError:
+                result = replace(
+                    result,
+                    error=WardenBotInfraError("Probe rate limit"),
+                    outcome=ProbeOutcome.ERROR,
+                )
+            except WardenBotInfraError as exc:
+                result = replace(result, error=exc, outcome=ProbeOutcome.ERROR)
+            except asyncio.CancelledError:
+                result = replace(result, outcome=ProbeOutcome.CANCELLED)
+                current = asyncio.current_task()
+                if current is not None and current.cancelling():
+                    raise
+            finally:
+                try:
+                    await _reset(adapter, session_id, limits.cleanup_timeout_seconds)
+                except WardenBotInfraError as exc:
+                    result = replace(result, error=exc, outcome=ProbeOutcome.ERROR)
+                finally:
+                    results[index] = replace(result, attempts=attempts)
+
+    tasks = [asyncio.create_task(_probe(index)) for index in range(len(results))]
+    try:
+        # gather propagates bugs immediately; the enclosing finally owns siblings.
+        batch = asyncio.gather(*tasks)
+        try:
+            await asyncio.wait_for(asyncio.shield(batch), budget.remaining_seconds)
+        except TimeoutError:
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
+            await _drain(tasks)
+            for task in tasks:
+                if not task.cancelled() and (bug := task.exception()) is not None:
+                    raise bug from None
+            for index, result in enumerate(results):
+                if result.outcome == ProbeOutcome.CANCELLED:
+                    results[index] = replace(result, outcome=ProbeOutcome.TIMEOUT)
+                elif index not in started:
+                    results[index] = replace(result, outcome=ProbeOutcome.NOT_RUN)
+    finally:
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        try:
+            await _drain(tasks)
+        finally:
+            # Retrieve gather's eventual exception after all owned workers finish.
+            if batch.done():
+                with suppress(asyncio.CancelledError):
+                    batch.exception()
+    return results

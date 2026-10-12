@@ -25,6 +25,7 @@ from mcp.client.stdio import stdio_client  # type: ignore[import-not-found]
 from mcp.server import MCPServer  # type: ignore[import-not-found]
 
 from pytest_wardenbot._errors import WardenBotInfraError
+from pytest_wardenbot.agents.budget import BudgetExceeded, RateLimitError
 from pytest_wardenbot.agents.contracts import HarnessTrace, Scenario
 from pytest_wardenbot.mcp._client import MCPClient
 from pytest_wardenbot.mcp._server import DOCUMENT, build_server
@@ -206,6 +207,7 @@ class MCPHarness:
             raise WardenBotInfraError("MCP trial identifiers cannot be reused")
         resources = self.resources[trial_id] = TrialResources()
         completed = False
+        control_error: BudgetExceeded | RateLimitError | None = None
         with TemporaryDirectory(prefix="pw-mcp-") as temporary:
             directory = Path(temporary)
             try:
@@ -221,18 +223,26 @@ class MCPHarness:
                         resources.protocol_version = client.protocol_version
                         if resources.protocol_version != self.protocol_version:
                             raise WardenBotInfraError("MCP protocol negotiation failed")
-                        yield MCPClient(
-                            client,
-                            self.scenario,
-                            trial_id,
-                            directory / "events.jsonl",
-                            attack_enabled=self.attack_enabled,
-                            injection_text=self.injection_text,
-                        )
+                        try:
+                            yield MCPClient(
+                                client,
+                                self.scenario,
+                                trial_id,
+                                directory / "events.jsonl",
+                                attack_enabled=self.attack_enabled,
+                                injection_text=self.injection_text,
+                            )
+                        except (BudgetExceeded, RateLimitError) as exc:
+                            # SDK task groups can wrap a yielded body's exception.
+                            # Preserve only our fixed, private-safe control signal.
+                            control_error = exc
+                            raise
                 completed = True
-            except asyncio.CancelledError:
+            except (asyncio.CancelledError, BudgetExceeded, RateLimitError):
                 raise
             except Exception:
+                if control_error is not None:
+                    raise control_error from None
                 if resources.protocol_version is not None and (
                     resources.protocol_version != self.protocol_version
                 ):

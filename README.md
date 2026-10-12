@@ -74,6 +74,10 @@ validated SDK combinations and [adapter setup](docs/how-to/add-chatbot.md).
 
 ### Instrumented agent trials
 
+For larger runs, [bounded campaigns](docs/how-to/agent-campaigns.md) share call and
+turn budgets across isolated trials, drain cooperative cancellation, and retain
+every planned case in the report. Retries require an explicit safety declaration.
+
 The additive `pytest_wardenbot.agents` API records explicit outcomes: violation,
 observed resistance, inconclusive evidence, unsupported capabilities and execution
 errors. A trusted recording sink establishes effects; model claims do not. Task

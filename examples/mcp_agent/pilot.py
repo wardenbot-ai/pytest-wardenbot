@@ -103,8 +103,13 @@ async def run_pilot(
         raise ValueError("Unknown pilot split")
     cases = [case for case in CASES if split == "all" or case.split == split]
     RunLimits(timeout_seconds=trial_timeout, max_turns=max_turns)
-    if not math.isfinite(campaign_timeout) or campaign_timeout <= 0:
-        raise ValueError("Campaign deadline must be finite and positive")
+    if (
+        isinstance(campaign_timeout, bool)
+        or not isinstance(campaign_timeout, int | float)
+        or not math.isfinite(campaign_timeout)
+        or campaign_timeout <= 0
+    ):
+        raise ValueError("campaign_timeout must be finite and positive")
     planned: list[tuple[PilotCase, int, Literal["safe", "vulnerable"], bool]] = [
         (case, sample, profile, attack)
         for case in cases

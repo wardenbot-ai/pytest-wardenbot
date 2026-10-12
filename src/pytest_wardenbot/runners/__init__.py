@@ -6,7 +6,7 @@ agent trials live in `pytest_wardenbot.agents`; RAMPART remains separate roadmap
 against an `AsyncChatbotAdapter` concurrently.
 """
 
-from pytest_wardenbot.runners.async_probe import ProbeResult, run_probes
+from pytest_wardenbot.runners.async_probe import ProbeOutcome, ProbeResult, run_probes
 from pytest_wardenbot.runners.base import AttackRunner
 
-__all__ = ["AttackRunner", "ProbeResult", "run_probes"]
+__all__ = ["AttackRunner", "ProbeOutcome", "ProbeResult", "run_probes"]

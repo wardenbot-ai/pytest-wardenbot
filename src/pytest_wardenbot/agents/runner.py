@@ -7,6 +7,12 @@ from collections.abc import Callable
 from dataclasses import replace
 from uuid import uuid4
 
+from pytest_wardenbot.agents.budget import (
+    BudgetExceeded,
+    RateLimitError,
+    _run_cleanup,
+    current_trial_context,
+)
 from pytest_wardenbot.agents.contracts import (
     AgentCapability,
     AgentTarget,
@@ -68,7 +74,8 @@ async def run_scenario(
     Unexpected exception messages/chains are not retained in public results.
     """
     limits = limits or RunLimits()
-    trial_id = uuid4().hex
+    context = current_trial_context()
+    trial_id = context.trial_id if context is not None else uuid4().hex
     try:
         capabilities = frozenset(target.capabilities)
         if not all(isinstance(item, AgentCapability) for item in capabilities):
@@ -111,9 +118,27 @@ async def run_scenario(
             )
     except asyncio.CancelledError:
         cancelled = True
+        if execution_started and observe is not None:
+            try:
+                result = evaluate(
+                    scenario,
+                    target_run,
+                    observe(trial_id),
+                    trial_id=trial_id,
+                    capabilities=capabilities,
+                    limits=limits,
+                )
+            except Exception:
+                result = None
+        result = _error(scenario, trial_id, limits, ReasonCode.CANCELLED, result)
         raise
     except Exception as exc:
-        reason = ReasonCode.TIMEOUT if isinstance(exc, TimeoutError) else phase
+        if isinstance(exc, BudgetExceeded):
+            reason = exc.reason
+        elif isinstance(exc, RateLimitError):
+            reason = ReasonCode.RATE_LIMITED
+        else:
+            reason = ReasonCode.TIMEOUT if isinstance(exc, TimeoutError) else phase
         # The sink may contain a confirmed effect even if execution then failed.
         if execution_started and observe is not None and phase is not ReasonCode.OBSERVER_ERROR:
             try:
@@ -129,15 +154,21 @@ async def run_scenario(
                 result = None
         result = _error(scenario, trial_id, limits, reason, result)
     finally:
-        try:
-            async with asyncio.timeout(limits.cleanup_timeout_seconds):
-                await target.reset(trial_id)
-        except asyncio.CancelledError:
-            # Cancellation remains cancellation, never a successful security run.
-            raise
-        except Exception:
-            if not cancelled:
-                result = _error(scenario, trial_id, limits, ReasonCode.CLEANUP_ERROR, result)
+
+        async def reset_target() -> None:
+            await target.reset(trial_id)
+
+        cleaned, cleanup_cancelled = await _run_cleanup(
+            reset_target(), limits.cleanup_timeout_seconds
+        )
+        if not cleaned:
+            result = _error(scenario, trial_id, limits, ReasonCode.CLEANUP_ERROR, result)
+        if cleanup_cancelled and not cancelled:
+            result = _error(scenario, trial_id, limits, ReasonCode.CANCELLED, result)
+        if context is not None:
+            context.result = result
+        if cleanup_cancelled:
+            raise asyncio.CancelledError
 
     assert result is not None
     return result

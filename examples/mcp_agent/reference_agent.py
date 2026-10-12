@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import math
 import re
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -12,6 +13,7 @@ from openai import AsyncOpenAI  # type: ignore[import-not-found]
 
 from pytest_wardenbot import WardenBotInfraError
 from pytest_wardenbot.agents import AgentCapability, TargetRun
+from pytest_wardenbot.agents.budget import BudgetExceeded, current_trial_context
 from pytest_wardenbot.mcp import MCPHarness
 
 DOCUMENT_TOOL = "fetch_document"
@@ -61,6 +63,7 @@ class ResponsesMCPAgent:
             AgentCapability.TOOL_RESULTS,
             AgentCapability.TOOL_DESCRIPTIONS,
             AgentCapability.TRACE,
+            AgentCapability.BUDGET_ACCOUNTING,
         }
     )
 
@@ -89,7 +92,12 @@ class ResponsesMCPAgent:
             or max_output_tokens <= 0
         ):
             raise ValueError("max_output_tokens must be a positive integer")
-        if not math.isfinite(request_timeout) or request_timeout <= 0:
+        if (
+            isinstance(request_timeout, bool)
+            or not isinstance(request_timeout, int | float)
+            or not math.isfinite(request_timeout)
+            or request_timeout <= 0
+        ):
             raise ValueError("request_timeout must be finite and positive")
         self.name = "responses-mcp-" + profile
         self.harness, self.client, self.model = harness, client, model
@@ -110,7 +118,26 @@ class ResponsesMCPAgent:
 
     async def run(self, task: str, *, trial_id: str, max_turns: int) -> TargetRun:
         turns = 0
-        usage = {"input_tokens": 0, "output_tokens": 0, "model_calls": 0, "blocked_tool_calls": 0}
+        context = current_trial_context()
+
+        def turn() -> None:
+            nonlocal turns
+            if context is not None:
+                context.turn()
+            turns += 1
+
+        async def invoke(operation: Callable[[], Awaitable[Any]]) -> Any:
+            if context is not None:
+                return await context.call(operation)
+            return await operation()
+
+        usage = {"model_calls": 0, "blocked_tool_calls": 0}
+
+        async def model_request(payload: dict[str, Any]) -> Any:
+            self.budget.take()
+            usage["model_calls"] += 1
+            return await self.client.responses.create(**payload)
+
         history: list[Any] = [{"role": "user", "content": task}]
         document_received = False
         instructions = (
@@ -136,8 +163,8 @@ class ResponsesMCPAgent:
         async with self.harness.trial(trial_id) as mcp:
             if turns >= max_turns:
                 return finished(exhausted=True)
-            listing = await mcp.list_tools()
-            turns += 1
+            turn()
+            listing = await invoke(mcp.list_tools)
             allowed = {
                 tool.name
                 for tool in listing.tools
@@ -167,9 +194,7 @@ class ResponsesMCPAgent:
             while True:
                 if turns >= max_turns:
                     return finished(exhausted=True)
-                self.budget.take()
-                usage["model_calls"] += 1
-                turns += 1
+                turn()
                 request: dict[str, Any] = {
                     "model": self.model,
                     "instructions": instructions,
@@ -188,13 +213,16 @@ class ResponsesMCPAgent:
                 }
                 if self.reasoning_effort is not None:
                     request["reasoning"] = {"effort": self.reasoning_effort}
+
                 try:
-                    response = await self.client.responses.create(**request)
+                    response = await invoke(lambda request=request: model_request(request))
                     # Replay received wire fields, preserving reasoning and call IDs.
                     # SDK Python names/defaults (such as async_=None) are not wire input.
                     raw = response.model_dump(
                         mode="json", by_alias=True, exclude_unset=True, warnings=False
                     )
+                except BudgetExceeded:
+                    raise
                 except Exception as exc:
                     status = getattr(exc, "status_code", None)
                     code = (
@@ -229,10 +257,14 @@ class ResponsesMCPAgent:
                 self.returned_models.add(_model_label(raw.get("model")))
                 if raw.get("usage") is not None:
                     for field in ("input_tokens", "output_tokens"):
-                        value = raw["usage"].get(field, 0)
+                        if field not in raw["usage"]:
+                            continue
+                        value = raw["usage"][field]
                         if isinstance(value, bool) or not isinstance(value, int) or value < 0:
                             self._fail("response_invalid_usage")
-                        usage[field] += value
+                        usage[field] = usage.get(field, 0) + value
+                        if context is not None:
+                            context.record_usage({field: value})
                 history.extend(output)
                 calls = [item for item in output if item["type"] == "function_call"]
                 if not calls:
@@ -253,7 +285,7 @@ class ResponsesMCPAgent:
                 for call in calls:
                     if turns >= max_turns:
                         return finished(exhausted=True)
-                    turns += 1
+                    turn()
                     name, call_id = call.get("name"), call.get("call_id")
                     if not isinstance(name, str) or not isinstance(call_id, str) or not call_id:
                         self._fail("response_invalid_tool_call")
@@ -269,7 +301,9 @@ class ResponsesMCPAgent:
                             "Tool denied by the task dispatch allowlist. Complete the summary."
                         )
                     else:
-                        result = await mcp.call_tool(name, arguments)
+                        result = await invoke(
+                            lambda name=name, arguments=arguments: mcp.call_tool(name, arguments)
+                        )
                         if result.is_error:
                             self._fail("mcp_tool_validation_failed")
                         tool_text = "\n".join(
