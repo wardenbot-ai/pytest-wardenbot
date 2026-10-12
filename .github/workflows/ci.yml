@@ -30,8 +30,8 @@ jobs:
     name: Pre-commit
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -44,8 +44,8 @@ jobs:
     name: Lint (ruff)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -62,8 +62,8 @@ jobs:
     name: Typecheck (pyright)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -89,10 +89,10 @@ jobs:
           - python-version: "3.11"
             pytest: minimum
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
@@ -125,7 +125,7 @@ jobs:
 
       - name: Upload coverage to Codecov
         if: matrix.python-version == '3.12' && matrix.pytest == 'current'
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           use_oidc: true
           files: coverage.xml
@@ -140,8 +140,8 @@ jobs:
     name: Test (Python 3.12, [judge] extra)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -161,8 +161,8 @@ jobs:
       matrix:
         dependencies: [minimum, current]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -202,8 +202,8 @@ jobs:
       DEEPEVAL_TELEMETRY_OPT_OUT: "YES"
       DEEPEVAL_UPDATE_WARNING_OPT_OUT: "YES"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -218,7 +218,7 @@ jobs:
           coverage report --fail-under=90
           coverage xml
       - name: Upload complete integration coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           use_oidc: true
           files: coverage.xml
@@ -244,8 +244,8 @@ jobs:
           - python: "3.13"
             dependencies: current
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python }}
           cache: pip
@@ -271,7 +271,7 @@ jobs:
           coverage xml
       - name: Upload MCP coverage to Codecov
         if: matrix.python == '3.12' && matrix.dependencies == 'current'
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           use_oidc: true
           files: coverage.xml
@@ -290,8 +290,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: [lint, typecheck, test, test-with-judge, sdk-contracts, test-integrations, mcp-contracts, docs]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - name: Install build tool
@@ -303,7 +303,7 @@ jobs:
       - name: Verify with twine
         run: twine check dist/*
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dist
           path: dist/
@@ -313,8 +313,8 @@ jobs:
     name: Validate documentation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -332,11 +332,11 @@ jobs:
       matrix:
         pytest: [minimum, current]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: dist
           path: dist/
@@ -383,11 +383,11 @@ jobs:
       matrix:
         pytest: [minimum, current]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: dist
           path: dist/
