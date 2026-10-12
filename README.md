@@ -8,20 +8,21 @@
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit)
 
 Pytest security tests for chatbots and tool-using agents — prompt injection,
-MCP boundary checks, data leaks and semantic regressions.
+MCP and application boundary checks, data leaks and semantic regressions.
 
 📖 **Documentation:** [pytest-wardenbot.wardenbot.ai](https://pytest-wardenbot.wardenbot.ai/)
 
-> **Status: pre-release.** The 0.2 series is in active development. APIs may change before the first stable release. Follow ongoing work in [GitHub Issues](https://github.com/wardenbot-ai/pytest-wardenbot/issues).
+> **Status: pre-release.** The 0.3 series is in active development. APIs may change before the first stable release. Follow ongoing work in [GitHub Issues](https://github.com/wardenbot-ai/pytest-wardenbot/issues).
 
 ---
 
 ## What it does
 
-Run pytest against your chatbot and find out if it leaks its system prompt, complies with known jailbreaks, hallucinates business facts, or drifts from your brand voice.
+Run pytest against chatbot responses and instrumented agent operations. Check prompt
+injection, data disclosure, task correctness, and unauthorized tool effects.
 
 - **Black-box.** Tests run against your live chatbot via HTTP, OpenAI API, Anthropic API, or any object you write a small adapter for.
-- **Deterministic-first.** v0.1 ships 29 tests graded with regex, substring, and schema checks, without a separate judge model. Your chatbot's API usage may still cost money. Optional LLM-judge tests (DeepEval) ship as an extra for semantic checks.
+- **Deterministic-first.** The chatbot suite ships 29 tests graded with regex, substring, and schema checks, without a separate judge model. Your chatbot's API usage may still cost money. Optional LLM-judge tests (DeepEval) ship as an extra for semantic checks.
 - **Agent-ready failures.** When a test fails, the failure message includes a structured Markdown remediation prompt you can paste into Cursor or Claude Code.
 - **Public adapter checks.** The bundled OpenAI and Anthropic adapters have mock-based tests and a scheduled live API smoke workflow. Check the [latest workflow results](https://github.com/wardenbot-ai/pytest-wardenbot/actions/workflows/live-api-smoke.yml) for the current live status.
 - **Instrumented agent scenarios.** Eight versioned cases cover MCP tool results,
@@ -35,7 +36,11 @@ Run pytest against your chatbot and find out if it leaks its system prompt, comp
 
 ### What "passing" means (and doesn't)
 
-A green run means your chatbot didn't fail any of the bundled 29 attacks in the most overt way. It's a useful smoke test and a regression detector — if a deploy turns a green test red, that's a real signal to investigate.
+A passing chatbot test means its configured response check did not detect a
+failure. A passing required agent suite additionally needs observed exposure,
+complete declared-boundary evidence, and successful benign task controls.
+Neither result establishes security beyond the tested cases. See the versioned
+[coverage matrix](docs/about/coverage.md) and [evaluation limits](docs/about/evaluation.md).
 
 A green run does **not** mean your chatbot is secure. Frontier-grade attacks are multi-turn, novel, and adapted to your specific bot — no fixed corpus catches all of them. Treat the shipped suite as a starter set: pair it with periodic red-team exercises (or our [Continuous Monitoring](https://wardenbot.ai/intake/) service) for the always-on adversarial coverage CI alone can't provide.
 
@@ -114,6 +119,13 @@ fixture setup. The [reference agent](docs/how-to/reference-agent.md) and
 with paired benign and attack trials. Existing chatbot tests remain in the
 separate `pytest_wardenbot.tests` suite.
 
+A second [support application example](examples/support_agent/README.md) uses
+direct local ticket APIs, scoped approvals, and a real model tool loop without
+MCP. Both examples default to offline SDK controls. The
+[support pilot](docs/about/support-pilot.md) records repeated trials, held-out
+cases, benign quoted/encoded text, utility, incomplete results, and sample-size
+limits; it does not rank models.
+
 
 ## Quickstart (under 60 seconds)
 
@@ -162,7 +174,7 @@ Then run the shipped tests with `pytest --pyargs pytest_wardenbot.tests`.
 When a test fails, read the failure message, paste the agent-ready Markdown
 into Cursor / Claude Code, ship the fix.
 
-## What's in v0.1
+## Bundled chatbot checks
 
 | Category | Count | Grading | Requires API key? |
 |---|---|---|---|
@@ -185,7 +197,7 @@ in the 0.1 series. Follow upcoming work in
 
 ## How it's different from related tools
 
-- **vs Promptfoo ([acquired by OpenAI in Feb 2026](https://openai.com/index/openai-to-acquire-promptfoo/)):** Promptfoo is a developer testing CLI. We're a pytest plugin — same tool your existing test suite uses, same CI integration you already have.
+- **vs Promptfoo:** Promptfoo is a developer testing CLI. We're a pytest plugin — same tool your existing test suite uses, same CI integration you already have.
 - **vs DeepEval:** DeepEval focuses on evaluation metrics (faithfulness, relevancy). We focus on adversarial security probes (jailbreak, system-prompt leak, refusal-bypass) — different problem, complementary tool. (We use DeepEval under the hood for our optional semantic checks.)
 - **vs Garak / PyRIT:** Garak and PyRIT are research-grade attack libraries. We package a curated subset as everyday pytest tests with clear failure messages.
 

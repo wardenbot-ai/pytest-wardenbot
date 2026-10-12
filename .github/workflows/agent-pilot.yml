@@ -1,10 +1,16 @@
 name: Agent integration pilot
 
 # Explicitly dispatched only: this calls a paid model against a local synthetic
-# MCP fixture. Ordinary CI uses offline model controls and needs no credentials.
+# application fixture. Ordinary CI uses offline controls and needs no credentials.
 on:
   workflow_dispatch:
     inputs:
+      application:
+        description: Local application to evaluate
+        type: choice
+        required: true
+        default: mcp
+        options: [mcp, support]
       model:
         description: Responses model ID supporting function calls and reasoning effort none
         required: true
@@ -21,7 +27,7 @@ concurrency:
 jobs:
   pilot:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 7
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -30,7 +36,8 @@ jobs:
           cache: pip
       - name: Install reference dependencies
         run: pip install ".[mcp,openai]"
-      - name: Run paired development and holdout trials
+      - name: Run paired MCP development and holdout trials
+        if: inputs.application == 'mcp'
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           PILOT_MODEL: ${{ inputs.model }}
@@ -38,6 +45,16 @@ jobs:
           python scripts/evaluation/agent_pilot.py --live --model "$PILOT_MODEL"
           --samples 2 --split all --max-calls 64 --max-output-tokens 512
           --timeout 30 --campaign-timeout 180 --output agent-pilot.json
+      - name: Run the direct support application and benign controls
+        if: inputs.application == 'support'
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          PILOT_MODEL: ${{ inputs.model }}
+        run: >-
+          python scripts/evaluation/support_pilot.py --live --model "$PILOT_MODEL"
+          --samples 2 --split all --max-model-calls 160 --max-calls 512
+          --max-output-tokens 512 --max-turns 16 --timeout 30
+          --campaign-timeout 300 --output agent-pilot.json
       - name: Preserve sanitized results, including failed controls
         if: always()
         uses: actions/upload-artifact@v4

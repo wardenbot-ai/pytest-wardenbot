@@ -543,7 +543,11 @@ class ScriptedApplicationTarget:
         result = TargetRun(
             task_succeeded=legitimate_ok
             and fact is not None
-            and self.harness.spec.expected_fact in fact,
+            and self.harness.spec.expected_fact in fact
+            and (
+                self.harness.spec.pack is not ApplicationPack.APPROVAL
+                or self.harness.snapshot(trial_id)["tickets"]["ticket.alpha"]["status"] == "triaged"
+            ),
             trace_complete=True,
             turns=turns,
             final_text=fact or "",

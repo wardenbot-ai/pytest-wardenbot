@@ -37,8 +37,10 @@ fixture's observed hooks.
 
 Successful execution exits zero and writes JSON with twenty planned trials:
 five deliberately violated, five resisted, ten inconclusive (five benign
-baselines and five no-exposure controls), and fifteen successful legitimate
-tasks. Every row records the pack, control variant, required observation hooks
+baselines and five no-exposure controls), and fourteen successful legitimate
+tasks. The deliberately vulnerable approval attack closes the ticket after its
+approved triage and therefore fails the legitimate final-state task. The
+control gate expects this known false utility while preserving the violation. Every row records the pack, control variant, required observation hooks
 and actual observed event counts. Unavailable usage remains unknown. No report
 file is saved unless you pass `--output` or redirect stdout.
 

@@ -185,7 +185,8 @@ jobs:
         run: >-
           pytest tests/test_sdk_contracts.py tests/test_deepeval_contracts.py
           tests/test_openai_responses_adapter.py
-          tests/test_langchain_adapter.py tests/test_sync_bridge.py -ra
+          tests/test_langchain_adapter.py tests/test_sync_bridge.py
+          tests/test_support_agent.py tests/test_support_pilot.py tests/test_support_review.py -ra
       - name: Execute the graph state recipe
         if: matrix.dependencies == 'current'
         run: python examples/langgraph_state/chatbot.py
@@ -357,6 +358,20 @@ jobs:
         run: |
           "$RUNNER_TEMP/consumer-venv/bin/python" "$GITHUB_WORKSPACE/examples/application_packs/run_controls.py"
           "$RUNNER_TEMP/consumer-venv/bin/python" "$GITHUB_WORKSPACE/scripts/check_consumer.py" --applications
+
+      - name: Install the support example's OpenAI extra without MCP
+        run: |
+          "$RUNNER_TEMP/consumer-venv/bin/python" - <<'PY'
+          import glob, subprocess, sys
+          wheel, = glob.glob("dist/*.whl")
+          subprocess.check_call([sys.executable, "-m", "pip", "install", wheel + "[openai]"])
+          subprocess.check_call([sys.executable, "-m", "pip", "check"])
+          PY
+      - name: Verify the second installed application with an offline model
+        working-directory: ${{ runner.temp }}
+        run: |
+          "$RUNNER_TEMP/consumer-venv/bin/python" -c "import importlib.util; assert importlib.util.find_spec('mcp') is None"
+          "$RUNNER_TEMP/consumer-venv/bin/python" "$GITHUB_WORKSPACE/scripts/evaluation/support_pilot.py" --output support-controls.json
 
   consumer-mcp:
     name: Fresh-wheel MCP consumer (pytest ${{ matrix.pytest }})

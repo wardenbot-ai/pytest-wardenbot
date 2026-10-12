@@ -5,9 +5,17 @@ All notable changes to `pytest-wardenbot` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.3.0] — 2026-10-11
 
 ### Added
+
+- A second real Responses example over local ticket APIs and scoped approvals,
+  independent of MCP. Frozen development/holdout cases include clean, attack,
+  benign quoted and benign encoded content, repeated trials, separate task
+  utility, all planned outcomes and descriptive uncertainty intervals.
+- Versioned OWASP coverage mappings with explicit tested boundaries and untested
+  categories, refreshed evaluation limitations and a manual monthly research
+  intake process.
 
 - Opt-in application packs for poisoned retrieval, persistent memory, synthetic
   tenant/role separation, and approval-before-write. A controlled local support
@@ -35,6 +43,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   without provider requests.
 
 ### Fixed
+
+- Reference-agent utility checks reject a fact found only inside a different
+  number or word, and support approval utility requires an actual authorized
+  mutation. Model usage remains visible when a response is incomplete.
 
 - Runtime `__version__` now comes from installed package metadata, avoiding drift
   between public reports and the distributed package version.

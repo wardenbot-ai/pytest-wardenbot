@@ -42,3 +42,6 @@ That generates `conftest.py` + `test_my_bot.py` in the current directory with
 placeholder values you replace inline.
 
 Check [dependency support](../docs/how-to/dependency-support.md) before choosing SDK versions.
+
+- [`support_agent/`](support_agent/README.md): direct ticket APIs and scoped approvals,
+  a second real Responses loop with offline controls and an opt-in bounded pilot.

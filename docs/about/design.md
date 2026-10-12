@@ -1,101 +1,39 @@
 # Design principles
 
-The reasoning behind why pytest-wardenbot is shaped the way it is.
+pytest-wardenbot puts application-specific regressions in ordinary pytest workflows. Text chatbot checks and instrumented agent scenarios preserve their different evidence limits.
 
-## 1. Script-first, LLM-fallback
+## Explainable grading and observed effects
 
-Deterministic checks come before LLM-as-judge checks. Reasons:
+Deterministic text checks expose their matching rules. A quoted trigger can match a detector without showing that an instruction was executed. Agent scenarios therefore grade actual controlled operations from a separately supplied harness trace. Target events, completion flags and final text cannot promote themselves into trusted effects.
 
-- **Cost.** LLM calls are 1000–10,000× more expensive than a regex match.
-- **Latency.** A regex returns in microseconds; an LLM call takes seconds.
-- **Reproducibility.** A regex gives the same answer every time; an LLM
-  judge gives ~80% agreement with itself across runs.
-- **Auditability.** A regex match is easy to explain; an LLM verdict is
-  not.
-- **Cost-margin economics.** If we ever moved the test corpus to a paid
-  managed service at $29/mo, deterministic-only checks make that price
-  point viable. Judge-heavy designs do not.
+Optional model judges can help with subjective questions. Their model, rubric, threshold and error behavior are configuration, not universal reliability guarantees. No fixed judge agreement percentage, cost multiplier or ensemble safety guarantee is assumed. Calibrate against labeled application examples before using a judge as a gate.
 
-What this means in practice: every shipped test grades with deterministic
-checks first. The LLM-judge tests are an explicit opt-in (`[judge]` extra),
-reserved for checks no deterministic rule can express (semantic equivalence,
-brand voice, hallucination grounding).
+## Security, usefulness and availability stay separate
 
-## 2. Conservative detection patterns
+Agent outcomes distinguish confirmed violation, observed resistance, inconclusive evidence, unsupported integration and execution error. Task utility is independent. Expected-fact presence in the examples is a narrow heuristic, not semantic proof of summary correctness.
 
-When designing a regex / substring detector, false positives cost more
-trust than false negatives.
+Missing exposure, incomplete traces, stopped campaigns and failed baselines must not disappear into a pass rate. Positive recorded effects survive later execution or cleanup failures. Required pytest coverage rejects unavailable cases without labeling them proven vulnerabilities.
 
-- A false positive ("your bot leaked the system prompt!" when it actually
-  said "I help with billing questions") makes users distrust the entire
-  suite.
-- A false negative (a real leak we missed) is recoverable when discovered.
+## Explicit ownership and execution bounds
 
-So we err on the side of missing specific variants rather than firing on
-non-issues. This explicit bias is documented in the comments next to each
-pattern list.
+Targets own execution loops; harnesses own local observations. Factories create and release isolated clients, histories, stores and sessions. Memory scenarios distinguish persistence across sessions inside a trial from isolation across independent trials.
 
-## 3. Plain `pytest` integration, not a parallel framework
+Campaign claims count instrumented attempts before work starts. Deadlines and cancellation drain cooperative owned tasks and cleanup. Blocking code, suppressed cancellation, hidden retries and unwrapped remote calls cannot be forcibly bounded by this in-process library. Retry is disabled by default; side-effect retries need a stable transmitted key and a service that actually deduplicates the operation. Dollar usage is an estimate, not a provider-enforced spending cap.
 
-The whole tool is a `pytest11` entry-point plugin. No custom test runner,
-no custom report format, no custom CI integration. If you have pytest in
-your stack, you have wardenbot.
+## Pytest and portable local artifacts
 
-This matters because:
+The plugin retains ordinary fixtures, markers, selection and CI exit behavior. The separate agent suite is opt-in. JSON bundles, static HTML and JUnit make recorded findings reviewable without reconnecting to a provider.
 
-- You don't learn a new tool.
-- Your existing CI works unchanged.
-- Your `pytest.ini` / `pyproject.toml` settings apply.
-- Your `pytest-xdist`, `pytest-cov`, `pytest-rerunfailures` all work.
+Offline regrading applies assertions to saved observations. Fixture replay is a separate new execution of an allowlisted local fixture. A new live application run is separate again and may produce different results. Checksums identify content; they do not authenticate an editable saved trace.
 
-## 4. Honest failure messages with agent-ready remediation
+## Untrusted report content
 
-Every failure message includes a structured Markdown block labeled
-`Agent-ready remediation (paste into Cursor / Claude Code)`. The block is
-not just description — it's a complete instruction-set the AI assistant
-in your IDE can act on.
+Reports hide payloads by default, filter configured secrets and escape rendered content. Explicit capture can still contain private information. Redaction and truncation make exact regrading unavailable when required facts are lost. Core local reporting does not upload artifacts; provider adapters and optional judges use the configured integration and its external policies.
 
-This is a 2026-native pattern. Most security tools ship PDFs you read.
-We ship instructions for the agent that will fix the problem.
+Failure guidance is maintainer-authored text. Attack payloads and model output remain inert evidence, never executable remediation, automatic imports or URLs to fetch. Review artifacts and structural labels before sharing them.
 
-## 5. The OSS plugin is the funnel, not the product
+## Concrete maintenance claims
 
-The plugin is intentionally scoped to *local pytest runs* and *CI*. The
-things that need a backend — cross-run history, scheduled monitoring,
-behavior-diff alerts on regression, the Bot Health Score composite — live
-in the managed [WardenBot AI](https://wardenbot.ai) service.
+Versioned scenario IDs, corpus digests and configuration snapshots support regressions. Compatibility is checked against the documented dependency matrix; releases and deprecations are recorded in the changelog. The project does not promise a fixed monthly release day or infer production assurance from a small controlled pilot.
 
-This split is explicit so we don't accept PRs that drift the plugin into
-"a small version of the managed service." If your idea is in the second
-bucket, the right home is the managed-service [intake form](https://wardenbot.ai/intake/).
-
-This also means:
-
-- The OSS plugin will never gain a managed-service mode that secretly
-  uploads your data somewhere.
-- Apache 2.0, forever. No license rugpulls.
-- No telemetry by default.
-
-## 6. Honest reliability disclosure
-
-The LLM-judge tests use Anthropic Haiku 4.5 by default. Per published
-research, single LLM judges agree with human raters about 80% of the
-time on safety/quality scoring. We say this explicitly in the docs, in
-the judge module docstring, and in failure messages.
-
-The alternative — selling LLM-judge as if it were 100% reliable — would
-be dishonest and would break user trust the first time the judge got it
-wrong on a high-stakes call.
-
-## 7. Maintainer commitments
-
-- **Semver.** Major bumps come with 6-month deprecation warnings.
-- **No surprise license changes.** The license is in `LICENSE.md`. It's
-  Apache 2.0. It will stay Apache 2.0.
-- **No telemetry without opt-in.** If we ever add opt-in telemetry, the
-  data shape will be documented and the opt-in will be explicit (not a
-  buried setting).
-- **Monthly minor releases** on the second Tuesday of the month.
-- **Triage rule.** Anything the managed service does is out-of-scope for
-  the plugin. PRs that try to add it will be politely declined with the
-  rationale documented above.
+See [coverage](coverage.md), [evaluation](evaluation.md) and [manual research intake](research-intake.md). A passing suite is not a model-wide ranking or OWASP certification.

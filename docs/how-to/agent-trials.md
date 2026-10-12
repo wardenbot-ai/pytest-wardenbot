@@ -139,7 +139,9 @@ event data, `dataclasses.asdict`, custom logging, and third-party SDK logs are
 outside these output helpers. Existing chatbot diagnostics retain their
 documented behavior; this policy applies to the new agent result path.
 
-These small diagnostic exports are not yet replayable evidence bundles.
+These small diagnostic exports are separate from the versioned
+[evidence bundle API](evidence-bundles.md), which supports saved re-grading,
+comparisons and an explicitly bound synthetic replay fixture.
 
 ## Migrate a boolean result consumer
 
