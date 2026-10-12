@@ -78,6 +78,11 @@ For larger runs, [bounded campaigns](docs/how-to/agent-campaigns.md) share call 
 turn budgets across isolated trials, drain cooperative cancellation, and retain
 every planned case in the report. Retries require an explicit safety declaration.
 
+[Portable evidence](docs/how-to/evidence-bundles.md) keeps versioned findings,
+fingerprints and provenance in JSON, JUnit and standalone HTML. Saved observations
+can be re-graded separately from new executions; redacted evidence cannot imply
+a passing grade. A fixed synthetic fixture demonstrates replay from a clean install.
+
 The additive `pytest_wardenbot.agents` API records explicit outcomes: violation,
 observed resistance, inconclusive evidence, unsupported capabilities and execution
 errors. A trusted recording sink establishes effects; model claims do not. Task

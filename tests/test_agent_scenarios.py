@@ -359,6 +359,9 @@ def test_junit_preserves_domain_and_baseline_utility_without_payloads(pytester):
     assert properties[0]["wardenbot.agent.coverage_complete"] == "true"
     assert properties[1]["wardenbot.agent.phase"] == "attack"
     assert properties[1]["wardenbot.agent.outcome"] == "violated"
+    for entry in properties:
+        assert entry["wardenbot.agent.grader_version"] == "agent-boundary-1"
+        assert entry["wardenbot.agent.evidence_scope"] == "declared_local_boundary"
 
 
 def test_user_fixture_exception_and_capture_are_sanitized_even_before_result(pytester):

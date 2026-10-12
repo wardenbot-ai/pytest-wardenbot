@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Portable versioned evidence bundles with corpus, target and configuration
+  fingerprints, explicit grader versions and provenance. Strict offline loading,
+  evidence re-grading, bound synthetic fixture replay and baseline comparisons
+  distinguish saved observations from new execution and incomplete coverage.
+- Standalone inert HTML and JUnit evidence reports, with separate security and
+  task-utility results. A packaged local CLI and clean-install example need no
+  optional dependencies or credentials.
+
 - Bounded concurrent agent campaigns with global call/turn budgets, cooperative
   deadlines and cancellation cleanup, isolated factory-owned targets, explicit
   incomplete coverage and supplied usage accounting. Targets must opt in to
@@ -18,6 +26,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Bounded async chatbot probes with isolated sessions, ordered per-input outcomes,
   supplied usage, and cleanup. Real MCP/reference examples exercise campaign caps
   without provider requests.
+
+### Fixed
+
+- Runtime `__version__` now comes from installed package metadata, avoiding drift
+  between public reports and the distributed package version.
 
 ## [0.2.0] — 2026-10-11
 

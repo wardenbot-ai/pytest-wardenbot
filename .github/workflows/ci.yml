@@ -349,6 +349,9 @@ jobs:
       - name: Run external consumer checks
         working-directory: ${{ runner.temp }}
         run: '"$RUNNER_TEMP/consumer-venv/bin/python" "$GITHUB_WORKSPACE/scripts/check_consumer.py"'
+      - name: Replay portable evidence with the installed core wheel
+        working-directory: ${{ runner.temp }}
+        run: '"$RUNNER_TEMP/consumer-venv/bin/python" "$GITHUB_WORKSPACE/examples/evidence/run_controls.py"'
 
   consumer-mcp:
     name: Fresh-wheel MCP consumer (pytest ${{ matrix.pytest }})

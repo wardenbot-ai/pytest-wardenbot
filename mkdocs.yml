@@ -104,6 +104,7 @@ nav:
       - Isolate LangGraph state: how-to/langgraph-state.md
       - Instrument agent trials: how-to/agent-trials.md
       - Bound agent campaigns: how-to/agent-campaigns.md
+      - Share and replay evidence: how-to/evidence-bundles.md
       - Select agent scenarios: how-to/agent-scenarios.md
       - Run the controlled MCP harness: how-to/mcp-harness.md
       - Connect the reference agent: how-to/reference-agent.md

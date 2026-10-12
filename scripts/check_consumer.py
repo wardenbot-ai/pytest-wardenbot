@@ -326,6 +326,12 @@ def check_agents() -> None:
 
 
 def main() -> None:
+    import pytest_wardenbot
+
+    _require(
+        pytest_wardenbot.__version__ == importlib.metadata.version("pytest-wardenbot"),
+        "Runtime version must match the installed package metadata.",
+    )
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--agents", action="store_true", help="Check the installed agent suite ([mcp])."

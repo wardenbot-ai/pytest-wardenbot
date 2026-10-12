@@ -1,8 +1,8 @@
 """Content-minimized output for agent trials, with explicit legacy conversion.
 
-These are small diagnostic exports, not the reproducible scenario bundles
-planned for a later release. Use these functions instead of dataclasses.asdict:
-the latter exposes internal evidence payloads without a privacy boundary.
+These are small diagnostic exports. The evidence module provides portable,
+versioned scenario bundles and offline re-grading. Use these functions instead
+of dataclasses.asdict, which exposes payloads without a privacy boundary.
 """
 
 from __future__ import annotations

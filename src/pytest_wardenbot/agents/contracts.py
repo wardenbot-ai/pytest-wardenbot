@@ -96,6 +96,7 @@ class ReasonCode(StrEnum):
     FACTORY_ERROR = "factory_error"
     SHARED_TARGET = "shared_target"
     BUDGET_INSTRUMENTATION_REQUIRED = "budget_instrumentation_required"
+    EVIDENCE_INCOMPLETE = "evidence_incomplete"
 
 
 def _identifier(value: str) -> None:
