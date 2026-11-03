@@ -22,15 +22,19 @@ question and verifying the response matches the expected answer.
 ```python
 from pytest_wardenbot.business_truth import BusinessTruthFact
 
-@pytest.fixture(params=[
-    BusinessTruthFact(
-        label="Standard plan price",
-        question="How much does the Standard plan cost per month?",
-        expected_answer="$49",
-        match_type="substring",
-        acceptable_variations=("49/mo", "forty-nine dollars"),
-    ),
-], ids=lambda f: f.parametrize_id())
+
+@pytest.fixture(
+    params=[
+        BusinessTruthFact(
+            label="Standard plan price",
+            question="How much does the Standard plan cost per month?",
+            expected_answer="$49",
+            match_type="substring",
+            acceptable_variations=("49/mo", "forty-nine dollars"),
+        ),
+    ],
+    ids=lambda f: f.parametrize_id(),
+)
 def business_truth_fact(request):
     return request.param
 ```

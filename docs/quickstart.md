@@ -64,21 +64,25 @@ facts:
 ```python
 from pytest_wardenbot.business_truth import BusinessTruthFact
 
-@pytest.fixture(params=[
-    BusinessTruthFact(
-        label="Standard plan price",
-        question="How much does the Standard plan cost per month?",
-        expected_answer="$49",
-        match_type="substring",
-        acceptable_variations=("49/mo", "forty-nine dollars"),
-    ),
-    BusinessTruthFact(
-        label="Business hours",
-        question="What are your business hours?",
-        expected_answer="9 AM to 5 PM EST",
-        match_type="substring",
-    ),
-], ids=lambda f: f.parametrize_id())
+
+@pytest.fixture(
+    params=[
+        BusinessTruthFact(
+            label="Standard plan price",
+            question="How much does the Standard plan cost per month?",
+            expected_answer="$49",
+            match_type="substring",
+            acceptable_variations=("49/mo", "forty-nine dollars"),
+        ),
+        BusinessTruthFact(
+            label="Business hours",
+            question="What are your business hours?",
+            expected_answer="9 AM to 5 PM EST",
+            match_type="substring",
+        ),
+    ],
+    ids=lambda f: f.parametrize_id(),
+)
 def business_truth_fact(request):
     return request.param
 ```

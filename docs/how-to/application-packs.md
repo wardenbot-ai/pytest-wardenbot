@@ -49,8 +49,11 @@ import asyncio
 
 from pytest_wardenbot.agents import format_result, run_scenario
 from pytest_wardenbot.agents.packs import (
-    ApplicationHarness, ScriptedApplicationTarget, application_spec,
+    ApplicationHarness,
+    ScriptedApplicationTarget,
+    application_spec,
 )
+
 
 async def main():
     spec = application_spec("application.memory.cross-session")
@@ -58,6 +61,7 @@ async def main():
     target = ScriptedApplicationTarget(harness, behavior="vulnerable")
     result = await run_scenario(target, spec.scenario, observe=harness.observe)
     print(format_result(result))
+
 
 asyncio.run(main())
 ```
