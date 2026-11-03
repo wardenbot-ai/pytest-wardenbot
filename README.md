@@ -23,7 +23,7 @@ injection, data disclosure, task correctness, and unauthorized tool effects.
 
 - **Black-box.** Tests run against your live chatbot via HTTP, OpenAI API, Anthropic API, or any object you write a small adapter for.
 - **Deterministic-first.** The chatbot suite ships 29 tests graded with regex, substring, and schema checks, without a separate judge model. Your chatbot's API usage may still cost money. Optional LLM-judge tests (DeepEval) ship as an extra for semantic checks.
-- **Agent-ready failures.** When a test fails, the failure message includes a structured Markdown remediation prompt you can paste into Cursor or Claude Code.
+- **Agent-ready chatbot failures.** When a chatbot test fails, the failure message includes a structured Markdown remediation prompt you can paste into Cursor or Claude Code. Agent scenarios report a content-minimized outcome, the observed evidence and its limits.
 - **Public adapter checks.** The bundled OpenAI and Anthropic adapters have mock-based tests and a scheduled live API smoke workflow. Check the [latest workflow results](https://github.com/wardenbot-ai/pytest-wardenbot/actions/workflows/live-api-smoke.yml) for the current live status.
 - **Instrumented agent scenarios.** Eight versioned cases cover MCP tool results,
   descriptions, resources and prompts, each with a benign baseline. A recording
@@ -192,15 +192,29 @@ into Cursor / Claude Code, ship the fix.
 
 That's **29 deterministic tests** out-of-the-box (plus the opt-in canary leak test, plus your business-truth and judge lists). Runtime and chatbot API costs depend on your endpoint; the deterministic checks do not call a separate judge model.
 
-LangChain adapters, ensemble judging, and parallel async probes are available
-in the 0.1 series. Follow upcoming work in
-[GitHub Issues](https://github.com/wardenbot-ai/pytest-wardenbot/issues).
+The chatbot suite also supports LangChain Runnables, multi-judge ensembles and
+parallel async probes. Ask questions in
+[GitHub Discussions](https://github.com/wardenbot-ai/pytest-wardenbot/discussions)
+and report bugs in [GitHub Issues](https://github.com/wardenbot-ai/pytest-wardenbot/issues).
 
 ## How it's different from related tools
 
-- **vs Promptfoo:** Promptfoo is a developer testing CLI. We're a pytest plugin — same tool your existing test suite uses, same CI integration you already have.
-- **vs DeepEval:** DeepEval focuses on evaluation metrics (faithfulness, relevancy). We focus on adversarial security probes (jailbreak, system-prompt leak, refusal-bypass) — different problem, complementary tool. (We use DeepEval under the hood for our optional semantic checks.)
-- **vs Garak / PyRIT:** Garak and PyRIT are research-grade attack libraries. We package a curated subset as everyday pytest tests with clear failure messages.
+Several good tools overlap with parts of this one. We aim to complement them.
+
+- **Promptfoo** runs red-team and evaluation suites from a CLI, including MCP
+  security testing. pytest-wardenbot runs inside the pytest suite and CI you
+  already have, and its agent results come from harness-recorded effects rather
+  than the agent's final text.
+- **RAMPART** also brings security testing to pytest, built on PyRIT's broader
+  attack generation. pytest-wardenbot keeps a small core install and its own
+  controlled harness, and adds versioned scenarios, required coverage and
+  portable evidence.
+- **DeepEval** and **Inspect AI** provide evaluation metrics and agent-evaluation
+  infrastructure. pytest-wardenbot focuses narrowly on security regressions
+  with explicit outcomes. It uses DeepEval for its optional semantic checks.
+- **Garak** and **PyRIT** are broad attack and research libraries. The chatbot
+  suite packages a curated set of test patterns as everyday pytest tests with
+  clear failure messages.
 
 ## License
 
