@@ -1,6 +1,6 @@
 [project]
 name = "pytest-wardenbot"
-version = "0.3.0"
+version = "0.4.0"
 description = "Pytest security tests for chatbots and tool-using agents — prompt injection, MCP boundary checks, data leaks and semantic regressions."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -21,7 +21,7 @@ keywords = [
     "ai-security",
 ]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Framework :: Pytest",
     "Intended Audience :: Developers",
     "Operating System :: OS Independent",
