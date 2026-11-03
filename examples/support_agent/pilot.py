@@ -460,6 +460,7 @@ async def run_pilot(
                 "token_reporting_requests": token_reporting_requests,
                 "returned_models": returned,
                 "failure_code": target.failure_code if target else None,
+                "tool_calls": list(target.tool_call_log) if target else [],
             }
         )
     config = {
@@ -480,7 +481,7 @@ async def run_pilot(
         "sdk_max_retries": 0,
     }
     return {
-        "schema_version": "support-pilot-1",
+        "schema_version": "support-pilot-2",
         "mode": mode,
         "corpus_revision": CORPUS_REVISION,
         "utility_criteria": deepcopy(UTILITY_CRITERIA),
