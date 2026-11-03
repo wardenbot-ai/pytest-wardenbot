@@ -3,9 +3,11 @@
 Pytest security tests for chatbots and tool-using agents. Run a curated test suite
 against your application to catch behavior regressions before your customers do.
 
-!!! note "Pre-release"
-    The 0.3 series is in active development. APIs may change before the first stable
-    release. See the [changelog](changelog.md) for what's landed.
+!!! note "Beta"
+    The 0.4 series is in Beta. Public APIs change only under the
+    [versioning and stability policy](reference/stability.md). Share feedback in
+    [GitHub Discussions](https://github.com/wardenbot-ai/pytest-wardenbot/discussions);
+    see the [changelog](changelog.md) for what's landed.
 
 ## Why this exists
 

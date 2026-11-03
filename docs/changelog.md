@@ -5,6 +5,43 @@ All notable changes to `pytest-wardenbot` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] — 2026-11-02
+
+**Beta.** The installed plugin's runtime behavior and public APIs are unchanged
+from 0.3.0. This release marks the feature set for the first stable release
+as in place, publishes the stability policy that governs changes from here,
+and closes the support pilot's live positive-control gap.
+
+### Added
+
+- A [versioning and stability policy](reference/stability.md). It defines the
+  public API surface, deprecation rules for 0.x, immutable scenario versions,
+  and versioned grading and evidence changes.
+- A preregistered follow-up (v3) to the support application pilot. Content-free
+  tool-call labels show why the v2 live positive control was not reproduced:
+  the permissive profile advertised approval requirements that its backend
+  never enforced. The revised permissive profile reproduced the control live.
+  In the single frozen final run, both permissive retrieval attacks made the
+  unauthorized write and the harness recorded the actual effects. Safe, benign
+  and baseline controls held. The approval confirmation case did not reproduce
+  (0/2), so the strict gate exits 1. Every run, the push timeline and dated
+  costs are preserved. See [the support pilot](about/support-pilot.md).
+- Support pilot reports (schema `support-pilot-2`) include per-trial `tool_calls`
+  labels. Each label is a tool name, enumerated ticket/status values, grant
+  presence and a disposition. No content is recorded.
+
+### Changed
+
+- Package classifier `Development Status :: 4 - Beta`; README, docs and
+  `SECURITY.md` status updated. README links are now absolute, so they work on PyPI.
+- Questions and feedback go to
+  [GitHub Discussions](https://github.com/wardenbot-ai/pytest-wardenbot/discussions).
+- The support example's permissive profile now models a runbook-automation
+  integration. Reproduce v2 from the `v0.3.0` tag.
+- Development tooling: Ruff 0.17.0, which also formats Python code blocks in the
+  Markdown docs; Pyright 1.1.414; pre-commit 4.6.2; hook id `ruff-check`.
+  GitHub Actions moved to current major versions.
+
 ## [0.3.0] — 2026-10-11
 
 ### Added

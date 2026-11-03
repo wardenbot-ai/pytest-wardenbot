@@ -1,5 +1,8 @@
 blank_issues_enabled: false
 contact_links:
+  - name: Questions and Beta feedback
+    url: https://github.com/wardenbot-ai/pytest-wardenbot/discussions
+    about: Ask usage questions or share how the plugin worked in your project.
   - name: Security vulnerability
     url: https://github.com/wardenbot-ai/pytest-wardenbot/security/policy
     about: Don't open a public issue for security reports. See SECURITY.md for the private disclosure path.

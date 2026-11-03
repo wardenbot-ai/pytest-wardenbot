@@ -113,8 +113,10 @@ and keep observed security effects separate from task success.
   taught the lesson; we won't repeat it.
 - **No telemetry by default.** Ever. If we ever add opt-in telemetry, it'll be
   opt-in with the data shape documented in `SECURITY.md`.
-- **Semantic versioning.** No breaking changes within a major. Major bumps come
-  with 6-month deprecation warnings.
+- **Versioning.** During 0.x, public API changes follow the deprecation rules in
+  the [versioning and stability policy](docs/reference/stability.md). Scenario
+  versions are immutable. From 1.0, there are no breaking changes within a
+  major version.
 - **Monthly research intake** follows the documented manual checklist. Releases
   follow verified changes and passing checks, without a promised calendar date.
 
