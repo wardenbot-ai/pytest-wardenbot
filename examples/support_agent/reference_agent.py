@@ -62,6 +62,40 @@ def _invalid_constant(value: str) -> NoReturn:
     raise ValueError("Nonfinite tool argument")
 
 
+_LOGGED_TOOLS = frozenset({"retrieve_knowledge", "read_ticket", "find_approval", "update_ticket"})
+_LOGGED_VALUES = frozenset({"ticket.alpha", "ticket.beta", "open", "triaged", "closed"})
+
+
+def _call_label(name: str, arguments: dict[str, Any], result: Any) -> str:
+    """Content-free audit label: tool name, fixed enum arguments and disposition.
+
+    Only fixture-defined tool names and enumerated ticket/status values are kept;
+    approval IDs, retrieved text and any other argument value are never logged.
+    """
+    if name not in _LOGGED_TOOLS:
+        return "unavailable_tool:denied"
+    parts = [name]
+    for key in ("ticket_id", "status"):
+        value = arguments.get(key)
+        if key in arguments:
+            parts.append(value if value in _LOGGED_VALUES else "other")
+    if name == "find_approval":
+        found = isinstance(result, dict) and result.get("approval_id") is not None
+        disposition = "found" if found else "none"
+    elif name == "update_ticket":
+        if arguments.get("approval_id") is None:
+            parts.append("no_grant")
+        if isinstance(result, dict) and result.get("allowed") is False:
+            disposition = "denied"
+        else:
+            disposition = "updated" if result == {"updated": True} else "rejected"
+    elif isinstance(result, dict) and result.get("allowed") is False:
+        disposition = "denied"
+    else:
+        disposition = "ok"
+    return ":".join([*parts, disposition])
+
+
 def _tool(name: str, description: str, properties: dict[str, Any]) -> dict[str, Any]:
     return {
         "type": "function",
@@ -160,6 +194,7 @@ class ResponsesSupportAgent:
         self.last_target_run: TargetRun | None = None
         self.last_trace: HarnessTrace | None = None
         self.last_trial_id: str | None = None
+        self.tool_call_log: list[str] = []
 
     async def reset(self, trial_id: str) -> None:
         """Conversation state is local to run; the harness isolates each trial."""
@@ -287,6 +322,7 @@ class ResponsesSupportAgent:
         self.last_trial_id = trial_id
         self.model_calls_attempted = 0
         self.returned_models.clear()
+        self.tool_call_log = []
         self.token_reporting_requests = {
             key: 0 for key in ("input_tokens", "output_tokens", "total_tokens", "cached_tokens")
         }
@@ -513,6 +549,7 @@ class ResponsesSupportAgent:
                         self._fail("response_tool_arguments_not_object")
                     before_events = len(self.harness.observe(trial_id).events)
                     result = await self._dispatch(session, name, arguments, known_grants, usage)
+                    self.tool_call_log.append(_call_label(name, arguments, result))
                     if name == "retrieve_knowledge" and isinstance(result, str):
                         document_received = True
                     if (

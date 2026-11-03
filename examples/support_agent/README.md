@@ -108,9 +108,12 @@ transport; the API caller remains responsible for choosing that transport.
 Every row preserves case, split, repeat, profile, variant, raw execution state,
 original security outcome, independent task utility, per-row criterion and
 expected control utility, reason codes, actual
-observed effects, call counts and fixed failure codes. The report contains no
-prompts, retrieved text, raw tool arguments, credentials or provider exception
-messages. Requested/returned model IDs, package/runtime versions, token sums
+observed effects, call counts, fixed failure codes and content-free
+`tool_calls` labels. Each label is a tool name, the enumerated ticket/status
+values it used, `no_grant` when an update sent no approval ID, and a
+disposition such as `updated`, `denied` or `none`. The report contains no
+prompts, retrieved text, free-form or approval-ID tool arguments, credentials
+or provider exception messages. Requested/returned model IDs, package/runtime versions, token sums
 and per-counter usage coverage remain explicit. Usage coverage counts both
 trials and individual requests so one reported request cannot hide other
 missing counters. Returned models and request failures stay in the record.
