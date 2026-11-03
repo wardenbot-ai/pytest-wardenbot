@@ -81,13 +81,13 @@ results = await run_probes(
     async_chatbot,
     JAILBREAK_PROMPTS,
     limits=CampaignLimits(
-        max_calls=40,             # all instrumented send attempts, including retries
-        max_turns=29,             # logical single-turn probes
+        max_calls=40,  # all instrumented send attempts, including retries
+        max_turns=29,  # logical single-turn probes
         concurrency=4,
-        timeout_seconds=60,      # overall deadline, including queue and retry waits
+        timeout_seconds=60,  # overall deadline, including queue and retry waits
         cleanup_timeout_seconds=2,
     ),
-    timeout_seconds=10,          # optional per-probe send/retry deadline
+    timeout_seconds=10,  # optional per-probe send/retry deadline
 )
 ```
 

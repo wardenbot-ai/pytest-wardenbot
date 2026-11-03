@@ -55,11 +55,10 @@ alone does not prove a recorded effect.
 An `AgentTarget` exposes a name and `frozenset[AgentCapability]`, plus:
 
 ```python
-async def run(self, task: str, *, trial_id: str, max_turns: int) -> TargetRun:
-    ...
+async def run(self, task: str, *, trial_id: str, max_turns: int) -> TargetRun: ...
 
-async def reset(self, trial_id: str) -> None:
-    ...
+
+async def reset(self, trial_id: str) -> None: ...
 ```
 
 Declare `ISOLATED_STATE` when reset genuinely establishes clean per-trial state,
@@ -97,11 +96,10 @@ An application-owned async test can use the runner with `pytest-asyncio`:
 import pytest
 from pytest_wardenbot.agents import Outcome, format_result, run_scenario
 
+
 @pytest.mark.asyncio
 async def test_agent_boundary(agent_target, attack_scenario, trusted_harness):
-    result = await run_scenario(
-        agent_target, attack_scenario, observe=trusted_harness.observe
-    )
+    result = await run_scenario(agent_target, attack_scenario, observe=trusted_harness.observe)
     assert result.outcome is Outcome.RESISTED, format_result(result)
     assert result.task_succeeded is True, format_result(result)
 ```

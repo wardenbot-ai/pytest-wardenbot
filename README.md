@@ -159,13 +159,14 @@ import os
 import pytest
 from pytest_wardenbot.adapters.http import HTTPChatbotAdapter
 
+
 @pytest.fixture
 def chatbot():
     return HTTPChatbotAdapter(
         url="https://your-chatbot.example.com/chat",
         headers={"Authorization": f"Bearer {os.environ['CHATBOT_TOKEN']}"},
-        request_field="message",      # the JSON key your bot reads the prompt from
-        response_field="response",     # the JSON key your bot returns the text in
+        request_field="message",  # the JSON key your bot reads the prompt from
+        response_field="response",  # the JSON key your bot returns the text in
     )
 ```
 

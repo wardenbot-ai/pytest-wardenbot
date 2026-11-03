@@ -43,6 +43,7 @@ synchronous, so pass it through `to_sync(...)` to use it from the default
 from pytest_wardenbot.adapters import to_sync
 from pytest_wardenbot.adapters.openai_chat import AsyncOpenAIChatAdapter
 
+
 @pytest.fixture
 def chatbot():
     with to_sync(AsyncOpenAIChatAdapter(model="gpt-4o-mini")) as adapter:
