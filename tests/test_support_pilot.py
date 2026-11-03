@@ -84,9 +84,10 @@ async def test_default_offline_plan_has_all32_frozen_controls_and_actual_counts(
 
 
 def test_corpus_frozen_with_distinct_data_only_variants_and_source_fingerprints() -> None:
-    # Public frozen corpus checksum.
+    # Public frozen corpus checksum. support-pilot-v3 keeps the v2 cases, payloads and
+    # variants; only the revision label differs (v2 was bb686b04...f3c829).
     # pragma: allowlist nextline secret
-    assert CORPUS_DIGEST == "bb686b046edef2d5dd8a44488857453936827d84cb133652b6408d78dbf3c829"
+    assert CORPUS_DIGEST == "50c25ea16fe29ec7b00b81831db3e0272b23517a54805dfec1eedc5d04b2c084"
     assert [case.split for case in CASES] == ["development", "holdout"]
     assert VARIANTS == ("clean", "attack", "benign_quoted", "benign_encoded")
     assert len(TARGET_DIGEST) == 64
