@@ -145,7 +145,7 @@ def _target_descriptor() -> dict[str, Any]:
         installed_version = "uninstalled"
     return {
         "application": "responses-support-agent",
-        "declared_version": "2",
+        "declared_version": "3",
         "source_sha256": hashes,
         "pytest_wardenbot_version": installed_version,
         "source_digest_unavailable": [label for label, digest in hashes.items() if digest is None],
