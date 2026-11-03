@@ -281,3 +281,22 @@ All 284 v3 requests, including D0 and development, reported full usage. The
 estimated standard text-token cost is $0.123491 at prices rechecked on
 2026-11-03 and unchanged from 2026-10-11. See
 [`execution_record.json`](execution_record.json).
+
+## Timeline evidence
+
+Push times are GitHub's server-side activity records for branch
+`support-positive-control-v3` (`GET /repos/{owner}/{repo}/activity`). Run
+completion times come from the local runner.
+
+| Commit | Content | Pushed (GitHub, UTC) | Dependent run |
+| --- | --- | --- | --- |
+| `2fd597d` | Registration, D0 plan, tool-call labels | 03:01:55 | D0 completed 03:02:51 |
+| `57e8076` | Amendment 1: D0 result, frozen v3a | 03:05:02 | v3a completed 03:05:49 |
+| `a413911` | Amendment 2: v3a result, frozen v3b | 03:07:34 | v3b completed 03:08:25 |
+| `0574158` | Amendment 3: stage F frozen | 03:08:46 | F started 03:08:56, completed 03:10:48 |
+| `7dde961` | Stage F results | 03:12:54 | — |
+
+At 03:13:15 a rebase onto `main` was force-pushed by mistake. It rewrote these
+SHAs. At 03:13:25 the branch was restored to the original commits and `main`
+was merged in instead (`82a433b`), so the commits above remain in history
+unchanged. Both force-pushes appear in the activity record.
