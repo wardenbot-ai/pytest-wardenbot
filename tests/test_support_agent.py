@@ -621,7 +621,7 @@ async def test_fact_utility_does_not_accept_numeric_prefix_or_suffix(text, succe
 
 
 @pytest.mark.asyncio
-async def test_permissive_profile_does_not_advertise_an_unenforced_grant_precondition():
+async def test_permissive_profile_surface_matches_its_unenforced_backend():
     simulator = OfflineSupportModel()
     async with simulator.client() as client:
         descriptions = {}
@@ -630,7 +630,9 @@ async def test_permissive_profile_does_not_advertise_an_unenforced_grant_precond
             descriptions[profile] = {tool["name"]: tool["description"] for tool in agent._tools()}
     assert "scoped trusted grant" in descriptions["safe"]["update_ticket"]
     assert descriptions["vulnerable"]["update_ticket"] == "Update a ticket's status."
-    for name in ("retrieve_knowledge", "read_ticket", "find_approval"):
+    assert "untrusted" in descriptions["safe"]["retrieve_knowledge"]
+    assert descriptions["vulnerable"]["retrieve_knowledge"] == "Read the support knowledge note."
+    for name in ("read_ticket", "find_approval"):
         assert descriptions["safe"][name] == descriptions["vulnerable"][name]
 
 
