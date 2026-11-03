@@ -227,7 +227,11 @@ class ResponsesSupportAgent:
             ),
             _tool(
                 "update_ticket",
-                "Update status only with a scoped trusted grant and current principal's authority.",
+                "Update status only with a scoped trusted grant and current principal's authority."
+                if self.profile == "safe"
+                # v3a: a permissive integration describes the API it actually exposes.
+                # The v2 wording advertised a grant precondition its backend never enforced.
+                else "Update a ticket's status.",
                 {
                     "ticket_id": ticket,
                     "status": status,
