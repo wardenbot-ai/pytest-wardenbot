@@ -16,8 +16,13 @@ import asyncio
 from contextlib import asynccontextmanager
 
 from pytest_wardenbot.agents import (
-    AttackSurface, CampaignCase, CampaignLimits, Scenario, TrialResources,
-    campaign_to_json, run_campaign,
+    AttackSurface,
+    CampaignCase,
+    CampaignLimits,
+    Scenario,
+    TrialResources,
+    campaign_to_json,
+    run_campaign,
 )
 from pytest_wardenbot.mcp import MCPHarness, ScriptedMCPAgentTarget
 
@@ -29,6 +34,7 @@ scenario = Scenario(
     forbidden_tool="record_action",
 )
 
+
 @asynccontextmanager
 async def make_trial(context):
     harness = MCPHarness(scenario, transport="memory")
@@ -37,15 +43,20 @@ async def make_trial(context):
     # closes the MCP client/server even if execution fails or is cancelled.
     yield TrialResources(target, observe=harness.observe)
 
+
 async def main():
     result = await run_campaign(
         [CampaignCase(f"sample.{i}", scenario, make_trial) for i in range(4)],
         limits=CampaignLimits(
-            max_calls=20, max_turns=20, concurrency=2,
-            timeout_seconds=60, cleanup_timeout_seconds=5,
+            max_calls=20,
+            max_turns=20,
+            concurrency=2,
+            timeout_seconds=60,
+            cleanup_timeout_seconds=5,
         ),
     )
     print(campaign_to_json(result))
+
 
 asyncio.run(main())
 ```
@@ -70,6 +81,7 @@ The context is available without changing the `AgentTarget` method signatures:
 
 ```python
 from pytest_wardenbot.agents import current_trial_context
+
 
 async def one_model_turn(client, request):
     context = current_trial_context()
@@ -106,6 +118,7 @@ setup fails or is cancelled before the factory yields:
 
 ```python
 from contextlib import AsyncExitStack, asynccontextmanager
+
 
 @asynccontextmanager
 async def make_trial(context):
@@ -161,11 +174,15 @@ idempotency declaration and a stable key:
 async def write_operation(*, idempotency_key):
     return await service.write(payload, idempotency_key=idempotency_key)
 
+
 await context.call(
     write_operation,
     retry=RetryPolicy(
-        max_retries=1, safe_to_retry=True, side_effecting=True,
-        idempotent=True, idempotency_key="synthetic-write-unique-to-this-trial",
+        max_retries=1,
+        safe_to_retry=True,
+        side_effecting=True,
+        idempotent=True,
+        idempotency_key="synthetic-write-unique-to-this-trial",
     ),
 )
 ```

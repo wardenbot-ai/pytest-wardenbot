@@ -33,6 +33,7 @@ default `chatbot` fixture:
 from pytest_wardenbot.adapters import to_sync
 from pytest_wardenbot.adapters.anthropic_msgs import AsyncAnthropicMessagesAdapter
 
+
 @pytest.fixture
 def chatbot():
     with to_sync(AsyncAnthropicMessagesAdapter(model="claude-haiku-4-5")) as adapter:
