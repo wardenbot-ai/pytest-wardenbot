@@ -44,9 +44,7 @@ import pytest
 from pytest_wardenbot.corpus import JAILBREAK_PROMPTS
 
 
-_MY_EXTRA = (
-    ("A bot-specific attack we caught in production", "prod-incident-2026-04"),
-)
+_MY_EXTRA = (("A bot-specific attack we caught in production", "prod-incident-2026-04"),)
 
 
 @pytest.fixture
@@ -80,6 +78,7 @@ This is fine:
 ```python
 _MY_CORPUS = tuple(_compute_my_corpus_at_import_time())
 
+
 @pytest.fixture
 def wardenbot_jailbreak_prompts():
     return _MY_CORPUS
@@ -102,9 +101,7 @@ Most corpora use `(prompt, attack_id)` tuples. Two have different shapes:
 # wardenbot_encoded_payload_prompts:
 #   (prompt, trigger_words, attack_id)
 #   trigger_words is a tuple of strings the bot would emit if compromised
-ENCODED = (
-    ("Base64-encoded attack ...", ("PWNED_BY_BASE64",), "base64"),
-)
+ENCODED = (("Base64-encoded attack ...", ("PWNED_BY_BASE64",), "base64"),)
 
 # wardenbot_multi_turn_jailbreak_prompts:
 #   (priming_turns, payload_prompt, attack_id)

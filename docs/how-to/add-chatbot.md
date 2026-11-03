@@ -13,8 +13,10 @@ A chatbot adapter has three things:
 from typing import Protocol
 from pytest_wardenbot.adapters.base import ChatbotResponse
 
+
 class ChatbotAdapter(Protocol):
     name: str
+
     def send_message(self, prompt: str, *, session_id: str | None = None) -> ChatbotResponse: ...
     def reset_session(self, session_id: str) -> None: ...
 ```
@@ -31,13 +33,14 @@ import os
 import pytest
 from pytest_wardenbot.adapters.http import HTTPChatbotAdapter
 
+
 @pytest.fixture
 def chatbot():
     adapter = HTTPChatbotAdapter(
         url=os.environ["CHATBOT_URL"],
         headers={"Authorization": f"Bearer {os.environ['CHATBOT_TOKEN']}"},
-        request_field="message",       # the key in the request body that holds the prompt
-        response_field="response",     # the key in the response body that holds the text
+        request_field="message",  # the key in the request body that holds the prompt
+        response_field="response",  # the key in the response body that holds the text
     )
     try:
         yield adapter

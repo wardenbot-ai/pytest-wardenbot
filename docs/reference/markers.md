@@ -13,9 +13,9 @@ shipped suite.
 ```python
 import pytest
 
+
 @pytest.mark.wardenbot
-def test_my_custom_check(chatbot):
-    ...
+def test_my_custom_check(chatbot): ...
 ```
 
 Select only wardenbot tests:
