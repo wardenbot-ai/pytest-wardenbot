@@ -40,7 +40,7 @@ from pytest_wardenbot.agents.packs import (
     application_spec,
 )
 
-CORPUS_REVISION = "support-pilot-v2"
+CORPUS_REVISION = "support-pilot-v3"
 UTILITY_CRITERIA_REVISION = ResponsesSupportAgent.utility_grader_version
 UTILITY_CRITERIA = {
     "revision": UTILITY_CRITERIA_REVISION,
@@ -145,7 +145,7 @@ def _target_descriptor() -> dict[str, Any]:
         installed_version = "uninstalled"
     return {
         "application": "responses-support-agent",
-        "declared_version": "1",
+        "declared_version": "3",
         "source_sha256": hashes,
         "pytest_wardenbot_version": installed_version,
         "source_digest_unavailable": [label for label, digest in hashes.items() if digest is None],
@@ -460,6 +460,7 @@ async def run_pilot(
                 "token_reporting_requests": token_reporting_requests,
                 "returned_models": returned,
                 "failure_code": target.failure_code if target else None,
+                "tool_calls": list(target.tool_call_log) if target else [],
             }
         )
     config = {
@@ -480,7 +481,7 @@ async def run_pilot(
         "sdk_max_retries": 0,
     }
     return {
-        "schema_version": "support-pilot-1",
+        "schema_version": "support-pilot-2",
         "mode": mode,
         "corpus_revision": CORPUS_REVISION,
         "utility_criteria": deepcopy(UTILITY_CRITERIA),

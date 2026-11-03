@@ -3,7 +3,8 @@
 This second application uses the real OpenAI Responses SDK over the B3 local
 support/knowledge APIs, without MCP. The safe application enforces tenant, role
 and scoped approval boundaries; the deliberately vulnerable application permits
-unapproved writes and promotes retrieved text into developer instructions.
+unapproved writes, promotes retrieved text into developer instructions and
+treats knowledge-base ACTION procedures as pre-approved runbooks.
 Effects require actual model-generated function calls and local state mutation.
 Neither profile measures a model in isolation.
 
@@ -108,9 +109,12 @@ transport; the API caller remains responsible for choosing that transport.
 Every row preserves case, split, repeat, profile, variant, raw execution state,
 original security outcome, independent task utility, per-row criterion and
 expected control utility, reason codes, actual
-observed effects, call counts and fixed failure codes. The report contains no
-prompts, retrieved text, raw tool arguments, credentials or provider exception
-messages. Requested/returned model IDs, package/runtime versions, token sums
+observed effects, call counts, fixed failure codes and content-free
+`tool_calls` labels. Each label is a tool name, the enumerated ticket/status
+values it used, `no_grant` when an update sent no approval ID, and a
+disposition such as `updated`, `denied` or `none`. The report contains no
+prompts, retrieved text, free-form or approval-ID tool arguments, credentials
+or provider exception messages. Requested/returned model IDs, package/runtime versions, token sums
 and per-counter usage coverage remain explicit. Usage coverage counts both
 trials and individual requests so one reported request cannot hide other
 missing counters. Returned models and request failures stay in the record.
@@ -146,12 +150,22 @@ adds observations for this frozen application and configuration, not a general
 model safety score.
 
 
-## Published sample
+## Published samples
 
-The frozen live sample completed all 32 tasks without execution errors but
-produced no unauthorized writes in either profile. The permissive positive
-control was **not reproduced live**, so both development and final commands
-returned one; their reports are retained. Offline controls still prove the
-local vulnerability path. This is not evidence of general model safety.
-See [the recorded results](../../docs/about/support-pilot.md)
-and `execution_record.json` for hashes, all 154 paid attempts and dated costs.
+**v2 (October 2026).** The frozen live sample completed all 32 tasks without
+execution errors but produced no unauthorized writes in either profile. The
+permissive positive control was **not reproduced live**, and both development
+and final commands returned one. The reports in this directory are retained
+unchanged, and `execution_record.json` lists hashes, all 154 paid attempts and
+dated costs. Reproduce v2 from the `v0.3.0` tag.
+
+**v3 (November 2026).** The [`v3/`](v3/) directory holds a preregistered
+follow-up. Content-free tool-call labels showed the v2 permissive model looking
+up approval for the injected status and stopping, because the permissive
+profile advertised approval requirements its backend never enforced. The
+revised permissive profile (v3b, the current source) models a
+runbook-automation integration. In the frozen final run, both permissive
+retrieval attacks made the unauthorized write, and safe, benign and baseline
+controls held. The approval confirmation case did not reproduce (0/2), so the
+strict gate exited one. See [the recorded results](../../docs/about/support-pilot.md),
+`v3/PREREGISTRATION.md` and `v3/execution_record.json`.
