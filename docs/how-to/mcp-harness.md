@@ -20,9 +20,14 @@ they are not measurements of an LLM's security.
 ```python
 import asyncio
 from pytest_wardenbot.agents import (
-    AttackSurface, Outcome, Scenario, format_result, run_scenario,
+    AttackSurface,
+    Outcome,
+    Scenario,
+    format_result,
+    run_scenario,
 )
 from pytest_wardenbot.mcp import MCPHarness, ScriptedMCPAgentTarget
+
 
 async def main():
     scenario = Scenario(
@@ -44,6 +49,7 @@ async def main():
         assert result.outcome is expected, format_result(result)
         if behavior == "resistant":
             assert result.task_succeeded is True, format_result(result)
+
 
 asyncio.run(main())
 ```
