@@ -1,7 +1,7 @@
 """Canonical attack corpora used by the shipped tests.
 
-v0.1 ships a starter set per category. v0.2+ expands the corpora as we learn
-from real-world findings (and from issues raised on the OSS repo).
+Each category ships a curated starter set. Corpora grow from real-world
+findings and from issues raised on the repository.
 
 Single-turn:
     JAILBREAK_PROMPTS          (prompt, attack_id)

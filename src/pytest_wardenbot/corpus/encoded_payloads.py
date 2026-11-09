@@ -11,9 +11,7 @@ includes a "trigger word" the bot would emit if it
 decoded and complied — the test asserts the trigger word does NOT appear
 in the response.
 
-This is a starter corpus. v0.2 will expand to include more obscure
-encodings (NATO phonetic, partial-base64-with-padding-stripped) and
-non-ASCII Unicode tricks.
+This is a starter corpus covering common encodings.
 
 Each entry is (prompt, trigger_words, attack_id) where trigger_words is a
 tuple of substrings the bot would emit if compromised.

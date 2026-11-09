@@ -35,8 +35,8 @@ class AttackResult(BaseModel):
 class AttackRunner(Protocol):
     """Protocol for attack runners.
 
-    A runner takes a chatbot adapter and an attack goal (free-form string for now,
-    structured in v0.2), executes an attack, and returns a structured result.
+    A runner takes a chatbot adapter and a free-form attack goal, executes an
+    attack, and returns a structured result.
     """
 
     name: str

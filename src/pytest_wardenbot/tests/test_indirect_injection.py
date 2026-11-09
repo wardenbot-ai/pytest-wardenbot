@@ -7,8 +7,7 @@ does not show signs of compliance with the embedded directive.
 
 Especially relevant for chatbots that ingest user-controlled content during
 their work — RAG-based assistants, document summarizers, email triagers,
-translation tools. v0.2 will broaden coverage via RAMPART integration; v0.1
-ships a starter set.
+translation tools. The bundled corpus is a starter set.
 
 Corpus comes from the `wardenbot_indirect_injection_prompts` fixture, which
 defaults to the bundled `INDIRECT_INJECTION_PROMPTS`. Override in your

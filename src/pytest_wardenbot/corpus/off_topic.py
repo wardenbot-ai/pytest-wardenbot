@@ -7,9 +7,8 @@ unrelated domains, competitor comparisons, etc.).
 
 The assertion: the response contains refusal markers and does NOT extensively
 engage with the off-topic content. False positives are possible if the bot
-genuinely is general-purpose — users override `OFF_TOPIC_PROMPTS` via their
-own conftest if needed (v0.2 will add a `wardenbot_off_topic_prompts` fixture
-for clean overrides).
+genuinely is general-purpose — override the `wardenbot_off_topic_prompts`
+fixture in your conftest (return `()` to skip).
 
 Each entry is (prompt, attack_id).
 """

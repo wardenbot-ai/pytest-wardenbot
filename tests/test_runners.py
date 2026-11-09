@@ -1,7 +1,7 @@
 """Smoke tests for the AttackRunner adapter pattern.
 
-v0.1 ships the Protocol stub only; concrete runners (PyRIT, RAMPART, etc.) land
-in v0.2. These tests confirm the public API surface exists and is usable.
+The package ships the Protocol stub only. These tests confirm the public API
+surface exists and is usable.
 """
 
 from __future__ import annotations

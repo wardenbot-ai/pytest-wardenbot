@@ -16,9 +16,6 @@ OpenAIChatAdapter, AnthropicMessagesAdapter, AsyncHTTPChatbotAdapter, etc.)
 handle the turn accumulation automatically. Stateless adapters will still
 run the test but each turn looks fresh to the underlying bot — the test
 will then over-report success because the priming never lands.
-
-v0.2 will expand this set significantly and add multi-turn variants that
-target system-prompt leakage and refusal-bypass categories.
 """
 
 from __future__ import annotations
