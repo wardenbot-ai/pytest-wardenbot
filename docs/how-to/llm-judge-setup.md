@@ -109,7 +109,7 @@ Implications:
 
 - **Use LLM-judge tests as triage signal**, not absolute pass/fail.
 - **Don't gate deploys on a single judge verdict** without human review.
-- **Multi-judge ensemble mode** for safety-critical scoring lands in v0.2.
+- **For safety-critical scoring, use a multi-judge ensemble** (`assert_judge_ensemble_passes` with `--wardenbot-judge-consensus`) so one judge's error can't decide the verdict.
 
 ## Custom model
 

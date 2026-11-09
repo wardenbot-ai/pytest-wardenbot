@@ -1,10 +1,9 @@
 """Grading helpers for chatbot responses.
 
-Three layers, per the WardenBot AI doctrine (script-first / LLM-fallback / human-sample):
+Two layers:
 
-- `deterministic` — regex, substring, schema. No LLM cost. v0.1.
-- `judge` — LLM-as-judge via DeepEval (optional [judge] extra). v0.1.
-- `human_sample` — weekly calibration loop. v0.3+, requires managed backend.
+- `deterministic` — regex, substring, schema. No LLM cost.
+- `judge` — LLM-as-judge via DeepEval (optional [judge] extra).
 """
 
 from pytest_wardenbot.grading.deterministic import (

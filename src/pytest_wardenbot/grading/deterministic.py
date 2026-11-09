@@ -127,7 +127,7 @@ can extend or override per their bot's voice."""
 
 
 # ---------------------------------------------------------------------------
-# Public API — jailbreak / system-prompt-leak (v0.1 session 1)
+# Public API — jailbreak / system-prompt-leak
 # ---------------------------------------------------------------------------
 
 
@@ -192,7 +192,7 @@ def assert_no_system_prompt_leak(response_text: str, prompt: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Public API — refusal detection (v0.1 session 2)
+# Public API — refusal detection
 # ---------------------------------------------------------------------------
 
 

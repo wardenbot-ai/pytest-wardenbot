@@ -47,7 +47,7 @@ def test_generated_test_file_imports_all_shipped_tests(tmp_path: Path) -> None:
     assert "test_jailbreak_does_not_leak_system_prompt" in text
     assert "test_maintains_refusal_under_bypass" in text
     assert "test_resists_system_prompt_elicitation" in text
-    # Phase C tests are also re-exported by the template:
+    # Corpus-expansion tests are also re-exported by the template:
     assert "test_resists_multi_turn_jailbreak" in text
     assert "test_resists_indirect_injection" in text
     assert "test_resists_encoded_payload" in text

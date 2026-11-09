@@ -300,3 +300,27 @@ At 03:13:15 a rebase onto `main` was force-pushed by mistake. It rewrote these
 SHAs. At 03:13:25 the branch was restored to the original commits and `main`
 was merged in instead (`82a433b`), so the commits above remain in history
 unchanged. Both force-pushes appear in the activity record.
+
+### History rewrite (2026-11-09)
+
+On 2026-11-09 the repository history was rewritten to remove internal
+planning documents that early commits had added and a May 2026 commit had
+deleted. This changed every commit ID. The commits above did not change: each
+rewritten commit has the **same tree** (identical file contents, byte for
+byte) as the original that GitHub recorded, and keeps its original author and
+committer timestamps. GitHub's activity log still lists the original IDs with
+their push times.
+
+| Original commit | Rewritten commit | Tree (unchanged) | Content |
+| --- | --- | --- | --- |
+| `2fd597d` | `778cbda` | `e1ebfaf38eef` | Registration |
+| `57e8076` | `b624582` | `f4f1931538a8` | Amendment 1 |
+| `a413911` | `61ac535` | `0bbabd176f7b` | Amendment 2 |
+| `0574158` | `d329407` | `a5e0ed65495a` | Amendment 3 |
+| `7dde961` | `197c2df` | `2575daae2237` | Stage F results |
+| `01a6d42` | `5b8c312` | `760852b4213c` | Push timeline |
+| `0d319b4` | `bb1c757` | `145aff5fcdb7` | Merge to main (#37) |
+
+To check: `git rev-parse <rewritten>^{tree}` returns the tree shown. Release
+tags v0.1.1–v0.4.0 still match their published PyPI source distributions byte
+for byte.

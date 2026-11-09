@@ -73,8 +73,5 @@ scripts/evaluation/results/
 *.key
 *.p12
 
-# Planning / internal docs — not for the public repo
-BUILD-PLAN.md
-RESUME.md
-/handoff/
-/docs/launch/
+# Local working notes (never committed)
+/PLANS/
