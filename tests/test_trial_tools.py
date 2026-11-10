@@ -421,3 +421,90 @@ async def test_record_blocked_call_keeps_unserializable_arguments():
     assert [event.data["blocked"] for event in events] == [True, True]
     assert events[0].data["arguments"] == '{"value": NaN}'
     assert str(AGENT_SCENARIOS[1].canary) in str(events[1].data["arguments"])
+
+
+# -- error paths ---------------------------------------------------------------
+
+
+def circular() -> dict:
+    value: dict = {}
+    value["self"] = value
+    return value
+
+
+@pytest.mark.asyncio
+async def test_unserializable_requested_arguments_are_still_recorded():
+    harness = MCPHarness(AGENT_SCENARIOS[0])
+    async with TrialTools(harness, "circular", max_turns=5) as tools:
+        tools.requested(SINK_TOOL, circular())
+        tools.requested("", {})
+        tools.requested(None, {})  # type: ignore[arg-type]
+    blocked = [event for event in harness.observe("circular").events if event.data.get("blocked")]
+    assert [(event.name, event.data["arguments"]) for event in blocked] == [
+        (SINK_TOOL, "<unserializable>")
+    ]
+
+
+@pytest.mark.asyncio
+async def test_non_object_arguments_pass_through_to_the_check():
+    harness = MCPHarness(AGENT_SCENARIOS[0])
+    async with TrialTools(harness, "list", max_turns=5) as tools:
+        output = await tools.call(SINK_TOOL, [1, 2])  # type: ignore[arg-type]
+    assert output == "Error: tool arguments must be a JSON object."
+
+
+@pytest.mark.asyncio
+async def test_discovery_failure_closes_the_trial(monkeypatch):
+    from pytest_wardenbot.mcp import MCPClient
+
+    async def broken(self, **kwargs):
+        raise RuntimeError("listing failed")
+
+    monkeypatch.setattr(MCPClient, "list_tools", broken)
+    harness = MCPHarness(AGENT_SCENARIOS[0])
+    tools = TrialTools(harness, "discovery", max_turns=5)
+    with pytest.raises(WardenBotInfraError):
+        async with tools:
+            pass
+    assert harness.observe("discovery").complete is False
+    with pytest.raises(RuntimeError, match="async with"):
+        tools.turn()
+
+
+@pytest.mark.asyncio
+async def test_recording_failure_on_close_still_closes_the_trial(monkeypatch):
+    from pytest_wardenbot.mcp import MCPClient
+
+    def broken(self, name, arguments):
+        raise OSError("journal unavailable")
+
+    harness = MCPHarness(AGENT_SCENARIOS[0])
+    with pytest.raises(WardenBotInfraError):
+        async with TrialTools(harness, "journal", max_turns=5) as tools:
+            tools.requested(SINK_TOOL, {"value": "x"})
+            monkeypatch.setattr(MCPClient, "record_blocked_call", broken)
+    assert harness.observe("journal").complete is False
+
+
+@pytest.mark.asyncio
+async def test_observer_failure_after_capability_report_is_unsupported():
+    scenario = AGENT_SCENARIOS[2]
+    seen = []
+
+    def observe(trial_id):
+        raise RuntimeError("observer down")
+
+    result = await run_scenario(
+        NoTools(), scenario, observe=observe, on_error=lambda r, e: seen.append(r)
+    )
+    assert result.outcome is Outcome.UNSUPPORTED
+    assert seen == [ReasonCode.MISSING_CAPABILITY, ReasonCode.OBSERVER_ERROR]
+
+
+@pytest.mark.asyncio
+async def test_record_blocked_call_survives_circular_arguments():
+    harness = MCPHarness(AGENT_SCENARIOS[0])
+    async with harness.trial("loop") as client:
+        client.record_blocked_call(SINK_TOOL, circular())
+    (event,) = harness.observe("loop").events
+    assert event.data == {"arguments": "<unserializable>", "blocked": True}
