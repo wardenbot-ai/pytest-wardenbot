@@ -125,11 +125,13 @@ class CapabilityUnavailable(Exception):
     A violation the harness already recorded still wins.
     """
 
-    def __init__(self, capability: AgentCapability) -> None:
+    def __init__(self, capability: AgentCapability, *, detail: str = "") -> None:
         if not isinstance(capability, AgentCapability):
             raise ValueError("CapabilityUnavailable requires an AgentCapability")
         self.capability = capability
-        super().__init__(f"Capability unavailable: {capability.value}")
+        self.detail = str(detail)
+        message = f"Capability unavailable: {capability.value}"
+        super().__init__(f"{message}. {self.detail}" if self.detail else message)
 
 
 def _identifier(value: str) -> None:

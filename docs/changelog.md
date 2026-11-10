@@ -26,12 +26,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   recorded still wins.
 - **`MCPClient.record_blocked_call`** records a model-requested call your
   application blocked before dispatch. It can only add violations.
+- **[Local model presets](how-to/local-models.md)** (`pytest_wardenbot.local`)
+  for Ollama, vLLM and llama.cpp: `ollama_chatbot`, `vllm_chatbot`,
+  `llamacpp_chatbot` and `local_chatbot` for the chatbot suite, with errors
+  that name the server and model. Loopback traffic ignores `HTTP(S)_PROXY`.
+- **Tool-calling check:** `probe_tool_calling` (also
+  `python -m pytest_wardenbot.local SERVER MODEL`) and, inside an agent
+  target, `require_tool_calling`, which raises `CapabilityUnavailable` so a
+  model that cannot call tools is reported as unsupported. An unreachable
+  server is an error, not unsupported.
+- **Local LLM judge:** `--wardenbot-judge-model` (or `WARDENBOT_JUDGE_MODEL`,
+  or the `wardenbot_judge_model` fixture) chooses the shipped judge test's
+  model. `ollama/MODEL`, `vllm/MODEL` and `llamacpp/MODEL` judge locally with
+  no API key.
+- **Egress test:** the chatbot suite, the agent suite and the local judge run
+  against a local server with every socket destination recorded, and in CI
+  inside a loopback-only network namespace.
 
 ### Changed
 
 - `--wardenbot-agent-debug` now also shows the exception the MCP harness
   replaces with its sanitized "transport or target execution failed" error,
   so a failing model client or framework is visible locally.
+- DeepEval telemetry is turned off by default when pytest-wardenbot imports
+  DeepEval (`DEEPEVAL_TELEMETRY_OPT_OUT=1`, unless you set it). Set it to `0`
+  to opt back in.
+- `judge_key_env` returns `None` for local judge models, which need no key.
 
 ## [0.5.0] — 2026-11-10
 

@@ -226,6 +226,30 @@ jobs:
           flags: integrations
           name: pytest-wardenbot-integrations
 
+  egress:
+    name: Local runs stay local (loopback-only network)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install the local-run integrations
+        run: pip install -e ".[dev,mcp,openai,judge]"
+      - name: Allow an unprivileged network namespace
+        # Ubuntu 24.04 restricts unprivileged user namespaces through AppArmor.
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - name: Run the egress tests where only loopback exists
+        # The tests record every socket destination in-process; the namespace
+        # also fails any connection that escapes that record (child processes,
+        # native code), because there is no route off the machine.
+        run: >-
+          unshare --user --map-root-user --net sh -c
+          'ip link set lo up && python -m pytest tests/test_egress.py tests/test_local.py
+          -v -ra -p no:cacheprovider'
+
   mcp-contracts:
     name: MCP harness (Python ${{ matrix.python }}, ${{ matrix.dependencies }})
     runs-on: ubuntu-latest

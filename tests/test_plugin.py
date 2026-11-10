@@ -1131,3 +1131,75 @@ def test_scoped_conftest_hint_skips_unreadable_and_vendored_directories(tmp_path
     finally:
         blocked.chmod(0o644)
     assert "private/conftest.py" in scoped_conftest_hint(config, "chatbot")
+
+
+_CAPTURE_JUDGE_MODEL = """
+@pytest.fixture(autouse=True)
+def _patch(monkeypatch):
+    monkeypatch.setattr(judge_module, "judge_available", lambda: True)
+    def no_keys(env_var=None, *, model=None):
+        return False
+    monkeypatch.setattr(judge_module, "api_key_available", no_keys)
+    def factory(case, actual, model, temp):
+        print("JUDGE_MODEL=" + model)
+        metric = MagicMock(score=0.95, reason="ok")
+        return metric, MagicMock()
+    monkeypatch.setattr(judge_module, "_default_deepeval_judge_factory", factory)
+"""
+
+
+def test_local_judge_model_needs_no_key(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("WARDENBOT_JUDGE_MODEL", raising=False)
+    pytester.makeconftest(_JUDGE_FIXTURE_HEADER + _CAPTURE_JUDGE_MODEL)
+    result = pytester.runpytest(
+        "--pyargs",
+        "pytest_wardenbot.tests.test_semantic",
+        "-s",
+        "--wardenbot-judge-model",
+        "ollama/qwen2.5:7b",
+    )
+    result.assert_outcomes(passed=1)
+    result.stdout.fnmatch_lines(["*JUDGE_MODEL=ollama/qwen2.5:7b*"])
+
+
+def test_judge_model_from_environment_names_its_key(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("WARDENBOT_JUDGE_MODEL", "gpt-4o-mini")
+    pytester.makeconftest(_JUDGE_FIXTURE_HEADER + _CAPTURE_JUDGE_MODEL)
+    result = pytester.runpytest("--pyargs", "pytest_wardenbot.tests.test_semantic", "-rs")
+    result.assert_outcomes(failed=1)
+    result.stdout.fnmatch_lines(
+        ["*OPENAI_API_KEY not set*judge model gpt-4o-mini.*--wardenbot-judge-model ollama/MODEL*"]
+    )
+
+
+def test_judge_model_option_beats_environment_and_reaches_the_judge(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("WARDENBOT_JUDGE_MODEL", "gpt-4o-mini")
+    pytester.makeconftest(
+        _JUDGE_FIXTURE_HEADER
+        + _CAPTURE_JUDGE_MODEL.replace("return False", "return model == 'claude-sonnet-4-5'")
+    )
+    result = pytester.runpytest(
+        "--pyargs",
+        "pytest_wardenbot.tests.test_semantic",
+        "-s",
+        "--wardenbot-judge-model=claude-sonnet-4-5",
+    )
+    result.assert_outcomes(passed=1)
+    result.stdout.fnmatch_lines(["*JUDGE_MODEL=claude-sonnet-4-5*"])
+
+
+def test_wardenbot_judge_model_defaults_to_haiku(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("WARDENBOT_JUDGE_MODEL", raising=False)
+    pytester.makepyfile(
+        "def test_model(wardenbot_judge_model):\n"
+        "    assert wardenbot_judge_model == 'claude-haiku-4-5'\n"
+    )
+    pytester.runpytest().assert_outcomes(passed=1)

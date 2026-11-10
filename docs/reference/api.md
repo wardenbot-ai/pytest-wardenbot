@@ -42,6 +42,13 @@ Responses adapters maintain local session histories; reset clears those historie
 and does not delete old remote threads. For LangGraph state and reset hooks, see
 [the graph recipe](../how-to/langgraph-state.md).
 
+## Local model servers
+
+::: pytest_wardenbot.local
+    options:
+      heading_level: 3
+      members: ["local_chatbot", "ollama_chatbot", "vllm_chatbot", "llamacpp_chatbot", "LocalChatAdapter", "local_base_url", "LOCAL_SERVERS", "LocalServer", "probe_tool_calling", "aprobe_tool_calling", "require_tool_calling", "ToolCallingProbe"]
+
 ## Business truth
 
 ::: pytest_wardenbot.business_truth

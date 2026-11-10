@@ -7,6 +7,7 @@ to verify the wrapper logic.
 
 from __future__ import annotations
 
+import os
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -363,3 +364,76 @@ def test_api_key_available_checks_the_models_vendor_key(monkeypatch: pytest.Monk
     assert api_key_available(model="gpt-4o-mini") is True
     assert api_key_available(model="claude-haiku-4-5") is False
     assert api_key_available() is False
+
+
+# ---------------------------------------------------------------------------
+# Local judge models
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("model", "local"),
+    [
+        ("ollama/qwen2.5:7b", True),
+        ("vLLM/meta-llama/Llama-3.1-8B-Instruct", True),
+        ("llamacpp/any", True),
+        ("claude-haiku-4-5", False),
+        ("gpt-4o-mini", False),
+    ],
+)
+def test_local_judge_models_need_no_key(model: str, local: bool, monkeypatch) -> None:
+    from pytest_wardenbot.grading.judge import is_local_judge_model, judge_key_env
+
+    for name in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY"):
+        monkeypatch.delenv(name, raising=False)
+    assert is_local_judge_model(model) is local
+    assert (judge_key_env(model) is None) is local
+    assert api_key_available(model=model) is local
+
+
+class _FakeModels:
+    class LocalModel:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+
+def test_local_judge_points_deepeval_at_the_local_server(monkeypatch) -> None:
+    from pytest_wardenbot.grading.judge import _build_local_deepeval_model
+
+    monkeypatch.delenv("WARDENBOT_JUDGE_BASE_URL", raising=False)
+    monkeypatch.delenv("OLLAMA_HOST", raising=False)
+    monkeypatch.delenv("WARDENBOT_LOCAL_API_KEY", raising=False)
+    model = _build_local_deepeval_model(_FakeModels, "ollama/qwen2.5:7b", 0.0)
+    assert model.kwargs == {
+        "model": "qwen2.5:7b",
+        "base_url": "http://127.0.0.1:11434/v1",
+        "api_key": "local",  # pragma: allowlist secret
+        "temperature": 0.0,
+        "generation_kwargs": {"response_format": {"type": "json_object"}},
+    }
+    monkeypatch.setenv("WARDENBOT_JUDGE_BASE_URL", "http://gpu-box:8000/v1")
+    monkeypatch.setenv("WARDENBOT_LOCAL_API_KEY", "server-key")  # pragma: allowlist secret
+    model = _build_local_deepeval_model(_FakeModels, "vllm/Qwen/Qwen2.5-7B", 0.2)
+    assert model.kwargs["model"] == "Qwen/Qwen2.5-7B"
+    assert model.kwargs["base_url"] == "http://gpu-box:8000/v1"
+    assert model.kwargs["api_key"] == "server-key"  # pragma: allowlist secret
+
+
+def test_local_judge_errors() -> None:
+    from pytest_wardenbot.grading.judge import _build_local_deepeval_model
+
+    with pytest.raises(JudgeUnavailableError, match="LocalModel"):
+        _build_local_deepeval_model(object(), "ollama/x", 0.0)
+    with pytest.raises(ValueError, match="needs a model name"):
+        _build_local_deepeval_model(_FakeModels, "ollama/", 0.0)
+
+
+def test_deepeval_telemetry_is_off_unless_the_user_chose(monkeypatch) -> None:
+    from pytest_wardenbot.grading.judge import _quiet_deepeval
+
+    monkeypatch.delenv("DEEPEVAL_TELEMETRY_OPT_OUT", raising=False)
+    _quiet_deepeval()
+    assert os.environ["DEEPEVAL_TELEMETRY_OPT_OUT"] == "1"
+    monkeypatch.setenv("DEEPEVAL_TELEMETRY_OPT_OUT", "0")
+    _quiet_deepeval()
+    assert os.environ["DEEPEVAL_TELEMETRY_OPT_OUT"] == "0"

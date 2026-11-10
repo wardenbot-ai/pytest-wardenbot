@@ -21,8 +21,8 @@ The default judge model is Anthropic Haiku 4.5. Set:
 export ANTHROPIC_API_KEY=sk-ant-...
 ```
 
-You can override the model on a per-case basis if you prefer a different
-judge (see "Custom model" below).
+To judge with a different model, or with a local model and no key at all,
+see "Choose the judge model" below.
 
 ## Configure the `judge_case` fixture
 
@@ -111,10 +111,46 @@ Implications:
 - **Don't gate deploys on a single judge verdict** without human review.
 - **For safety-critical scoring, use a multi-judge ensemble** (`assert_judge_ensemble_passes` with `--wardenbot-judge-consensus`) so one judge's error can't decide the verdict.
 
-## Custom model
+## Choose the judge model
 
-To use a different model, build the case as usual but pass `model_name`
-to `judge_response` directly in a custom test:
+The shipped judge test uses `--wardenbot-judge-model`, then the
+`WARDENBOT_JUDGE_MODEL` environment variable, then Haiku 4.5:
+
+```bash
+pytest --wardenbot-judge-model gpt-4o-mini          # needs OPENAI_API_KEY
+pytest --wardenbot-judge-model ollama/qwen2.5:7b    # local, no key
+```
+
+`claude*` models need `ANTHROPIC_API_KEY`, `gpt*` and `o*` models
+`OPENAI_API_KEY`, and `gemini*` models `GOOGLE_API_KEY`.
+
+### Local judge
+
+Prefix the model with `ollama/`, `vllm/` or `llamacpp/` to judge with a model
+on your own machine. Nothing leaves it, and no key is needed. The judge talks
+to the server's default local address (Ollama `127.0.0.1:11434`, vLLM
+`127.0.0.1:8000`, llama.cpp `127.0.0.1:8080`; Ollama also honors
+`OLLAMA_HOST`); set `WARDENBOT_JUDGE_BASE_URL` for another address and
+`WARDENBOT_LOCAL_API_KEY` if your server requires a key. Requests use the
+server's JSON mode, which small models need to produce the judge's
+structured replies.
+
+Expect a local judge to agree with you less often than a hosted one, and
+calibrate its threshold on your own outputs. In a spot check, `qwen2.5:7b`
+and `llama3.2:3b` each judged an equivalent and a contradicting answer
+correctly, in about 5 to 15 seconds per judgment on a laptop.
+
+### DeepEval telemetry
+
+DeepEval, the judge framework, can send anonymous usage telemetry.
+pytest-wardenbot sets `DEEPEVAL_TELEMETRY_OPT_OUT=1` before it first imports
+DeepEval, unless you set that variable yourself. Set it to `0` to opt back
+in. If your own code imports DeepEval first, set the variable before that
+import.
+
+### In a custom test
+
+Pass `model_name` to `judge_response` or `assert_judge_passes`:
 
 ```python
 from pytest_wardenbot.grading.judge import (
@@ -138,5 +174,5 @@ def test_brand_with_sonnet(chatbot):
   skips instead of failing.
 
 Without that flag, configured judge cases fail when the `[judge]` extra is
-missing or `ANTHROPIC_API_KEY` is unset, so a CI run can't look green without
-running them.
+missing or the judge model's API key is unset, so a CI run can't look green
+without running them.

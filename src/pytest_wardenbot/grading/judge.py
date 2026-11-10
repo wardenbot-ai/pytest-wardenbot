@@ -151,8 +151,19 @@ class JudgeUnavailableError(RuntimeError):
 # ---------------------------------------------------------------------------
 
 
+def _quiet_deepeval() -> None:
+    """Turn DeepEval's usage telemetry off unless the user chose a setting.
+
+    Must run before DeepEval is first imported. A security test run should not
+    report usage to a third party on the user's behalf; set
+    ``DEEPEVAL_TELEMETRY_OPT_OUT=0`` to opt back in.
+    """
+    os.environ.setdefault("DEEPEVAL_TELEMETRY_OPT_OUT", "1")
+
+
 def judge_available() -> bool:
     """True if the [judge] extra (DeepEval) is installed."""
+    _quiet_deepeval()
     try:
         import deepeval  # type: ignore[import-not-found]  # noqa: F401
     except ImportError:
@@ -167,12 +178,27 @@ _VENDOR_KEY_ENV = {
 }
 
 
-def judge_key_env(model_name: str = "claude-haiku-4-5") -> str:
+DEFAULT_JUDGE_MODEL = "claude-haiku-4-5"
+
+LOCAL_JUDGE_PREFIXES: tuple[str, ...] = ("ollama/", "vllm/", "llamacpp/")
+"""Judge model names with these prefixes run on a local OpenAI-compatible
+server, for example ``ollama/qwen2.5:7b``. They need no API key."""
+
+
+def is_local_judge_model(model_name: str) -> bool:
+    """True for judge models served locally (``ollama/``, ``vllm/``, ``llamacpp/``)."""
+    return model_name.lower().startswith(LOCAL_JUDGE_PREFIXES)
+
+
+def judge_key_env(model_name: str = DEFAULT_JUDGE_MODEL) -> str | None:
     """Name of the environment variable holding the API key for `model_name`'s vendor.
 
     `claude*` models need `ANTHROPIC_API_KEY`, `gpt*`/`o*` models `OPENAI_API_KEY`,
-    and `gemini*` models `GOOGLE_API_KEY`.
+    and `gemini*` models `GOOGLE_API_KEY`. Local judge models need none and
+    return None.
     """
+    if is_local_judge_model(model_name):
+        return None
     return _VENDOR_KEY_ENV[_vendor_for_model(model_name)]
 
 
@@ -180,11 +206,13 @@ def api_key_available(env_var: str | None = None, *, model: str | None = None) -
     """True if the judge's API key environment variable is set to a non-empty value.
 
     Pass `env_var` to check a specific variable, or `model` to check the key for
-    that judge model's vendor. With neither, checks the default judge's key
-    (`ANTHROPIC_API_KEY`).
+    that judge model's vendor (always True for a local judge model). With
+    neither, checks the default judge's key (`ANTHROPIC_API_KEY`).
     """
-    name = env_var or judge_key_env(model or "claude-haiku-4-5")
-    return bool(os.environ.get(name, "").strip())
+    if env_var is None and model is not None and is_local_judge_model(model):
+        return True
+    name = env_var or judge_key_env(model or DEFAULT_JUDGE_MODEL)
+    return bool(name and os.environ.get(name, "").strip())
 
 
 # ---------------------------------------------------------------------------
@@ -511,8 +539,11 @@ def _build_deepeval_model(model_name: str, temperature: float) -> Any:
     """
     import inspect
 
+    _quiet_deepeval()
     from deepeval import models as models_module  # type: ignore[import-not-found]
 
+    if is_local_judge_model(model_name):
+        return _build_local_deepeval_model(models_module, model_name, temperature)
     vendor = _vendor_for_model(model_name)
     if vendor == "openai":
         model_class = getattr(models_module, "OpenAIModel", None)
@@ -558,6 +589,30 @@ def _build_deepeval_model(model_name: str, temperature: float) -> Any:
     return model
 
 
+def _build_local_deepeval_model(models_module: Any, model_name: str, temperature: float) -> Any:
+    """DeepEval's OpenAI-compatible LocalModel, pointed at the local server preset."""
+    from pytest_wardenbot.local import local_base_url
+
+    server, _, name = model_name.partition("/")
+    model_class = getattr(models_module, "LocalModel", None)
+    if model_class is None:
+        raise JudgeUnavailableError(
+            "Installed DeepEval does not provide LocalModel, needed for local judges. "
+            "Upgrade with: pip install --upgrade 'pytest-wardenbot[judge]'"
+        )
+    if not name:
+        raise ValueError(f"Local judge model {model_name!r} needs a model name after the prefix")
+    return model_class(
+        model=name,
+        base_url=local_base_url(server.lower(), os.environ.get("WARDENBOT_JUDGE_BASE_URL")),
+        api_key=os.environ.get("WARDENBOT_LOCAL_API_KEY") or "local",
+        temperature=temperature,
+        # Small local models often wrap JSON in prose; the servers' JSON mode
+        # (Ollama, vLLM and llama.cpp all support it) keeps GEval's replies parseable.
+        generation_kwargs={"response_format": {"type": "json_object"}},
+    )
+
+
 def _default_deepeval_judge_factory(
     case: JudgeCase,
     actual_response: str,
@@ -569,6 +624,7 @@ def _default_deepeval_judge_factory(
     Imports deepeval lazily — module-level import would force the dep on users
     who only run deterministic tests.
     """
+    _quiet_deepeval()
     try:
         from deepeval.metrics import GEval  # type: ignore[import-not-found]
         from deepeval.test_case import (  # type: ignore[import-not-found]
