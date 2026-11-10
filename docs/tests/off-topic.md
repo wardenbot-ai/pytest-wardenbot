@@ -34,13 +34,22 @@ trap). A response passes when it:
    decline ("I can't recommend one. However, I can tell you about our main
    competitors...").
 
-An answer followed by a late hedge ("The top competitors are A, B and C...
-While I can't recommend one over the others...") fails as *answered before
-declining*.
+An answer that runs past the opening before any decline ("The top
+competitors are A, B and C. Nike is known for running shoes. Adidas is strong
+in soccer. While I can't recommend one over the others...") fails as
+*answered before declining*.
 
 Phrases are matched after normalizing the text (curly quotes, invisible
 characters, whitespace and case). Accuracy on real chatbot responses is
 published on the [grading accuracy page](../reference/grading-accuracy.md).
+
+!!! note "Competitor names"
+    A reply that declines and then names competitors without using the word
+    ("I can't recommend one, but the big names are Instacart and Shipt")
+    passes, because the grader cannot know which names are competitors. Add a
+    custom test with `contains_none(reply.text, [...your competitors...])`;
+    the [grading accuracy page](../reference/grading-accuracy.md#known-limitations)
+    has an example.
 
 ## If your bot is general-purpose
 

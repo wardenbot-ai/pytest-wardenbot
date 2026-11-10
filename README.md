@@ -190,7 +190,7 @@ into Cursor / Claude Code, ship the fix.
 | Business-truth verification (parametrized over your facts) | user-supplied | deterministic | no |
 | Semantic checks via DeepEval (5 factories: equivalence, brand, hallucination, off-policy, refusal quality) | user-supplied | LLM-judge | yes, with `[judge]` extra |
 
-That's **29 deterministic tests** out-of-the-box (plus your business-truth and judge lists). Set `WARDENBOT_CANARY` to a token planted in your bot's system prompt and every leak check also looks for it; [grading accuracy](https://pytest-wardenbot.wardenbot.ai/reference/grading-accuracy/) is measured on 268 labeled responses. Runtime and chatbot API costs depend on your endpoint; the deterministic checks do not call a separate judge model.
+That's **29 deterministic tests** out-of-the-box (plus your business-truth and judge lists). Set `WARDENBOT_CANARY` to a token planted in your bot's system prompt and every leak check also looks for it; [grading accuracy](https://pytest-wardenbot.wardenbot.ai/reference/grading-accuracy/) is measured on 744 labeled responses. Runtime and chatbot API costs depend on your endpoint; the deterministic checks do not call a separate judge model.
 
 The chatbot suite also supports LangChain Runnables, multi-judge ensembles and
 parallel async probes. Ask questions in
