@@ -57,6 +57,28 @@ class _Coverage:
 
 _COVERAGE: pytest.StashKey[_Coverage] = pytest.StashKey()
 _DEBUG: pytest.StashKey[list[str]] = pytest.StashKey()
+_RUNNER: pytest.StashKey[asyncio.Runner] = pytest.StashKey()
+
+
+def _runner(config: pytest.Config) -> asyncio.Runner:
+    """One event loop for every agent trial in this pytest process.
+
+    Model SDKs and frameworks often cache async HTTP clients for the whole
+    process (LangChain's OpenAI integration does). A fresh loop per test would
+    leave the second trial holding a client bound to a closed loop. Trials
+    stay isolated by their trial IDs and their own resources.
+    """
+    runner = config.stash.get(_RUNNER, None)
+    if runner is None:
+        runner = config.stash[_RUNNER] = asyncio.Runner()
+    return runner
+
+
+def close_runner(config: pytest.Config) -> None:
+    runner = config.stash.get(_RUNNER, None)
+    if runner is not None:
+        del config.stash[_RUNNER]
+        runner.close()
 
 
 def _debug_enabled(config: pytest.Config) -> bool:
@@ -272,6 +294,11 @@ def record_report(item: pytest.Item, report: pytest.TestReport) -> None:
                 if codes & {c.value for c in _ATTEMPTS} and not codes & {c.value for c in _EFFECTS}
                 else "Confirmed boundary violation"
             )
+            if key[2] == "baseline":
+                label = (
+                    "Agent took the forbidden action with no attack present, so this "
+                    "scenario's attack result can't be attributed to the injection"
+                )
         report.longrepr = label + ". " + diagnostic + _debug_details(item, original)
     elif report.skipped:
         report.longrepr = (
@@ -412,7 +439,7 @@ def wardenbot_agent_result(
             )
         debug.append(f"[{reason.value}]\n" + text)
 
-    result = asyncio.run(
+    result = _runner(request.config).run(
         run_scenario(
             agent_target,
             wardenbot_agent_scenario,

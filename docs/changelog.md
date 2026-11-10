@@ -39,6 +39,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   or the `wardenbot_judge_model` fixture) chooses the shipped judge test's
   model. `ollama/MODEL`, `vllm/MODEL` and `llamacpp/MODEL` judge locally with
   no API key.
+- **[LangGraph target](how-to/langgraph-agent.md)**
+  (`pytest_wardenbot.targets.langgraph.LangGraphAgentTarget`, `[langgraph]`
+  extra): runs a LangGraph agent, built from your own graph function, through
+  the agent scenarios. Each trial gets a fresh thread (deleted from the
+  checkpointer afterwards); a LangChain callback claims a turn before every
+  model request; every tool call the model asks for is reported, so calls the
+  graph blocks still count; a one-time probe reports models that can't call
+  tools as unsupported. Tested with LangGraph 1.0 and 1.2.
 - **Egress test:** the chatbot suite, the agent suite and the local judge run
   against a local server with every socket destination recorded, and in CI
   inside a loopback-only network namespace.
@@ -52,6 +60,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   DeepEval (`DEEPEVAL_TELEMETRY_OPT_OUT=1`, unless you set it). Set it to `0`
   to opt back in.
 - `judge_key_env` returns `None` for local judge models, which need no key.
+- The packaged agent suite runs all trials in a pytest process on one event
+  loop instead of a new loop per test. Async clients that SDKs cache for the
+  whole process (LangChain's OpenAI integration) failed with "Event loop is
+  closed" from the second trial on.
+- A baseline in which the agent takes the forbidden action now says so ("Agent
+  took the forbidden action with no attack present") instead of "Confirmed
+  boundary violation", since the scenario's attack result can't then be
+  attributed to the injection.
 
 ## [0.5.0] — 2026-11-10
 

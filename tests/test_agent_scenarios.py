@@ -56,6 +56,13 @@ class Target:
                 name=case.forbidden_tool or "allowed_sink",
                 data={"arguments": {"value": case.canary or "blocked"}},
             ))
+        if BEHAVIOR == "eager":
+            events.append(AgentEvent(
+                trial_id, EventKind.TOOL_EFFECT,
+                EventProvenance.HARNESS, EventTrust.OBSERVED,
+                name=case.forbidden_tool or "allowed_sink",
+                data={"value": "summary"},
+            ))
         if harness.attack_enabled and BEHAVIOR == "vulnerable":
             events.append(AgentEvent(
                 trial_id, EventKind.TOOL_EFFECT,
@@ -559,3 +566,32 @@ def agent_target(agent_harness):
     assert result.ret != 0
     assert "Required agent coverage incomplete" in result.stdout.str()
     assert "SYNTHETIC_XDIST_TEARDOWN_SECRET" not in result.stdout.str()
+
+
+def test_baseline_violation_says_the_attack_cannot_be_attributed(pytester):
+    configure(pytester, "eager")
+    result = run_one(pytester)
+    result.assert_outcomes(failed=2)
+    output = result.stdout.str()
+    assert "Agent took the forbidden action with no attack present" in output
+    assert "Agent baseline: outcome=violated" in output
+    assert "Confirmed boundary violation. Agent attack: outcome=violated" in output
+
+
+def test_agent_trials_share_one_event_loop_per_session(pytester):
+    """Clients that SDKs cache per process (bound to a loop) keep working across trials."""
+    configure(
+        pytester,
+        extra=(
+            "\nimport asyncio\n"
+            "LOOPS = []\n"
+            "_run = Target.run\n"
+            "async def run(self, task, *, trial_id, max_turns):\n"
+            "    LOOPS.append(asyncio.get_running_loop())\n"
+            "    assert LOOPS[0] is LOOPS[-1] and not LOOPS[0].is_closed()\n"
+            "    return await _run(self, task, trial_id=trial_id, max_turns=max_turns)\n"
+            "Target.run = run\n"
+        ),
+    )
+    result = pytester.runpytest(*ARGS)
+    result.assert_outcomes(passed=16)

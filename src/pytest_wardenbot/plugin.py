@@ -419,6 +419,10 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     _agent_plugin.session_finish(session)
 
 
+def pytest_unconfigure(config: pytest.Config) -> None:
+    _agent_plugin.close_runner(config)
+
+
 def pytest_terminal_summary(terminalreporter: Any) -> None:
     _agent_plugin.terminal_summary(terminalreporter)
 

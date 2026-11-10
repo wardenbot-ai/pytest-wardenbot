@@ -1,5 +1,9 @@
 # Test a stateful LangGraph
 
+This page covers a LangGraph **chatbot** in the chatbot suite. To run a
+tool-using LangGraph **agent** through the MCP agent scenarios, see
+[Test a LangGraph agent](langgraph-agent.md).
+
 A checkpointer-backed graph stores conversation state under
 `configurable.thread_id`. WardenBot passes each probe's session ID into that key
 when you set `session_config_key="thread_id"`. Give the adapter a reset hook
