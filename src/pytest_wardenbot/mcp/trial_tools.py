@@ -44,7 +44,8 @@ class TurnLimitReached(Exception):
 
     ``TrialTools`` raises it from ``turn()`` and ``call()`` and suppresses it
     when its ``async with`` block exits, so the run ends cleanly with
-    ``limit_exhausted=True``.
+    ``limit_exhausted=True``. It is also recognized when a framework wraps it
+    in its own exception type.
     """
 
     def __init__(self) -> None:
@@ -202,11 +203,12 @@ class TrialTools:
         tb: TracebackType | None,
     ) -> bool:
         assert self._stack is not None
-        if exc is not None and not isinstance(exc, TurnLimitReached):
+        limit = exc is not None and _limit_reached(exc)
+        if exc is not None and not limit:
             self._closed = True
             await self._stack.__aexit__(exc_type, exc, tb)
             return False
-        if isinstance(exc, TurnLimitReached):
+        if limit:
             self.exhausted = True
         try:
             self._record_unaccounted()
@@ -350,6 +352,22 @@ class TrialTools:
         for key, count in missing.items():
             for _ in range(count):
                 self._block(key[0], self._requested_arguments[key])
+
+
+def _limit_reached(exc: BaseException) -> bool:
+    """True if ``exc`` is, or was raised because of, ``TurnLimitReached``.
+
+    Agent frameworks often wrap an exception raised inside a tool in their own
+    error type (the OpenAI Agents SDK raises ``UserError`` from it).
+    """
+    seen: set[int] = set()
+    current: BaseException | None = exc
+    while current is not None and id(current) not in seen:
+        if isinstance(current, TurnLimitReached):
+            return True
+        seen.add(id(current))
+        current = current.__cause__ or current.__context__
+    return False
 
 
 def _parsed(arguments: object) -> object:

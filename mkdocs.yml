@@ -109,6 +109,8 @@ nav:
       - Select agent scenarios: how-to/agent-scenarios.md
       - Connect your own agent: how-to/custom-agent.md
       - Test a LangGraph agent: how-to/langgraph-agent.md
+      - Test a Claude Agent SDK agent: how-to/claude-agent.md
+      - Test an OpenAI Agents SDK agent: how-to/openai-agents.md
       - Run against local models: how-to/local-models.md
       - Run the controlled MCP harness: how-to/mcp-harness.md
       - Connect the reference agent: how-to/reference-agent.md

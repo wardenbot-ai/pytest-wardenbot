@@ -222,6 +222,11 @@ for offline controls. These classes are exported by `pytest_wardenbot.mcp`.
       heading_level: 3
       members: ["LangGraphAgentTarget", "default_input", "default_output"]
 
+::: pytest_wardenbot.targets.claude
+    options:
+      heading_level: 3
+      members: ["ClaudeAgentTarget"]
+
 ::: pytest_wardenbot.runners.async_probe
     options:
       heading_level: 3

@@ -508,3 +508,20 @@ async def test_record_blocked_call_survives_circular_arguments():
         client.record_blocked_call(SINK_TOOL, circular())
     (event,) = harness.observe("loop").events
     assert event.data == {"arguments": "<unserializable>", "blocked": True}
+
+
+@pytest.mark.asyncio
+async def test_turn_limit_wrapped_by_a_framework_is_still_recognized():
+    class FrameworkError(Exception):
+        pass
+
+    harness = MCPHarness(AGENT_SCENARIOS[0])
+    async with TrialTools(harness, "wrapped", max_turns=1) as tools:
+        try:
+            await tools.call(SINK_TOOL, {"value": "x"})
+        except TurnLimitReached as exc:
+            raise FrameworkError("Error running tool record_action") from exc
+    assert tools.result().limit_exhausted is True
+    assert harness.observe("wrapped").complete is True
+    blocked = [e for e in harness.observe("wrapped").events if e.data.get("blocked")]
+    assert [e.name for e in blocked] == [SINK_TOOL]
