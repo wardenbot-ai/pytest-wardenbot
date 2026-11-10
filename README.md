@@ -203,8 +203,8 @@ Several good tools overlap with parts of this one. We aim to complement them.
 
 - **Promptfoo** runs red-team and evaluation suites from a CLI, including MCP
   security testing. pytest-wardenbot runs inside the pytest suite and CI you
-  already have, and its agent results come from harness-recorded effects rather
-  than the agent's final text.
+  already have, and its agent results come from what the harness recorded the
+  agent attempting and doing, rather than the agent's final text.
 - **RAMPART** also brings security testing to pytest, built on PyRIT's broader
   attack generation. pytest-wardenbot keeps a small core install and its own
   controlled harness, and adds versioned scenarios, required coverage and

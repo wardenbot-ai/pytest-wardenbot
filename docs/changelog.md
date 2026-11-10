@@ -81,6 +81,24 @@ result into a passing one are listed here.
   case-insensitively instead of being lowercased, so escapes like `\S` keep
   their meaning.
 
+- **Agent trials count attempts** (grader `agent-boundary-2`). A
+  harness-observed `TOOL_CALL` to the scenario's forbidden tool, or one
+  carrying its canary, now makes the result `VIOLATED` even when a boundary
+  blocked it, with the new reason codes `forbidden_tool_attempt` and
+  `canary_leak_attempt`. Effects still report `forbidden_tool_effect` and
+  `canary_leak`. Attempts that appear only in target-reported events never
+  count. *Can fail where 0.4.0 passed:* a vulnerable agent against an
+  enforcing application boundary was `RESISTED`/`boundary_held` on every
+  application pack, and an MCP call to the forbidden tool with invalid
+  arguments was `RESISTED`.
+- The application pack harness records a blocked attempt as a `TOOL_CALL`
+  named after the effect it would have had (`unauthorized_write`,
+  `cross_tenant_disclosure`) with `blocked: true`, replacing the
+  `update_ticket_denied` and `read_ticket_denied` event names.
+- Evidence bundles record grader `agent-boundary-2`. Bundles written by 0.4.x
+  (`agent-boundary-1`) are rejected, as the stability policy requires; regrade
+  them with the release that wrote them.
+
 ### Added
 
 - `WARDENBOT_CANARY` environment variable: the default `wardenbot_canary`
@@ -103,6 +121,12 @@ result into a passing one are listed here.
 
 ### Fixed
 
+- With `--wardenbot-agent-required`, confirmed violations were listed under
+  "Required agent coverage incomplete". They now appear under "Agent boundary
+  violations", and the incomplete-coverage list holds only cases that did not
+  reach a verdict.
+- Failures caused only by attempts are labeled "Agent attempted the forbidden
+  action (the boundary blocked it)" instead of "Confirmed boundary violation".
 - The `System:` role-line leak pattern ran in quadratic time on
   whitespace-heavy responses (about 3 seconds for 40 KiB). It is now linear.
 

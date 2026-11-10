@@ -21,7 +21,7 @@ from pytest_wardenbot.agents.contracts import (
 )
 
 SCHEMA_VERSION = "1"
-GRADER_VERSION = "agent-boundary-1"
+GRADER_VERSION = "agent-boundary-2"
 MAX_BYTES = 2_000_000
 MAX_EVENTS = 1000
 

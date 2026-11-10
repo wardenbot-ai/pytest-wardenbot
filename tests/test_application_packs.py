@@ -84,6 +84,26 @@ async def test_every_pack_exercises_real_control_operations(item, control) -> No
         assert not any(event.name == item.scenario.forbidden_tool for event in effects)
 
 
+@pytest.mark.parametrize("item", APPLICATION_PACKS, ids=lambda item: item.id)
+@pytest.mark.asyncio
+async def test_vulnerable_agent_is_violated_even_when_the_boundary_blocks_it(item) -> None:
+    """The agent is under test: a blocked attempt counts against it, with no effect."""
+    harness = ApplicationHarness(item, variant="attack", enforce_boundaries=True)
+    target = ScriptedApplicationTarget(harness, behavior="vulnerable")
+    result = await run_scenario(target, item.scenario, observe=harness.observe)
+    assert result.outcome is Outcome.VIOLATED
+    assert result.reason_codes == (ReasonCode.FORBIDDEN_TOOL_ATTEMPT,)
+    snapshot = harness.snapshot()
+    assert not any(event.name == item.scenario.forbidden_tool for event in snapshot["effects"])
+    assert snapshot["tickets"]["ticket.alpha"]["status"] != "closed"
+    blocked = [
+        event
+        for event in harness.observe(result.trial_id).events
+        if event.kind is EventKind.TOOL_CALL and event.data.get("blocked")
+    ]
+    assert blocked and all(event.name == item.scenario.forbidden_tool for event in blocked)
+
+
 def test_pack_registry_is_frozen_separate_and_declares_integration_hooks() -> None:
     assert len(AGENT_SCENARIOS) == 8
     assert len(APPLICATION_SCENARIOS) == 5

@@ -20,6 +20,10 @@ from pytest_wardenbot.agents.packs import (
 from pytest_wardenbot.agents.runner import run_scenario
 
 
+def _blocked(event, name: str) -> bool:
+    return event.name == name and event.data.get("blocked") is True
+
+
 @pytest.mark.asyncio
 async def test_trusted_approval_cannot_authorize_changed_arguments_or_second_write():
     harness = ApplicationHarness(application_spec("application.approval.before-write"))
@@ -56,7 +60,7 @@ async def test_valid_approval_does_not_give_viewer_editor_privileges():
         assert session.identity.role is ApplicationRole.VIEWER
         assert await session.update_ticket("ticket.alpha", "closed", approval_id=grant) is False
     trace = harness.observe("review-viewer")
-    denied = next(event for event in trace.events if event.name == "update_ticket_denied")
+    denied = next(event for event in trace.events if _blocked(event, "unauthorized_write"))
     assert denied.data["approved"] is True
     assert denied.data["tenant_allowed"] is True
     assert denied.data["role_allowed"] is False
@@ -77,7 +81,7 @@ async def test_equal_role_does_not_authorize_peer_tenant_disclosure():
             assert peer is None
         trace = harness.observe(f"review-{identity.tenant}")
         assert not any(event.kind is EventKind.TOOL_EFFECT for event in trace.events)
-        assert any(event.name == "read_ticket_denied" for event in trace.events)
+        assert any(_blocked(event, "cross_tenant_disclosure") for event in trace.events)
 
 
 @pytest.mark.asyncio
@@ -149,7 +153,7 @@ async def test_memory_and_approval_are_scoped_to_both_identity_and_tenant(other)
         async with trial.session() as clean_owner:
             assert await clean_owner.read_memory() == "SYNTHETIC_OWNER_PRIVATE_MEMORY"
     trace = harness.observe("review-scopes")
-    denied = next(event for event in trace.events if event.name == "update_ticket_denied")
+    denied = next(event for event in trace.events if _blocked(event, "unauthorized_write"))
     assert denied.data["approved"] is False
     assert denied.data["role_allowed"] is True
     assert not any(event.kind is EventKind.TOOL_EFFECT for event in trace.events)

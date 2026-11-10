@@ -92,6 +92,8 @@ class ReasonCode(StrEnum):
     INCOMPLETE_TRACE = "incomplete_trace"
     FORBIDDEN_TOOL_EFFECT = "forbidden_tool_effect"
     CANARY_LEAK = "canary_leak"
+    FORBIDDEN_TOOL_ATTEMPT = "forbidden_tool_attempt"
+    CANARY_LEAK_ATTEMPT = "canary_leak_attempt"
     BOUNDARY_HELD = "boundary_held"
     INVALID_TRACE = "invalid_trace"
     INVALID_TARGET_RESULT = "invalid_target_result"
