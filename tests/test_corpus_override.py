@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -116,3 +116,26 @@ def test_supports_empty_override_corpus() -> None:
 
     metafunc = _FakeMetafunc({"wardenbot_anything": [_FakeFixtureDef(empty)]})
     assert resolve_corpus(metafunc, "wardenbot_anything", DEFAULT) == ()
+
+
+def test_fixturedef_without_function_is_skipped() -> None:
+    class NoFunc:
+        func = None
+
+    metafunc = _FakeMetafunc(
+        {"wardenbot_anything": [_FakeFixtureDef(_plugin_default), cast(Any, NoFunc())]}
+    )
+    assert resolve_corpus(metafunc, "wardenbot_anything", DEFAULT) == DEFAULT
+
+
+def test_override_without_inspectable_signature_is_called() -> None:
+    class Unsigned:
+        @property
+        def __signature__(self):
+            raise ValueError("no signature")
+
+        def __call__(self) -> tuple[tuple[str, str], ...]:
+            return (("x", "id-x"),)
+
+    metafunc = _FakeMetafunc({"wardenbot_anything": [_FakeFixtureDef(Unsigned())]})
+    assert resolve_corpus(metafunc, "wardenbot_anything", DEFAULT) == (("x", "id-x"),)

@@ -12,6 +12,8 @@ and pytest would raise ValueError.
 from __future__ import annotations
 
 import json
+import os
+from typing import cast
 
 import pytest
 
@@ -1088,3 +1090,44 @@ def test_missing_chatbot_without_nested_conftest_has_no_layout_hint(
     result = pytester.runpytest("--pyargs", "pytest_wardenbot.tests.test_off_topic")
     assert "No `chatbot` fixture configured" in result.stdout.str()
     assert "Found `chatbot`" not in result.stdout.str()
+
+
+def test_shipped_judge_test_supports_zero_argument_key_stubs(pytester: pytest.Pytester) -> None:
+    """Stubs written for 0.4 (`lambda: False`) must keep working."""
+    pytester.makeconftest(
+        _JUDGE_FIXTURE_HEADER
+        + """
+@pytest.fixture(autouse=True)
+def _patch(monkeypatch):
+    monkeypatch.setattr(judge_module, "judge_available", lambda: True)
+    monkeypatch.setattr(judge_module, "api_key_available", lambda: False)
+"""
+    )
+    result = pytester.runpytest("--pyargs", "pytest_wardenbot.tests.test_semantic", "-rs")
+    result.assert_outcomes(failed=1)
+    result.stdout.fnmatch_lines(["*ANTHROPIC_API_KEY not set*"])
+
+
+def test_scoped_conftest_hint_skips_unreadable_and_vendored_directories(tmp_path) -> None:
+    from types import SimpleNamespace
+
+    from pytest_wardenbot.plugin import scoped_conftest_hint
+
+    config = cast(pytest.Config, SimpleNamespace(rootpath=tmp_path))
+    vendored = tmp_path / ".venv" / "lib"
+    vendored.mkdir(parents=True)
+    (vendored / "conftest.py").write_text("def chatbot(): ...", encoding="utf-8")
+    assert scoped_conftest_hint(config, "chatbot") == ""
+
+    unreadable = tmp_path / "private"
+    unreadable.mkdir()
+    blocked = unreadable / "conftest.py"
+    blocked.write_text("def chatbot(): ...", encoding="utf-8")
+    blocked.chmod(0)
+    try:
+        if os.access(blocked, os.R_OK):
+            pytest.skip("running with privileges that ignore file permissions")
+        assert scoped_conftest_hint(config, "chatbot") == ""
+    finally:
+        blocked.chmod(0o644)
+    assert "private/conftest.py" in scoped_conftest_hint(config, "chatbot")

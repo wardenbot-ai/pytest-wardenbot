@@ -47,8 +47,10 @@ def test_semantic(
 
     if not judge_module.judge_available():
         unavailable("DeepEval not installed. Install with: pip install 'pytest-wardenbot[judge]'.")
-    key = judge_module.judge_key_env()
-    if not judge_module.api_key_available(key):
+    # Called without arguments so stubs written for earlier releases keep working;
+    # the default checks the default judge model's key.
+    if not judge_module.api_key_available():
+        key = judge_module.judge_key_env()
         unavailable(
             f"{key} not set. LLM-judge tests need an API key; the default judge model is "
             "Anthropic Haiku 4.5 (~$0.003 per case)."

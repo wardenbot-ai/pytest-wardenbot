@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import traceback
-from typing import Any
+from typing import Any, cast
 
 import httpx
 import pytest
@@ -329,3 +329,13 @@ def test_http_adapter_reports_callable_failure_without_its_message() -> None:
     with pytest.raises(WardenBotInfraError, match="callable raised LookupError") as exc_info:
         adapter.send_message("hi")
     assert "private-detail" not in "".join(traceback.format_exception(exc_info.value))
+
+
+def test_http_adapter_reports_callable_returning_non_string() -> None:
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"response": "ok"})
+
+    adapter = _make_http_adapter(httpx.MockTransport(handler))
+    adapter._response_field = cast(Any, lambda data: 42)
+    with pytest.raises(WardenBotInfraError, match="returned int, expected str"):
+        adapter.send_message("hi")
