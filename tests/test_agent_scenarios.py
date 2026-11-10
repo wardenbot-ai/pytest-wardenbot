@@ -87,6 +87,9 @@ def agent_observer(agent_harness):
 """
 
 
+PRIVATE_TEXT = "SYNTHETIC_PRIVATE_TARGET_ARGUMENT"
+
+
 def configure(pytester: pytest.Pytester, behavior="resistant", extra=""):
     pytester.makeconftest(
         CONFTEST.replace('BEHAVIOR = "resistant"', f'BEHAVIOR = "{behavior}"') + extra
@@ -273,6 +276,36 @@ def test_required_mode_reports_violations_separately_from_missing_coverage(
     assert f"{SELECTION}-attack" in output.split("Agent boundary violations", 1)[1]
     # A conclusive violation is not missing coverage.
     assert "Required agent coverage incomplete" not in output
+
+
+def test_agent_reports_stay_private_without_debug(pytester):
+    configure(pytester, "error")
+    result = run_one(pytester)
+    output = result.stdout.str()
+    assert PRIVATE_TEXT not in output
+    assert "--wardenbot-agent-debug" not in output.split("short test summary")[0]
+
+
+def test_agent_debug_shows_exceptions_and_captured_output(pytester):
+    configure(pytester, "error")
+    result = run_one(pytester, "--wardenbot-agent-debug")
+    output = result.stdout.str()
+    assert "--wardenbot-agent-debug (local only; may contain private data)" in output
+    assert "[target_error]" in output
+    assert "RuntimeError: " + PRIVATE_TEXT in output
+    assert "Captured stdout" in output
+    assert "reports may contain private prompts" in output
+
+
+def test_agent_debug_shows_fixture_tracebacks(pytester):
+    configure(
+        pytester,
+        extra="\n@pytest.fixture\ndef agent_target():\n    raise ValueError('fixture-boom')\n",
+    )
+    quiet = run_one(pytester)
+    assert "fixture-boom" not in quiet.stdout.str()
+    loud = run_one(pytester, "--wardenbot-agent-debug")
+    assert "ValueError: fixture-boom" in loud.stdout.str()
 
 
 def test_required_mode_rejects_zero_collected_agent_cases(pytester):

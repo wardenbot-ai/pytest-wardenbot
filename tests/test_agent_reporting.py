@@ -111,3 +111,15 @@ def test_definite_legacy_conversion_is_explicit_and_sanitized(
         result = to_legacy_attack_result(replace(finding(), outcome=outcome))
     assert result.succeeded is succeeded
     assert SECRET not in result.model_dump_json()
+
+
+def test_every_reason_code_is_documented() -> None:
+    from pathlib import Path
+
+    from pytest_wardenbot.agents import ReasonCode
+
+    page = (
+        Path(__file__).resolve().parents[1] / "docs" / "reference" / "agent-outcomes.md"
+    ).read_text(encoding="utf-8")
+    missing = [code.value for code in ReasonCode if f"`{code.value}`" not in page]
+    assert not missing, f"Document these reason codes in agent-outcomes.md: {missing}"

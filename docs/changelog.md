@@ -111,6 +111,16 @@ result into a passing one are listed here.
   by the shipped refusal-bypass and off-topic tests, for a bot's own phrasing.
 - `canary_present` and `system_prompt_overlap` helpers, and API reference
   entries for the canary module.
+- `--wardenbot-agent-debug`: packaged agent cases keep pytest's traceback and
+  captured output, and add the exceptions behind `target_error`,
+  `reset_error`, `cleanup_error`, `observer_error` and `timeout`. Reports
+  stay sanitized without it; the terminal summary warns while it is on.
+- `run_scenario(..., on_error=...)`: an opt-in hook that receives each
+  exception the runner records only as a reason code. Results and evidence
+  remain free of exception text.
+- [Agent outcomes and reason codes](reference/agent-outcomes.md): every
+  outcome and reason code with what it means and what to do. A test keeps it
+  in sync with `ReasonCode`.
 
 ### Deprecated
 

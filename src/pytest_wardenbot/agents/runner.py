@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from collections.abc import Callable
 from dataclasses import replace
 from uuid import uuid4
@@ -27,6 +28,15 @@ from pytest_wardenbot.agents.contracts import (
 from pytest_wardenbot.agents.evaluation import evaluate, required_capabilities
 
 Observer = Callable[[str], HarnessTrace]
+ErrorHook = Callable[[ReasonCode, BaseException], None]
+
+
+def _notify(hook: ErrorHook | None, reason: ReasonCode, exc: BaseException) -> None:
+    """Hand a swallowed exception to an opt-in local debug hook; never fail the run."""
+    if hook is None:
+        return
+    with contextlib.suppress(Exception):
+        hook(reason, exc)
 
 
 def _error(
@@ -59,6 +69,7 @@ async def run_scenario(
     *,
     observe: Observer | None = None,
     limits: RunLimits | None = None,
+    on_error: ErrorHook | None = None,
 ) -> RunResult:
     """Run with fresh state, a deadline, authoritative observations and cleanup.
 
@@ -72,6 +83,13 @@ async def run_scenario(
     supplied turn limit in their loop. This is not a process sandbox and cannot
     preempt blocking Python or an integration that suppresses cancellation.
     Unexpected exception messages/chains are not retained in public results.
+
+    ``on_error`` is an opt-in local debugging hook. It receives the reason code
+    and the exception object for each failure the runner records as a reason
+    code (reset, target, observer, timeout and cleanup errors). Exceptions can
+    contain private prompts, tool payloads or secrets: keep what the hook
+    receives out of shared reports and CI logs. Errors raised by the hook are
+    ignored.
     """
     limits = limits or RunLimits()
     context = current_trial_context()
@@ -80,7 +98,8 @@ async def run_scenario(
         capabilities = frozenset(target.capabilities)
         if not all(isinstance(item, AgentCapability) for item in capabilities):
             return _error(scenario, trial_id, limits, ReasonCode.INVALID_TARGET_RESULT)
-    except Exception:
+    except Exception as exc:
+        _notify(on_error, ReasonCode.INVALID_TARGET_RESULT, exc)
         return _error(scenario, trial_id, limits, ReasonCode.INVALID_TARGET_RESULT)
 
     if not required_capabilities(scenario).issubset(capabilities):
@@ -139,6 +158,7 @@ async def run_scenario(
             reason = ReasonCode.RATE_LIMITED
         else:
             reason = ReasonCode.TIMEOUT if isinstance(exc, TimeoutError) else phase
+        _notify(on_error, reason, exc)
         # The sink may contain a confirmed effect even if execution then failed.
         if execution_started and observe is not None and phase is not ReasonCode.OBSERVER_ERROR:
             try:
@@ -150,18 +170,34 @@ async def run_scenario(
                     capabilities=capabilities,
                     limits=limits,
                 )
-            except Exception:
+            except Exception as observe_exc:
+                _notify(on_error, ReasonCode.OBSERVER_ERROR, observe_exc)
                 result = None
         result = _error(scenario, trial_id, limits, reason, result)
     finally:
+        reset_raised = False
 
         async def reset_target() -> None:
-            await target.reset(trial_id)
+            nonlocal reset_raised
+            try:
+                await target.reset(trial_id)
+            except Exception as reset_exc:
+                reset_raised = True
+                _notify(on_error, ReasonCode.CLEANUP_ERROR, reset_exc)
+                raise
 
         cleaned, cleanup_cancelled = await _run_cleanup(
             reset_target(), limits.cleanup_timeout_seconds
         )
         if not cleaned:
+            if not reset_raised and not cleanup_cancelled:
+                _notify(
+                    on_error,
+                    ReasonCode.CLEANUP_ERROR,
+                    TimeoutError(
+                        f"target.reset did not finish within {limits.cleanup_timeout_seconds}s"
+                    ),
+                )
             result = _error(scenario, trial_id, limits, ReasonCode.CLEANUP_ERROR, result)
         if cleanup_cancelled and not cancelled:
             result = _error(scenario, trial_id, limits, ReasonCode.CANCELLED, result)
