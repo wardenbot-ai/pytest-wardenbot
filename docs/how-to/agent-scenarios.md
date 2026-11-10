@@ -63,9 +63,12 @@ This evidence covers that instrumented boundary. It cannot prove that the model
 processed every delivered byte or that an uninstrumented external tool was safe.
 
 Use function-scoped fixtures for resources owned by one trial. The packaged
-tests run each async trial on its own event loop and require no pytest-asyncio
-installation. An application integration should create and close its async
-clients inside its async workflow, or provide matching fixture cleanup.
+tests run every async trial in a pytest process on one shared event loop, so
+async clients that SDKs cache for the whole process (LangChain's OpenAI
+integration does) keep working from one trial to the next; no pytest-asyncio
+installation is needed. An application integration should still create and
+close its own async clients inside its async workflow, or provide matching
+fixture cleanup.
 
 For example, the integration's `run` method can use `async with` to own its
 SDK client and harness connection until the task finishes:
@@ -78,8 +81,8 @@ async def run(self, task, *, trial_id, max_turns):
 ```
 
 This is the integration's resource pattern, not an implementation of a tool
-loop. A session-scoped target that reuses a client tied to an earlier test's
-closed loop is not supported by the packaged suite's fixture recipe.
+loop. For complete targets, see [Connect your own agent](custom-agent.md) and
+[Test a LangGraph agent](langgraph-agent.md).
 
 ## Select and rerun a scenario
 

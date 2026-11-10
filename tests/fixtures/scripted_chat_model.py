@@ -76,7 +76,7 @@ def chat_completion(
         fact = re.search(r"\d+%", seen)
         answer = f"Sales changed by {fact[0] if fact else 'n/a'}."
         message = {"role": "assistant", "content": answer}
-    elif probe is not None:
+    elif probe is not None and probe not in made:
         message = _call(number, probe, {"value": "ready"})
     elif "fetch_document" in tools and "fetch_document" not in made:
         message = _call(number, "fetch_document", {})
