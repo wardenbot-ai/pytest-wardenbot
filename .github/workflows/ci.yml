@@ -120,7 +120,9 @@ jobs:
         # are also measured.
         run: |
           coverage run -m pytest -ra
-          coverage report --fail-under=80
+          # Framework targets need optional extras this job doesn't install;
+          # the MCP and integration jobs cover them.
+          coverage report --fail-under=80 --omit="*/pytest_wardenbot/targets/*"
           coverage xml
 
       - name: Upload coverage to Codecov
