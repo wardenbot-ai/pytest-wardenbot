@@ -5,6 +5,34 @@ All notable changes to `pytest-wardenbot` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- **`TrialTools`** (`pytest_wardenbot.mcp`): the per-trial bookkeeping every
+  tool-using target needs. It lists the harness tools, attaches the
+  controlled resource or prompt for those scenarios, dispatches tool calls,
+  enforces `max_turns`, and builds the `TargetRun`. Tool calls the model
+  requested that never reached the harness (malformed arguments, hidden
+  tools, calls your framework blocked, calls stopped by the turn limit) are
+  recorded as attempts, so they count against the agent.
+- **[Connect your own agent](how-to/custom-agent.md):** a complete, tested
+  OpenAI-compatible agent target in about 40 lines
+  (`examples/custom_agent/`).
+- **`CapabilityUnavailable`:** a target can raise it from `run` when a
+  capability turns out to be missing at run time, for example a model that
+  cannot call tools. The result is `unsupported` (`missing_capability`)
+  instead of a misleading `resisted`; a violation the harness already
+  recorded still wins.
+- **`MCPClient.record_blocked_call`** records a model-requested call your
+  application blocked before dispatch. It can only add violations.
+
+### Changed
+
+- `--wardenbot-agent-debug` now also shows the exception the MCP harness
+  replaces with its sanitized "transport or target execution failed" error,
+  so a failing model client or framework is visible locally.
+
 ## [0.5.0] — 2026-11-10
 
 **Trustworthy grading.** The chatbot graders are rebuilt and measured against

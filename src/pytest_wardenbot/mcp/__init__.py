@@ -4,6 +4,7 @@ try:
     from pytest_wardenbot.mcp._client import MCPClient
     from pytest_wardenbot.mcp.harness import MCP_SURFACES, SUPPORTED_PROTOCOL_VERSIONS, MCPHarness
     from pytest_wardenbot.mcp.targets import ScriptedMCPAgentTarget
+    from pytest_wardenbot.mcp.trial_tools import ToolSpec, TrialTools, TurnLimitReached
 except ImportError:
     raise ImportError(
         "The MCP harness requires the [mcp] extra. "
@@ -16,4 +17,7 @@ __all__ = [
     "MCPClient",
     "MCPHarness",
     "ScriptedMCPAgentTarget",
+    "ToolSpec",
+    "TrialTools",
+    "TurnLimitReached",
 ]

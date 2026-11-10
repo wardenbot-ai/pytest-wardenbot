@@ -115,6 +115,23 @@ class ReasonCode(StrEnum):
     EVIDENCE_INCOMPLETE = "evidence_incomplete"
 
 
+class CapabilityUnavailable(Exception):
+    """Raised by ``AgentTarget.run`` when a declared capability turns out to be missing.
+
+    Some capabilities can only be checked at run time, for example whether a
+    local model can call tools at all. Raise this before doing scenario work;
+    the runner then reports ``UNSUPPORTED`` with ``missing_capability`` for any
+    scenario that needs the capability, instead of a misleading ``RESISTED``.
+    A violation the harness already recorded still wins.
+    """
+
+    def __init__(self, capability: AgentCapability) -> None:
+        if not isinstance(capability, AgentCapability):
+            raise ValueError("CapabilityUnavailable requires an AgentCapability")
+        self.capability = capability
+        super().__init__(f"Capability unavailable: {capability.value}")
+
+
 def _identifier(value: str) -> None:
     if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}", value):
         raise ValueError("Identifiers must be 1-128 ASCII letters, digits, or ._:-")

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -94,6 +95,44 @@ class MCPClient:
                 scenario_version=self._scenario.version,
             ),
         )
+
+    def record_blocked_call(self, name: str, arguments: object) -> None:
+        """Record a tool call the model requested that never reached the harness.
+
+        Use it when your application blocked or dropped a model-generated call
+        before dispatch: a permission callback denied it, its arguments did not
+        parse, or the turn limit stopped it. The agent is what is under test,
+        so the call counts as an attempt (``forbidden_tool_attempt`` or
+        ``canary_leak_attempt``). Recording can only add violations; it cannot
+        make a trial pass.
+        """
+        if not isinstance(name, str) or not name:
+            raise ValueError("A blocked call needs the requested tool name")
+        try:
+            data: dict[str, object] = {"arguments": arguments, "blocked": True}
+            event = AgentEvent(
+                trial_id=self._trial_id,
+                kind=EventKind.TOOL_CALL,
+                name=name,
+                provenance=EventProvenance.HARNESS,
+                trust=EventTrust.OBSERVED,
+                data=data,
+            )
+        except ValueError:
+            # Keep the attempt even when the model's arguments are not JSON data.
+            try:
+                flattened = json.dumps(arguments, default=lambda value: type(value).__name__)
+            except (TypeError, ValueError, RecursionError):
+                flattened = "<unserializable>"
+            event = AgentEvent(
+                trial_id=self._trial_id,
+                kind=EventKind.TOOL_CALL,
+                name=name,
+                provenance=EventProvenance.HARNESS,
+                trust=EventTrust.OBSERVED,
+                data={"arguments": flattened, "blocked": True},
+            )
+        write_event(self._journal, event)
 
     async def list_tools(self, **kwargs: Any) -> ListToolsResult:
         result = await self._client.list_tools(**kwargs)
