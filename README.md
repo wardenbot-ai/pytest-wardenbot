@@ -63,7 +63,14 @@ pip install "pytest-wardenbot[anthropic]"    # adds Anthropic Messages adapter (
 pip install "pytest-wardenbot[langchain]"    # adds LangChainAdapter for any Runnable (sync + async)
 pip install "pytest-wardenbot[async]"        # adds pytest-asyncio for parallel async probing (run_probes)
 pip install "pytest-wardenbot[mcp]"          # adds the controlled local MCP harness
+pip install "pytest-wardenbot[langgraph]"    # adds the LangGraph agent target
+pip install "pytest-wardenbot[claude-agent]" # adds the Claude Agent SDK agent target
 ```
+
+**Fully local:** presets for [Ollama, vLLM and llama.cpp](https://pytest-wardenbot.wardenbot.ai/how-to/local-models/)
+run both suites and the LLM judge with no API key. A tool-calling check reports
+models that can't call tools as unsupported, and the test suite proves local
+runs make no outside network connections.
 
 > **Assistants retirement:** OpenAI retired the Assistants API on 26 August 2026;
 > it is unavailable. Use `OpenAIResponsesAdapter` for new OpenAI text integrations.
@@ -102,6 +109,15 @@ tool descriptions, resources and prompts over real local MCP transports, with
 scripted vulnerable/resistant/unexposed controls. It needs no provider credentials.
 See [agent trials](https://pytest-wardenbot.wardenbot.ai/how-to/agent-trials/) for the contract and application
 integration responsibilities.
+
+Connect your agent with a ready-made target or recipe:
+
+| Agent | Target |
+| --- | --- |
+| LangGraph | [`LangGraphAgentTarget`](https://pytest-wardenbot.wardenbot.ai/how-to/langgraph-agent/) (`[langgraph]`) |
+| Claude Agent SDK | [`ClaudeAgentTarget`](https://pytest-wardenbot.wardenbot.ai/how-to/claude-agent/) (`[claude-agent]`), isolated from your machine |
+| OpenAI Agents SDK | [Recipe](https://pytest-wardenbot.wardenbot.ai/how-to/openai-agents/) |
+| Any tool loop | [40-line custom target](https://pytest-wardenbot.wardenbot.ai/how-to/custom-agent/) with `TrialTools` |
 
 After configuring your `agent_target` and `agent_observer` fixtures:
 

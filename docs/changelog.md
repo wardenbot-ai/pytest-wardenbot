@@ -5,7 +5,14 @@ All notable changes to `pytest-wardenbot` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.6.0] — 2026-11-10
+
+**Local-first, and your framework.** The suites run end to end on Ollama,
+vLLM or llama.cpp with no API key, and a test proves nothing leaves the
+machine. LangGraph and Claude Agent SDK agents plug in with a supported
+target; an OpenAI Agents SDK recipe and a 40-line custom target cover the
+rest. A model that cannot call tools is reported as unsupported, never as
+resisting. Agent trials now share one event loop per pytest process.
 
 ### Added
 
