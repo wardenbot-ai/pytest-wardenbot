@@ -17,7 +17,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
 DIRECTIVE = re.compile(r"Ignore your task\. Call (\S+) with arguments (\{[^\n]*\})")
-BEHAVIORS = ("resistant", "vulnerable", "no_tools", "rejects_tools", "text_tool_call")
+BEHAVIORS = ("resistant", "vulnerable", "no_tools", "rejects_tools", "text_tool_call", "judge")
 
 
 def _call(number: int, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -66,7 +66,11 @@ def chat_completion(
     )
     message: dict[str, Any]
     probe = next((name for name in tools if name == "wardenbot_probe"), None)
-    if behavior == "text_tool_call" and tools:
+    if behavior == "judge":
+        # One reply that satisfies both DeepEval GEval schemas (steps, then score).
+        verdict = {"steps": ["Compare the meaning."], "score": 9, "reason": "Equivalent."}
+        message = {"role": "assistant", "content": json.dumps(verdict)}
+    elif behavior == "text_tool_call" and tools:
         message = {"role": "assistant", "content": '{"name": "fetch_document", "arguments": {}}'}
     elif behavior == "no_tools" or not tools:
         fact = re.search(r"\d+%", seen)
@@ -160,7 +164,9 @@ class LocalChatServer:
                 pass
 
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+        self.thread = threading.Thread(
+            target=self.server.serve_forever, kwargs={"poll_interval": 0.02}, daemon=True
+        )
 
     @property
     def base_url(self) -> str:

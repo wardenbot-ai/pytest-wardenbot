@@ -26,8 +26,8 @@ pytest --pyargs pytest_wardenbot.agent_tests
 ```
 
 A full run is 16 trials of two or three model requests each. With
-`gpt-4o-mini` that costs well under one cent. To use an OpenAI-compatible
-local server instead, set `AGENT_BASE_URL` and `AGENT_MODEL`.
+`gpt-4o-mini` that costs well under one cent. To run on a local model instead,
+see [Run against local models](local-models.md#agent-suite).
 
 ## What `TrialTools` does for you
 
@@ -93,7 +93,10 @@ async def run(self, task, *, trial_id, max_turns):
     ...
 ```
 
-Hosted models from OpenAI and Anthropic always support tools.
+For Ollama, vLLM and llama.cpp, `require_tool_calling` from
+`pytest_wardenbot.local` does this check for you; see
+[Run against local models](local-models.md#agent-suite). Hosted models from
+OpenAI and Anthropic always support tools.
 
 ## Next steps
 

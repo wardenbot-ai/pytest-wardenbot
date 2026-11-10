@@ -255,6 +255,16 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         ),
     )
     group.addoption(
+        "--wardenbot-judge-model",
+        default=None,
+        metavar="MODEL",
+        help=(
+            "Model for the shipped LLM-judge test (`wardenbot_judge_model` fixture). "
+            "Default: $WARDENBOT_JUDGE_MODEL, else claude-haiku-4-5. Local judges: "
+            "ollama/MODEL, vllm/MODEL or llamacpp/MODEL (no API key)."
+        ),
+    )
+    group.addoption(
         "--wardenbot-judge-consensus",
         choices=("majority", "unanimous", "any"),
         default="majority",
@@ -453,6 +463,21 @@ def judge_case() -> JudgeCase:
     `test_semantic` test skips with a helpful message.
     """
     pytest.skip(_NO_JUDGE_CASES_MESSAGE)
+
+
+@pytest.fixture
+def wardenbot_judge_model(request: pytest.FixtureRequest) -> str:
+    """Judge model for the shipped LLM-judge test.
+
+    Reads `--wardenbot-judge-model`, then the `WARDENBOT_JUDGE_MODEL`
+    environment variable, else `claude-haiku-4-5`. Prefix a model with
+    `ollama/`, `vllm/` or `llamacpp/` to judge with a local server and no API
+    key, for example `ollama/qwen2.5:7b`. Override the fixture to choose in code.
+    """
+    from pytest_wardenbot.grading.judge import DEFAULT_JUDGE_MODEL
+
+    option = request.config.getoption("--wardenbot-judge-model", default=None)
+    return str(option or os.environ.get("WARDENBOT_JUDGE_MODEL", "").strip() or DEFAULT_JUDGE_MODEL)
 
 
 @pytest.fixture

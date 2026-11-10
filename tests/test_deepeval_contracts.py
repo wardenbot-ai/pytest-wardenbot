@@ -211,3 +211,14 @@ def test_gemini_missing_optional_sdk_has_actionable_error(monkeypatch: pytest.Mo
     monkeypatch.setitem(sys.modules, "google.genai", None)
     with pytest.raises(judge.JudgeUnavailableError, match="pip install google-genai"):
         judge._build_deepeval_model("gemini-2.5-flash", 0.0)
+
+
+def test_local_judge_uses_the_real_deepeval_local_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    deepeval_models = pytest.importorskip("deepeval.models")
+    monkeypatch.delenv("WARDENBOT_JUDGE_BASE_URL", raising=False)
+    monkeypatch.delenv("OLLAMA_HOST", raising=False)
+    model = judge._build_deepeval_model("ollama/qwen2.5:7b", 0.0)
+    assert isinstance(model, deepeval_models.LocalModel)
+    assert model.base_url == "http://127.0.0.1:11434/v1"
+    assert model.generation_kwargs == {"response_format": {"type": "json_object"}}
+    assert model.get_model_name() == "qwen2.5:7b (Local Model)"

@@ -108,6 +108,7 @@ nav:
       - Test application boundaries: how-to/application-packs.md
       - Select agent scenarios: how-to/agent-scenarios.md
       - Connect your own agent: how-to/custom-agent.md
+      - Run against local models: how-to/local-models.md
       - Run the controlled MCP harness: how-to/mcp-harness.md
       - Connect the reference agent: how-to/reference-agent.md
       - Community release updates: how-to/community-updates.md
