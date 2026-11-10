@@ -117,6 +117,7 @@ nav:
       - API: reference/api.md
       - Pytest markers: reference/markers.md
       - Grading accuracy: reference/grading-accuracy.md
+      - Agent outcomes and reason codes: reference/agent-outcomes.md
       - Versioning and stability: reference/stability.md
   - FAQ: faq.md
   - Changelog: changelog.md

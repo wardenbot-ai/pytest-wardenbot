@@ -253,3 +253,67 @@ async def test_reset_is_inside_execution_deadline() -> None:
     assert ReasonCode.TIMEOUT in result.reason_codes
     assert len(target.resets) == 2
     assert not target.entered.is_set()
+
+
+# ---------------------------------------------------------------------------
+# Opt-in local debug hook
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_on_error_receives_target_exception_without_changing_the_result() -> None:
+    target = Target()
+    target.fail = True
+    seen: list[tuple[ReasonCode, BaseException]] = []
+    result = await run_scenario(
+        target,
+        scenario(),
+        observe=target.traces.__getitem__,
+        on_error=lambda reason, exc: seen.append((reason, exc)),
+    )
+    assert result.outcome is Outcome.ERROR
+    assert [reason for reason, _ in seen] == [ReasonCode.TARGET_ERROR]
+    assert str(seen[0][1]) == "synthetic-private-provider-value"
+    assert "synthetic-private" not in repr(result)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("reset_at", "reason"), [(1, ReasonCode.RESET_ERROR), (2, ReasonCode.CLEANUP_ERROR)]
+)
+async def test_on_error_receives_reset_and_cleanup_exceptions(reset_at, reason) -> None:
+    target = Target()
+    target.fail_reset_at = reset_at
+    seen: list[tuple[ReasonCode, BaseException]] = []
+    await run_scenario(
+        target,
+        scenario(),
+        observe=target.traces.__getitem__,
+        on_error=lambda r, exc: seen.append((r, exc)),
+    )
+    assert [(r, str(exc)) for r, exc in seen] == [(reason, "synthetic-private-reset-value")]
+
+
+@pytest.mark.asyncio
+async def test_on_error_receives_observer_exception() -> None:
+    def observe(trial_id: str) -> HarnessTrace:
+        raise ValueError("synthetic-private-observer-value")
+
+    seen: list[ReasonCode] = []
+    await run_scenario(Target(), scenario(), observe=observe, on_error=lambda r, _: seen.append(r))
+    assert seen == [ReasonCode.OBSERVER_ERROR]
+
+
+@pytest.mark.asyncio
+async def test_failing_on_error_hook_cannot_break_the_run() -> None:
+    target = Target()
+    target.fail = True
+
+    def broken(reason: ReasonCode, exc: BaseException) -> None:
+        raise RuntimeError("hook bug")
+
+    result = await run_scenario(
+        target, scenario(), observe=target.traces.__getitem__, on_error=broken
+    )
+    assert result.outcome is Outcome.ERROR
+    assert ReasonCode.TARGET_ERROR in result.reason_codes

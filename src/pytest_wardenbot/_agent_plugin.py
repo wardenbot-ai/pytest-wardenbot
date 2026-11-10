@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import traceback
 import warnings
 from dataclasses import dataclass, field
 from typing import Any, cast
@@ -55,6 +56,11 @@ class _Coverage:
 
 
 _COVERAGE: pytest.StashKey[_Coverage] = pytest.StashKey()
+_DEBUG: pytest.StashKey[list[str]] = pytest.StashKey()
+
+
+def _debug_enabled(config: pytest.Config) -> bool:
+    return bool(config.getoption("wardenbot_agent_debug", default=False))
 
 
 class _CoverageReporter:
@@ -109,6 +115,16 @@ def add_options(group: pytest.OptionGroup) -> None:
         action="store_true",
         default=False,
         help="Require complete baseline and attack coverage for every selected agent scenario.",
+    )
+    group.addoption(
+        "--wardenbot-agent-debug",
+        action="store_true",
+        default=False,
+        help=(
+            "Show exception tracebacks and captured output for packaged agent cases. "
+            "Local debugging only: reports can then contain private prompts, tool "
+            "payloads or secrets."
+        ),
     )
 
 
@@ -223,8 +239,12 @@ def record_report(item: pytest.Item, report: pytest.TestReport) -> None:
         item.user_properties.extend(properties)
     # User fixture construction/teardown and captured target output can include
     # secrets before a RunResult exists. The packaged suite publishes structural
-    # diagnostics only; never embed those exception chains or capture sections.
-    report.sections.clear()
+    # diagnostics only; never embed those exception chains or capture sections,
+    # unless the user explicitly asked for local debug output.
+    debug = _debug_enabled(item.config)
+    original = str(report.longrepr) if debug and report.longrepr is not None else ""
+    if not debug:
+        report.sections.clear()
     if hasattr(report, "wasxfail"):
         # JUnit and terminal reporting use this field directly rather than the
         # sanitized longrepr. A caller's xfail reason can contain free text.
@@ -252,13 +272,28 @@ def record_report(item: pytest.Item, report: pytest.TestReport) -> None:
                 if codes & {c.value for c in _ATTEMPTS} and not codes & {c.value for c in _EFFECTS}
                 else "Confirmed boundary violation"
             )
-        report.longrepr = label + ". " + diagnostic
+        report.longrepr = label + ". " + diagnostic + _debug_details(item, original)
     elif report.skipped:
         report.longrepr = (
             str(item.path),
             item.location[1] or 0,
             "Agent case skipped. " + diagnostic,
         )
+
+
+def _debug_details(item: pytest.Item, original: str) -> str:
+    if not _debug_enabled(item.config):
+        return ""
+    parts = list(item.stash.get(_DEBUG, []))
+    # Keep pytest's own traceback (for example a failing fixture), but not the
+    # packaged diagnostic it would duplicate.
+    if original and "outcome=" not in original:
+        parts.insert(0, original.rstrip())
+    if not parts:
+        return ""
+    return "\n\n--wardenbot-agent-debug (local only; may contain private data):\n\n" + (
+        "\n\n".join(parts)
+    )
 
 
 def session_finish(session: pytest.Session) -> None:
@@ -272,6 +307,12 @@ def session_finish(session: pytest.Session) -> None:
 
 def terminal_summary(terminalreporter: Any) -> None:
     config = terminalreporter.config
+    if _debug_enabled(config):
+        terminalreporter.write_line(
+            "wardenbot agent debug output is on: reports may contain private prompts, "
+            "tool payloads or secrets. Don't publish them.",
+            yellow=True,
+        )
     if not config.getoption("wardenbot_agent_required", default=False):
         return
     coverage = config.stash[_COVERAGE]
@@ -356,14 +397,22 @@ def wardenbot_agent_result(
     wardenbot_agent_attack_enabled: bool,
     wardenbot_agent_limits: RunLimits,
 ) -> RunResult:
+    debug: list[str] = []
+
+    def collect(reason: ReasonCode, exc: BaseException) -> None:
+        debug.append(f"[{reason.value}]\n" + "".join(traceback.format_exception(exc)).rstrip())
+
     result = asyncio.run(
         run_scenario(
             agent_target,
             wardenbot_agent_scenario,
             observe=agent_observer,
             limits=wardenbot_agent_limits,
+            on_error=collect if _debug_enabled(request.config) else None,
         )
     )
+    if debug:
+        request.node.stash[_DEBUG] = debug
     phase = "attack" if wardenbot_agent_attack_enabled else "baseline"
     request.node.user_properties.extend(
         [

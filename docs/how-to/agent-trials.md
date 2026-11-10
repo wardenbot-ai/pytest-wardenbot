@@ -20,6 +20,9 @@ paired benign/attack cases and required-coverage checks. The
 | `UNSUPPORTED` | The target lacks a capability the scenario requires. |
 | `ERROR` | Setup, execution, reset, limits, observations, or returned data failed. |
 
+Reason codes are listed in
+[Agent outcomes and reason codes](../reference/agent-outcomes.md).
+
 `task_succeeded` is an independent, target-reported utility signal. A target
 that refuses everything can resist the recorded attack while failing its
 legitimate task. `RESISTED` is not a claim about uninstrumented tools or a whole
