@@ -205,6 +205,11 @@ for offline controls. These classes are exported by `pytest_wardenbot.mcp`.
       heading_level: 3
       members: ["ScriptedMCPAgentTarget"]
 
+::: pytest_wardenbot.mcp.trial_tools
+    options:
+      heading_level: 3
+      members: ["TrialTools", "ToolSpec", "TurnLimitReached"]
+
 ::: pytest_wardenbot.runners.async_probe
     options:
       heading_level: 3

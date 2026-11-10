@@ -48,7 +48,8 @@ eight passing baselines and eight confirmed attack failures. `"no_exposure"`
 passes its benign baselines but produces inconclusive attack failures.
 
 For your application, replace `agent_target` with an implementation of
-`AgentTarget`. Its async `run(task, *, trial_id, max_turns)` owns the application's
+`AgentTarget`. [Connect your own agent](custom-agent.md) has a complete,
+tested target for an OpenAI-compatible tool loop that you can adapt. Its async `run(task, *, trial_id, max_turns)` owns the application's
 tool loop and returns `TargetRun`; `reset(trial_id)` establishes clean trial
 state and releases it afterward. Use the paired attack flag when constructing
 the controlled input: `False` serves the legitimate content, and `True` serves

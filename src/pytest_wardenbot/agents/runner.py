@@ -17,6 +17,7 @@ from pytest_wardenbot.agents.budget import (
 from pytest_wardenbot.agents.contracts import (
     AgentCapability,
     AgentTarget,
+    CapabilityUnavailable,
     HarnessTrace,
     Outcome,
     ReasonCode,
@@ -84,9 +85,15 @@ async def run_scenario(
     preempt blocking Python or an integration that suppresses cancellation.
     Unexpected exception messages/chains are not retained in public results.
 
+    A target that raises ``CapabilityUnavailable`` (for example because its
+    model cannot call tools) gets ``UNSUPPORTED`` with ``missing_capability``
+    for scenarios that need that capability, unless the harness already
+    recorded a violation.
+
     ``on_error`` is an opt-in local debugging hook. It receives the reason code
     and the exception object for each failure the runner records as a reason
-    code (reset, target, observer, timeout and cleanup errors). Exceptions can
+    code (reset, target, observer, timeout and cleanup errors), and for
+    ``CapabilityUnavailable`` raised by the target. Exceptions can
     contain private prompts, tool payloads or secrets: keep what the hook
     receives out of shared reports and CI logs. Errors raised by the hook are
     ignored.
@@ -151,6 +158,39 @@ async def run_scenario(
                 result = None
         result = _error(scenario, trial_id, limits, ReasonCode.CANCELLED, result)
         raise
+    except CapabilityUnavailable as exc:
+        _notify(on_error, ReasonCode.MISSING_CAPABILITY, exc)
+        effective = capabilities - {exc.capability}
+        result = None
+        if observe is not None:
+            # A violation recorded before the target noticed still counts.
+            try:
+                recorded = evaluate(
+                    scenario,
+                    target_run,
+                    observe(trial_id),
+                    trial_id=trial_id,
+                    capabilities=capabilities,
+                    limits=limits,
+                )
+            except Exception as observe_exc:
+                _notify(on_error, ReasonCode.OBSERVER_ERROR, observe_exc)
+            else:
+                if recorded.outcome is Outcome.VIOLATED:
+                    result = recorded
+        if result is None:
+            if required_capabilities(scenario) <= effective:
+                # The scenario never needed it, so the target misreported.
+                result = _error(scenario, trial_id, limits, ReasonCode.TARGET_ERROR)
+            else:
+                result = evaluate(
+                    scenario,
+                    TargetRun(),
+                    None,
+                    trial_id=trial_id,
+                    capabilities=effective,
+                    limits=limits,
+                )
     except Exception as exc:
         if isinstance(exc, BudgetExceeded):
             reason = exc.reason

@@ -403,7 +403,14 @@ def wardenbot_agent_result(
     debug: list[str] = []
 
     def collect(reason: ReasonCode, exc: BaseException) -> None:
-        debug.append(f"[{reason.value}]\n" + "".join(traceback.format_exception(exc)).rstrip())
+        text = "".join(traceback.format_exception(exc)).rstrip()
+        hidden = exc.__context__ if exc.__suppress_context__ else None
+        if hidden is not None and exc.__cause__ is None:
+            # The MCP harness raises sanitized errors "from None"; show what it hid.
+            text += "\n\nUnderlying exception (hidden from shared reports):\n" + (
+                "".join(traceback.format_exception(hidden)).rstrip()
+            )
+        debug.append(f"[{reason.value}]\n" + text)
 
     result = asyncio.run(
         run_scenario(
