@@ -84,14 +84,19 @@ def wardenbot_jailbreak_prompts():
     return _MY_CORPUS
 ```
 
-This will silently fall back to the bundled corpus (fixture not callable
-without args):
+This fails collection with a `WardenBotConfigError` explaining the
+problem, because the fixture can't be called without arguments:
 
 ```python
 @pytest.fixture
 def wardenbot_jailbreak_prompts(my_other_fixture):  # WILL NOT WORK
     return my_other_fixture.build()
 ```
+
+An override that raises, or returns `None` or something that isn't iterable,
+fails the same way. Earlier releases silently fell back to the bundled
+corpus, which ran different prompts than you configured. Return `()` to
+collect no cases.
 
 ## Entry shape per corpus
 

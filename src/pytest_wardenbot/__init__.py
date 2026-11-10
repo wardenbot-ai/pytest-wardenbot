@@ -5,7 +5,7 @@ See https://github.com/wardenbot-ai/pytest-wardenbot for documentation.
 
 from importlib.metadata import PackageNotFoundError, version
 
-from pytest_wardenbot._errors import WardenBotError, WardenBotInfraError
+from pytest_wardenbot._errors import WardenBotConfigError, WardenBotError, WardenBotInfraError
 from pytest_wardenbot.adapters.base import (
     AsyncChatbotAdapter,
     ChatbotAdapter,
@@ -26,6 +26,7 @@ __all__ = [
     "ChatbotResponse",
     "JudgeCase",
     "MatchType",
+    "WardenBotConfigError",
     "WardenBotError",
     "WardenBotInfraError",
     "__version__",

@@ -111,6 +111,8 @@ result into a passing one are listed here.
   by the shipped refusal-bypass and off-topic tests, for a bot's own phrasing.
 - `canary_present` and `system_prompt_overlap` helpers, and API reference
   entries for the canary module.
+- `judge_key_env(model)` and `api_key_available(model=...)` find the API key
+  variable for a judge model's vendor.
 - `--wardenbot-agent-debug`: packaged agent cases keep pytest's traceback and
   captured output, and add the exceptions behind `target_error`,
   `reset_error`, `cleanup_error`, `observer_error` and `timeout`. Reports
@@ -122,6 +124,16 @@ result into a passing one are listed here.
   outcome and reason code with what it means and what to do. A test keeps it
   in sync with `ReasonCode`.
 
+- **LLM-judge tests fail instead of skipping** when judge cases are
+  configured but the `[judge]` extra is missing or `ANTHROPIC_API_KEY` is
+  unset. Pass `--wardenbot-judge-optional` to keep skipping, for example on
+  fork pull requests. Tests still skip when no `judge_case` fixture is
+  configured. *Can fail where 0.4.0 passed (skipped).*
+- **Unusable corpus overrides fail collection** with `WardenBotConfigError`
+  (new, exported from `pytest_wardenbot`) instead of silently using the
+  bundled corpus: an override that takes parameters, raises, or returns
+  `None` or a non-iterable.
+
 ### Deprecated
 
 - `test_canary_never_appears_in_responses`. Every leak check now tests the
@@ -131,6 +143,14 @@ result into a passing one are listed here.
 
 ### Fixed
 
+- A `chatbot` or `agent_target` fixture defined in a nested conftest.py
+  (for example `tests/conftest.py`) is invisible to the installed suite, which
+  produced dozens of "No `chatbot` fixture configured" errors. The error now
+  names the conftest.py it found and explains how to fix the layout.
+- `HTTPChatbotAdapter` hid its helpful extraction errors behind "could not
+  be extracted using response_field". Errors now name the missing field and
+  the available keys, or the wrong value type, without including response
+  values.
 - With `--wardenbot-agent-required`, confirmed violations were listed under
   "Required agent coverage incomplete". They now appear under "Agent boundary
   violations", and the incomplete-coverage list holds only cases that did not
@@ -142,6 +162,12 @@ result into a passing one are listed here.
 
 ### Security
 
+- Response redaction also covers token keys (`token`, `access_token`,
+  `refreshToken`, `jwt`...), `credential`, `private_key` and `passphrase`,
+  and replaces secret-looking strings anywhere in a stored payload: bearer
+  tokens, JWTs, private key blocks and common API key formats.
+  `ChatbotResponse.raw` is left out of `repr`, so it no longer appears in
+  tracebacks.
 - Remediation text no longer recommends filtering the matched phrases or the
   canary out of responses, which would hide a failure from the test without
   fixing it.

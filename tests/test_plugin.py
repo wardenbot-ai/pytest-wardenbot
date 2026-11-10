@@ -368,10 +368,10 @@ def judge_case(request):
 """
 
 
-def test_shipped_judge_test_skips_when_deepeval_missing(
+def test_shipped_judge_test_fails_when_deepeval_missing(
     pytester: pytest.Pytester,
 ) -> None:
-    """DeepEval not installed -> skip with install instructions."""
+    """Judge cases configured but DeepEval missing -> fail, so the run isn't falsely green."""
     pytester.makeconftest(
         _JUDGE_FIXTURE_HEADER
         + """
@@ -381,14 +381,18 @@ def _patch_unavailable(monkeypatch):
 """
     )
     result = pytester.runpytest("--pyargs", "pytest_wardenbot.tests.test_semantic", "-v", "-rs")
-    result.assert_outcomes(skipped=1)
-    result.stdout.fnmatch_lines(["*DeepEval not installed*"])
+    result.assert_outcomes(failed=1)
+    result.stdout.fnmatch_lines(["*DeepEval not installed*--wardenbot-judge-optional*"])
+    optional = pytester.runpytest(
+        "--pyargs", "pytest_wardenbot.tests.test_semantic", "-rs", "--wardenbot-judge-optional"
+    )
+    optional.assert_outcomes(skipped=1)
 
 
-def test_shipped_judge_test_skips_when_api_key_missing(
+def test_shipped_judge_test_fails_when_api_key_missing(
     pytester: pytest.Pytester,
 ) -> None:
-    """DeepEval installed but API key missing -> skip with env-var note."""
+    """DeepEval installed but API key missing -> fail with the env-var name."""
     pytester.makeconftest(
         _JUDGE_FIXTURE_HEADER
         + """
@@ -403,8 +407,13 @@ def _patch_no_api_key(monkeypatch):
 """
     )
     result = pytester.runpytest("--pyargs", "pytest_wardenbot.tests.test_semantic", "-v", "-rs")
-    result.assert_outcomes(skipped=1)
+    result.assert_outcomes(failed=1)
     result.stdout.fnmatch_lines(["*ANTHROPIC_API_KEY not set*"])
+    optional = pytester.runpytest(
+        "--pyargs", "pytest_wardenbot.tests.test_semantic", "-rs", "--wardenbot-judge-optional"
+    )
+    optional.assert_outcomes(skipped=1)
+    optional.stdout.fnmatch_lines(["*ANTHROPIC_API_KEY not set*"])
 
 
 def test_shipped_judge_test_passes_with_mocked_factory(
@@ -1044,3 +1053,38 @@ def wardenbot_compliance_markers():
     result = pytester.runpytest("--pyargs", "pytest_wardenbot.tests.test_refusal_bypass", "-v")
     result.assert_outcomes(failed=3)
     result.stdout.fnmatch_lines(["*refusal bypass (compliance detected)*"])
+
+
+def test_broken_corpus_override_fails_collection_instead_of_falling_back(
+    pytester: pytest.Pytester,
+) -> None:
+    pytester.makeconftest(
+        _SAFE_BOT_CONFTEST
+        + """
+@pytest.fixture
+def wardenbot_jailbreak_prompts(request):
+    return (("custom prompt", "custom-id"),)
+"""
+    )
+    result = pytester.runpytest("--pyargs", "pytest_wardenbot.tests.test_prompt_injection")
+    assert result.ret != 0
+    result.stdout.fnmatch_lines(["*WardenBotConfigError*wardenbot_jailbreak_prompts*parameters*"])
+
+
+def test_missing_chatbot_explains_nested_conftest_layout(pytester: pytest.Pytester) -> None:
+    tests_dir = pytester.mkdir("tests")
+    (tests_dir / "conftest.py").write_text(_SAFE_BOT_CONFTEST, encoding="utf-8")
+    result = pytester.runpytest("--pyargs", "pytest_wardenbot.tests.test_off_topic")
+    assert result.ret != 0
+    output = result.stdout.str()
+    assert "No `chatbot` fixture configured" in output
+    assert "Found `chatbot` in tests/conftest.py" in output
+    assert "pytest tests" in output
+
+
+def test_missing_chatbot_without_nested_conftest_has_no_layout_hint(
+    pytester: pytest.Pytester,
+) -> None:
+    result = pytester.runpytest("--pyargs", "pytest_wardenbot.tests.test_off_topic")
+    assert "No `chatbot` fixture configured" in result.stdout.str()
+    assert "Found `chatbot`" not in result.stdout.str()

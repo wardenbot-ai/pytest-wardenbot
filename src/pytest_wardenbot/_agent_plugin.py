@@ -369,10 +369,13 @@ def agent_target(request: pytest.FixtureRequest) -> AgentTarget:
                 ("wardenbot.agent.reason_codes", "missing_agent_target"),
             ]
         )
+    from pytest_wardenbot.plugin import scoped_conftest_hint
+
     pytest.fail(
         "No `agent_target` fixture configured. Override it with your AgentTarget; "
         "build its controlled input using `wardenbot_agent_scenario` and "
-        "`wardenbot_agent_attack_enabled`. See docs/how-to/agent-scenarios.md.",
+        "`wardenbot_agent_attack_enabled`. See docs/how-to/agent-scenarios.md."
+        + scoped_conftest_hint(request.config, "agent_target"),
         pytrace=False,
     )
 

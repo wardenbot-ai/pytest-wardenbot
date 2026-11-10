@@ -340,3 +340,26 @@ def test_default_factory_raises_judge_unavailable_when_deepeval_missing(
     case = brand_alignment_case(prompt="p", brand_voice="x")
     with pytest.raises(JudgeUnavailableError, match="DeepEval is not installed"):
         _default_deepeval_judge_factory(case, "actual", "claude-haiku-4-5", 0.0)
+
+
+@pytest.mark.parametrize(
+    ("model", "env_var"),
+    [
+        ("claude-haiku-4-5", "ANTHROPIC_API_KEY"),
+        ("gpt-4o-mini", "OPENAI_API_KEY"),
+        ("o4-mini", "OPENAI_API_KEY"),
+        ("gemini-2.0-flash", "GOOGLE_API_KEY"),
+    ],
+)
+def test_judge_key_env_follows_the_model_vendor(model: str, env_var: str) -> None:
+    from pytest_wardenbot.grading.judge import judge_key_env
+
+    assert judge_key_env(model) == env_var
+
+
+def test_api_key_available_checks_the_models_vendor_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")  # pragma: allowlist secret
+    assert api_key_available(model="gpt-4o-mini") is True
+    assert api_key_available(model="claude-haiku-4-5") is False
+    assert api_key_available() is False

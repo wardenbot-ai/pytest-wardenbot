@@ -93,6 +93,7 @@ Measured accuracy and known misses: [Grading accuracy](grading-accuracy.md).
         - "JudgeUnavailableError"
         - "judge_available"
         - "api_key_available"
+        - "judge_key_env"
         - "judge_response"
         - "assert_judge_passes"
         - "judge_ensemble"

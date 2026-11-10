@@ -126,16 +126,20 @@ legal advice. Recommend consulting a lawyer for any legal question."`
 the request, explained why, and redirected to allowed topics." Use after
 a deterministic check confirms the bot DID refuse.
 
-## Skip behavior
+## When the judge can't run
 
-The shipped `test_semantic` skips gracefully if:
+- No `judge_case` fixture configured: `test_semantic` **skips** with an
+  onboarding template.
+- Judge cases configured, but the `[judge]` extra isn't installed or
+  `ANTHROPIC_API_KEY` isn't set: `test_semantic` **fails** with the fix. A
+  run that skipped the judge checks you configured would look green without
+  running them.
 
-- `[judge]` extra is not installed (with install instructions)
-- `ANTHROPIC_API_KEY` is not set (with the env-var name)
-- `judge_case` fixture is not configured (with onboarding template)
-
-You can have all three skip paths in CI and the test simply skips — it
-won't fail the build.
+Pass `--wardenbot-judge-optional` to skip in that second case instead, for
+example on fork pull requests that have no access to secrets. For your own
+judge tests with other models, `judge_key_env(model)` returns the key's
+variable name (`OPENAI_API_KEY` for `gpt-*`, `GOOGLE_API_KEY` for
+`gemini-*`).
 
 ## Source
 

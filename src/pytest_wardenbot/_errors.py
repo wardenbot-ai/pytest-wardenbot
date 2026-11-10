@@ -33,3 +33,12 @@ class WardenBotInfraError(WardenBotError):
 
     A wrapped exception may be preserved as `__cause__`; this is adapter-specific.
     """
+
+
+class WardenBotConfigError(WardenBotError):
+    """pytest-wardenbot is configured in a way it cannot honor.
+
+    Raised at collection time, for example when a corpus override fixture
+    cannot be read, so the run fails instead of silently testing something
+    other than what you configured.
+    """
