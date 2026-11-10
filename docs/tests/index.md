@@ -1,9 +1,11 @@
 # Test catalog
 
-`pytest-wardenbot` v0.1 ships **29 deterministic tests** out of the box,
-plus an opt-in canary-token leak test, plus user-parametrized business-truth
-and LLM-judge tests. All discoverable via
-`pytest --pyargs pytest_wardenbot.tests`.
+`pytest-wardenbot` ships **29 deterministic tests** out of the box, plus
+user-parametrized business-truth and LLM-judge tests. All discoverable via
+`pytest --pyargs pytest_wardenbot.tests`. Plant a
+[canary token](../how-to/canary-token.md) so the leak checks in these tests
+can see leaked prompt content, not just disclosure phrasing. Measured grading
+accuracy is on the [grading accuracy page](../reference/grading-accuracy.md).
 
 ## At a glance
 
@@ -16,7 +18,7 @@ and LLM-judge tests. All discoverable via
 | Indirect / cross-prompt injection (XPIA) | 4 | deterministic | no |
 | Encoded-payload jailbreak (Base64 / ROT13 / leet / hex) | 4 | deterministic | no |
 | Multi-turn jailbreak (priming + payload) | 3 | deterministic | no |
-| Canary-token leak (opt-in; you plant the token) | 1 | deterministic | no |
+| Canary-token sweep (deprecated; the leak checks above now test the canary) | 1 | deterministic | no |
 | [Business truth](business-truth.md) | user-supplied | deterministic | no |
 | [LLM-judge (semantic)](semantic.md) | user-supplied | LLM-judge | yes, with `[judge]` extra |
 

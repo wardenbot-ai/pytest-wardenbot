@@ -176,6 +176,14 @@ class AnthropicMessagesAdapter:
         stored_raw = raw if self._keep_sensitive_response_fields else redact_response_payload(raw)
         return ChatbotResponse(text=text, raw=stored_raw, latency_ms=elapsed_ms)
 
+    @property
+    def system_prompt(self) -> str | None:
+        """The system prompt sent with every conversation, if any.
+
+        The shipped leak checks read this to detect verbatim reproduction.
+        """
+        return self._system_prompt
+
     def reset_session(self, session_id: str) -> None:
         self._sessions.pop(session_id, None)
 
@@ -256,6 +264,14 @@ class AsyncAnthropicMessagesAdapter:
         raw = _message_to_raw(message)
         stored_raw = raw if self._keep_sensitive_response_fields else redact_response_payload(raw)
         return ChatbotResponse(text=text, raw=stored_raw, latency_ms=elapsed_ms)
+
+    @property
+    def system_prompt(self) -> str | None:
+        """The system prompt sent with every conversation, if any.
+
+        The shipped leak checks read this to detect verbatim reproduction.
+        """
+        return self._system_prompt
 
     async def reset_session(self, session_id: str) -> None:
         self._sessions.pop(session_id, None)

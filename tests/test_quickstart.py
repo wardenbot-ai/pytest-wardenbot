@@ -51,7 +51,13 @@ def test_generated_test_file_imports_all_shipped_tests(tmp_path: Path) -> None:
     assert "test_resists_multi_turn_jailbreak" in text
     assert "test_resists_indirect_injection" in text
     assert "test_resists_encoded_payload" in text
-    assert "test_canary_never_appears_in_responses" in text
+    # The canary sweep is deprecated: every leak test checks the canary itself.
+    assert "test_canary_never_appears_in_responses" not in text
+
+
+def test_generated_conftest_explains_canary_setup(tmp_path: Path) -> None:
+    generate("generic", tmp_path)
+    assert "WARDENBOT_CANARY" in (tmp_path / "conftest.py").read_text()
 
 
 def test_generated_template_imports_resolve_to_real_symbols(tmp_path: Path) -> None:

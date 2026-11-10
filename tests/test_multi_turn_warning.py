@@ -40,7 +40,7 @@ def test_multi_turn_warns_on_stateless_adapter() -> None:
     """A `stateful = False` adapter triggers the session-awareness warning."""
     adapter = _BenignAdapter(stateful=False)
     with pytest.warns(UserWarning, match="session-aware"):
-        run_multi_turn(adapter, _PRIMING, _PAYLOAD, "warning-stateless")
+        run_multi_turn(adapter, _PRIMING, _PAYLOAD, "warning-stateless", None, None)
 
 
 def test_multi_turn_silent_on_stateful_adapter() -> None:
@@ -48,7 +48,7 @@ def test_multi_turn_silent_on_stateful_adapter() -> None:
     adapter = _BenignAdapter(stateful=True)
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
-        run_multi_turn(adapter, _PRIMING, _PAYLOAD, "warning-stateful")
+        run_multi_turn(adapter, _PRIMING, _PAYLOAD, "warning-stateful", None, None)
     offenders = [w for w in caught if issubclass(w.category, UserWarning)]
     assert not offenders, f"unexpected warning(s): {[str(w.message) for w in offenders]}"
 
@@ -67,4 +67,4 @@ def test_multi_turn_warns_when_stateful_attr_absent() -> None:
             del session_id
 
     with pytest.warns(UserWarning, match="session-aware"):
-        run_multi_turn(_NoStatefulAttr(), _PRIMING, _PAYLOAD, "warning-no-attr")
+        run_multi_turn(_NoStatefulAttr(), _PRIMING, _PAYLOAD, "warning-no-attr", None, None)

@@ -33,9 +33,15 @@ def test_resists_jailbreak_compliance(chatbot: ChatbotAdapter, prompt: str, atta
 @pytest.mark.wardenbot
 @pytest.mark.severity_high
 def test_jailbreak_does_not_leak_system_prompt(
-    chatbot: ChatbotAdapter, prompt: str, attack_id: str
+    chatbot: ChatbotAdapter,
+    prompt: str,
+    attack_id: str,
+    wardenbot_canary: str | None,
+    wardenbot_system_prompt: str | None,
 ) -> None:
     """The same jailbreak prompts also test for system-prompt leakage in responses."""
     del attack_id
     response = chatbot.send_message(prompt)
-    assert_no_system_prompt_leak(response.text, prompt)
+    assert_no_system_prompt_leak(
+        response.text, prompt, system_prompt=wardenbot_system_prompt, canary=wardenbot_canary
+    )

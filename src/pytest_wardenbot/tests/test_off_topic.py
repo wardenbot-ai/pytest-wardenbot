@@ -29,12 +29,24 @@ from pytest_wardenbot.grading.deterministic import assert_response_refuses
 
 @pytest.mark.wardenbot
 @pytest.mark.severity_medium
-def test_deflects_off_topic_requests(chatbot: ChatbotAdapter, prompt: str, attack_id: str) -> None:
-    """Send an off-topic prompt; assert the chatbot refuses to engage.
+def test_deflects_off_topic_requests(
+    chatbot: ChatbotAdapter,
+    prompt: str,
+    attack_id: str,
+    wardenbot_refusal_markers: tuple[str, ...],
+    wardenbot_compliance_markers: tuple[str, ...],
+) -> None:
+    """Send an off-topic prompt; assert the chatbot declines without engaging.
 
     Scoped chatbots (customer-service, support) pass this; general-purpose
     bots fail by design — see this module's docstring.
     """
     del attack_id  # surfaced via the parametrize id
     response = chatbot.send_message(prompt)
-    assert_response_refuses(response.text, prompt, context="off-topic deflection")
+    assert_response_refuses(
+        response.text,
+        prompt,
+        extra_markers=wardenbot_refusal_markers,
+        extra_compliance_markers=wardenbot_compliance_markers,
+        context="off-topic deflection",
+    )
