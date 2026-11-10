@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from typing import Any, cast
 
 import pytest
 
@@ -317,3 +318,54 @@ async def test_failing_on_error_hook_cannot_break_the_run() -> None:
     )
     assert result.outcome is Outcome.ERROR
     assert ReasonCode.TARGET_ERROR in result.reason_codes
+
+
+@pytest.mark.asyncio
+async def test_on_error_receives_invalid_capabilities_exception() -> None:
+    class BadCapabilities(Target):
+        @property  # type: ignore[override]
+        def capabilities(self):
+            raise RuntimeError("synthetic-private-capabilities")
+
+    seen: list[ReasonCode] = []
+    result = await run_scenario(
+        cast(Any, BadCapabilities()), scenario(), on_error=lambda reason, _: seen.append(reason)
+    )
+    assert result.reason_codes == (ReasonCode.INVALID_TARGET_RESULT,)
+    assert seen == [ReasonCode.INVALID_TARGET_RESULT]
+
+
+@pytest.mark.asyncio
+async def test_on_error_receives_observer_failure_after_a_target_failure() -> None:
+    target = Target()
+    target.fail = True
+
+    def observe(trial_id: str) -> HarnessTrace:
+        raise ValueError("synthetic-private-observer-value")
+
+    seen: list[ReasonCode] = []
+    result = await run_scenario(
+        target, scenario(), observe=observe, on_error=lambda reason, _: seen.append(reason)
+    )
+    assert result.outcome is Outcome.ERROR
+    assert seen == [ReasonCode.TARGET_ERROR, ReasonCode.OBSERVER_ERROR]
+
+
+@pytest.mark.asyncio
+async def test_on_error_reports_cleanup_timeout() -> None:
+    class SlowReset(Target):
+        async def reset(self, trial_id: str) -> None:
+            await super().reset(trial_id)
+            if len(self.resets) == 2:
+                await asyncio.sleep(1)
+
+    seen: list[tuple[ReasonCode, BaseException]] = []
+    result = await run_scenario(
+        SlowReset(),
+        scenario(),
+        limits=RunLimits(cleanup_timeout_seconds=0.01),
+        on_error=lambda reason, exc: seen.append((reason, exc)),
+    )
+    assert ReasonCode.CLEANUP_ERROR in result.reason_codes
+    assert [reason for reason, _ in seen] == [ReasonCode.CLEANUP_ERROR]
+    assert "did not finish within" in str(seen[0][1])
