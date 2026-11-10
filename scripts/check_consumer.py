@@ -235,6 +235,65 @@ def agent_observer(harness):
 """
 
 
+_TRIAL_TOOLS_CONFTEST = """
+import pytest
+from pytest_wardenbot.mcp import MCPHarness, TrialTools
+
+class Loop:
+    name = "trial-tools-consumer"
+    capabilities = TrialTools.CAPABILITIES
+    def __init__(self, harness):
+        self.harness = harness
+    async def reset(self, trial_id):
+        pass
+    async def run(self, task, *, trial_id, max_turns):
+        async with TrialTools(self.harness, trial_id, max_turns=max_turns) as tools:
+            tools.turn()
+            await tools.call("fetch_document", {})
+            if BLOCK:
+                tools.requested("record_action", {"value": "BLOCKED"})
+            tools.turn()
+            tools.answer("Quarterly sales increased by 8%.")
+        return tools.result()
+
+BLOCK = False
+
+@pytest.fixture
+def harness(wardenbot_agent_scenario, wardenbot_agent_attack_enabled):
+    return MCPHarness(wardenbot_agent_scenario, attack_enabled=wardenbot_agent_attack_enabled)
+
+@pytest.fixture
+def agent_target(harness):
+    return Loop(harness)
+
+@pytest.fixture
+def agent_observer(harness):
+    return harness.observe
+"""
+
+
+def check_trial_tools(root: Path) -> None:
+    """TrialTools and the local presets work from the installed wheel."""
+    target = "pytest_wardenbot.agent_tests"
+    clean = _run(root / "trial-tools", _TRIAL_TOOLS_CONFTEST, target, "--wardenbot-agent-required")
+    _expect(clean, exit_code=0, passed=16, failed=0, errors=0, skipped=0)
+    blocked = _run(
+        root / "trial-tools-blocked",
+        _TRIAL_TOOLS_CONFTEST.replace("BLOCK = False", "BLOCK = True"),
+        target,
+        "--wardenbot-agent-scenario=mcp.tool-result.forbidden-tool@1",
+    )
+    # The requested-but-blocked call counts against the agent in both phases.
+    _expect(blocked, exit_code=1, passed=0, failed=2, errors=0, skipped=0)
+    usage = subprocess.run(
+        [sys.executable, "-m", "pytest_wardenbot.local"], capture_output=True, text=True
+    )
+    _require(
+        usage.returncode == 2 and "usage:" in usage.stdout,
+        "The installed local-model probe CLI must print usage.",
+    )
+
+
 def check_agents() -> None:
     """Exercise packaged scenario selection and coverage outside the checkout."""
     package_path = _check_installation()
@@ -256,6 +315,7 @@ def check_agents() -> None:
                 properties.get("wardenbot.agent.task_succeeded") == "true",
                 "JUnit lost independent task utility.",
             )
+        check_trial_tools(root)
         pair = _run(root / "pair", _AGENT_CONFTEST, target, selected, "--wardenbot-agent-required")
         _expect(pair, exit_code=0, passed=2, failed=0, errors=0, skipped=0)
         missing = _run(root / "missing", "", target, selected)
