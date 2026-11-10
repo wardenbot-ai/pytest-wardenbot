@@ -50,12 +50,24 @@ def default_input(prompt: str) -> dict[str, Any]:
     return {"messages": [HumanMessage(content=prompt)]}
 
 
+def message_text(message: Any) -> str:
+    """The text of a LangChain message, from string or content-block content."""
+    content = getattr(message, "content", "")
+    if isinstance(content, str):
+        return content
+    return "".join(
+        block if isinstance(block, str) else str(block.get("text", ""))
+        for block in content or ()
+        if isinstance(block, str) or (isinstance(block, dict) and block.get("type") == "text")
+    )
+
+
 def default_output(state: Any) -> str:
     """The text of the last AI message in ``state["messages"]``."""
     messages = state.get("messages") if isinstance(state, Mapping) else None
     for message in reversed(messages or ()):
         if isinstance(message, AIMessage):
-            return message.text
+            return message_text(message)
     return ""
 
 
@@ -311,4 +323,4 @@ async def _delete_thread(graph: Any, thread_id: str) -> None:
         await delete(thread_id)
 
 
-__all__ = ["LangGraphAgentTarget", "default_input", "default_output"]
+__all__ = ["LangGraphAgentTarget", "default_input", "default_output", "message_text"]

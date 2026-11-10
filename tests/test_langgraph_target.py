@@ -24,7 +24,7 @@ from pytest_wardenbot.agents import (
 from pytest_wardenbot.agents.scenarios import AGENT_SCENARIOS
 from pytest_wardenbot.mcp import MCPHarness, TrialTools
 from pytest_wardenbot.targets import langgraph as target_module
-from pytest_wardenbot.targets.langgraph import LangGraphAgentTarget
+from pytest_wardenbot.targets.langgraph import LangGraphAgentTarget, message_text
 from tests.fixtures.scripted_langchain_model import ScriptedToolModel
 
 pytest_plugins = ["pytester"]
@@ -179,7 +179,7 @@ async def test_async_builder_and_custom_state_mapping():
         build,
         tool_calling=True,
         input_mapper=to_input,
-        output_mapper=lambda state: "Report: " + state["messages"][-1].text,
+        output_mapper=lambda state: "Report: " + message_text(state["messages"][-1]),
         config={"tags": ["wardenbot"], "configurable": {"user": "test"}},
     )
     result = await run_scenario(target, AGENT_SCENARIOS[0], observe=harness.observe)
@@ -298,6 +298,8 @@ def test_default_mappers():
     state = {"messages": [HumanMessage("q"), AIMessage("a"), HumanMessage("again")]}
     assert default_output(state) == "a"
     assert default_output({"messages": []}) == ""
+    blocks = AIMessage(content=[{"type": "text", "text": "a"}, {"type": "image"}, "b"])
+    assert default_output({"messages": [blocks]}) == "ab"
     assert default_output("not a state") == ""
 
 

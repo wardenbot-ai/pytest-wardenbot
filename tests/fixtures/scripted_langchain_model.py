@@ -23,7 +23,8 @@ def _openai_message(message: BaseMessage) -> dict[str, Any]:
     role = {"human": "user", "ai": "assistant", "tool": "tool", "system": "system"}.get(
         message.type, message.type
     )
-    data: dict[str, Any] = {"role": role, "content": message.text}
+    content = message.content if isinstance(message.content, str) else ""
+    data: dict[str, Any] = {"role": role, "content": content}
     if isinstance(message, AIMessage) and message.tool_calls:
         data["tool_calls"] = [
             {
