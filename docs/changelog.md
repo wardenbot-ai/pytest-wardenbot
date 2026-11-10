@@ -47,6 +47,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   model request; every tool call the model asks for is reported, so calls the
   graph blocks still count; a one-time probe reports models that can't call
   tools as unsupported. Tested with LangGraph 1.0 and 1.2.
+- **[Claude Agent SDK target](how-to/claude-agent.md)**
+  (`pytest_wardenbot.targets.claude.ClaudeAgentTarget`, `[claude-agent]`
+  extra): keeps your `ClaudeAgentOptions` and serves the harness tools as an
+  in-process SDK MCP server. Each trial is isolated from your machine (no
+  built-in tools, MCP servers, filesystem settings, skills, plugins,
+  claude.ai connectors or saved session), and the startup message is checked
+  so the trial stops if anything else is available. A `PreToolUse` hook
+  reports every requested call, so calls your permission callback denies or
+  the SDK rejects still count. Requires `claude-agent-sdk` 0.2.140 or later.
+- **[OpenAI Agents SDK recipe](how-to/openai-agents.md)**
+  (`examples/openai_agents/`): `FunctionTool`s over `TrialTools`, run hooks
+  for turns and requested calls, tracing disabled.
 - **Egress test:** the chatbot suite, the agent suite and the local judge run
   against a local server with every socket destination recorded, and in CI
   inside a loopback-only network namespace.
@@ -60,6 +72,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   DeepEval (`DEEPEVAL_TELEMETRY_OPT_OUT=1`, unless you set it). Set it to `0`
   to opt back in.
 - `judge_key_env` returns `None` for local judge models, which need no key.
+- `TrialTools` also recognizes `TurnLimitReached` when a framework wraps it in
+  its own exception, as the OpenAI Agents SDK does for errors raised in tools.
 - The packaged agent suite runs all trials in a pytest process on one event
   loop instead of a new loop per test. Async clients that SDKs cache for the
   whole process (LangChain's OpenAI integration) failed with "Event loop is

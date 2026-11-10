@@ -120,7 +120,9 @@ jobs:
         # are also measured.
         run: |
           coverage run -m pytest -ra
-          coverage report --fail-under=80
+          # Framework targets need optional extras this job doesn't install;
+          # the MCP and integration jobs cover them.
+          coverage report --fail-under=80 --omit="*/pytest_wardenbot/targets/*"
           coverage xml
 
       - name: Upload coverage to Codecov
@@ -276,11 +278,12 @@ jobs:
       - name: Install exact MCP dependency floors
         if: matrix.dependencies == 'minimum'
         run: >-
-          pip install -e ".[dev,mcp,openai,langgraph]" "mcp==2.2.0" "uvicorn==0.31.1"
+          pip install -e ".[dev,mcp,openai,langgraph,claude-agent]" "mcp==2.2.0" "uvicorn==0.31.1"
           "openai==1.66.3" "langgraph==1.0.0" "langgraph-prebuilt==1.0.0" "langchain-core==1.0.0"
+          "claude-agent-sdk==0.2.140"
       - name: Install current supported MCP SDK
         if: matrix.dependencies == 'current'
-        run: pip install -e ".[dev,mcp,openai,langgraph]"
+        run: pip install -e ".[dev,mcp,openai,langgraph,claude-agent]" openai-agents
       - name: Check required coverage with distributed pytest
         if: matrix.python == '3.12' && matrix.dependencies == 'current'
         run: pip install "pytest-xdist==3.8.0"
@@ -295,7 +298,8 @@ jobs:
         run: |
           coverage run -m pytest tests/test_agent*.py tests/test_campaign*.py tests/test_mcp*.py \
             tests/test_reference_agent.py tests/test_trial_tools.py \
-            tests/test_custom_agent_example.py tests/test_langgraph_target.py tests/test_local.py -ra
+            tests/test_custom_agent_example.py tests/test_langgraph_target.py \
+            tests/test_claude_target.py tests/test_openai_agents_example.py tests/test_local.py -ra
           coverage xml
       - name: Upload MCP coverage to Codecov
         if: matrix.python == '3.12' && matrix.dependencies == 'current'

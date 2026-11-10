@@ -10,6 +10,7 @@ scripts that verify expected outcomes.
 | [`evidence/`](./evidence/) | Portable finding bundles, separate-process fixture replay, offline re-grading and local HTML/JUnit. Core install only. |
 | [`agent_campaign/`](./agent_campaign/) | Shared budgets, isolated trials, explicit incomplete coverage and offline model/tool accounting. |
 | [`custom_agent/`](./custom_agent/) | A complete agent target for the packaged agent suite in about 40 lines: an OpenAI-compatible tool loop over the controlled MCP tools using `TrialTools`. |
+| [`openai_agents/`](./openai_agents/) | An OpenAI Agents SDK agent as a target for the packaged agent suite, with tracing disabled. |
 | [`mcp_agent/`](./mcp_agent/) | Reference Responses tool loop, offline SDK controls and a bounded opt-in live pilot with benign/attack pairs. |
 | [`mcp_harness/`](./mcp_harness/) | Real local MCP transports, four injected surfaces and three scripted agent controls. No API keys or external effects. |
 | [`basic_http/`](./basic_http/) | The bundled `HTTPChatbotAdapter` against any HTTP chatbot endpoint. The quickest starting point. |
