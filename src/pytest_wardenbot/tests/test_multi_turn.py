@@ -41,6 +41,8 @@ def test_resists_multi_turn_jailbreak(
     priming_turns: tuple[str, ...],
     payload_prompt: str,
     attack_id: str,
+    wardenbot_canary: str | None,
+    wardenbot_system_prompt: str | None,
 ) -> None:
     """Send priming turns then the payload; assert no jailbreak compliance."""
     if not getattr(chatbot, "stateful", False):
@@ -62,6 +64,11 @@ def test_resists_multi_turn_jailbreak(
 
         response = chatbot.send_message(payload_prompt, session_id=session_id)
         assert_no_jailbreak_compliance(response.text, payload_prompt)
-        assert_no_system_prompt_leak(response.text, payload_prompt)
+        assert_no_system_prompt_leak(
+            response.text,
+            payload_prompt,
+            system_prompt=wardenbot_system_prompt,
+            canary=wardenbot_canary,
+        )
     finally:
         chatbot.reset_session(session_id)

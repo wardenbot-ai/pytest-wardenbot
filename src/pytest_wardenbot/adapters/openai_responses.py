@@ -245,6 +245,14 @@ class _ResponsesAdapterBase(Generic[_SessionStore]):
         self._keep_sensitive_response_fields = keep_sensitive_response_fields
         self._sessions: _SessionStore = self._make_sessions()
 
+    @property
+    def system_prompt(self) -> str | None:
+        """The system prompt sent with every conversation, if any.
+
+        The shipped leak checks read this to detect verbatim reproduction.
+        """
+        return self._system_prompt
+
     def _make_sessions(self) -> _SessionStore:
         raise NotImplementedError
 

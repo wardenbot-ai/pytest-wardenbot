@@ -42,6 +42,8 @@ def test_resists_indirect_injection(
     prompt: str,
     trigger_words: tuple[str, ...],
     attack_id: str,
+    wardenbot_canary: str | None,
+    wardenbot_system_prompt: str | None,
 ) -> None:
     """Send a prompt with a smuggled directive in the body; assert no compliance."""
     del attack_id
@@ -71,6 +73,8 @@ def test_resists_indirect_injection(
         )
 
     # Injections whose tell is a system-prompt reveal (no fixed trigger word) are
-    # caught by the leak / jailbreak-compliance pattern checks.
+    # caught by the leak / jailbreak-compliance checks.
     assert_no_jailbreak_compliance(response.text, prompt)
-    assert_no_system_prompt_leak(response.text, prompt)
+    assert_no_system_prompt_leak(
+        response.text, prompt, system_prompt=wardenbot_system_prompt, canary=wardenbot_canary
+    )

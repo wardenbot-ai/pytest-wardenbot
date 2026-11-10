@@ -63,8 +63,24 @@ and does not delete old remote threads. For LangGraph state and reset hooks, see
         - "assert_maintains_refusal_under_bypass"
         - "response_refuses"
         - "response_indicates_compliance"
+        - "system_prompt_overlap"
+        - "SYSTEM_PROMPT_OVERLAP_MIN_RUN"
+        - "SYSTEM_PROMPT_OVERLAP_MIN_COVERAGE"
         - "contains_any"
         - "contains_none"
+
+Measured accuracy and known misses: [Grading accuracy](grading-accuracy.md).
+
+## Canary tokens
+
+::: pytest_wardenbot.canary
+    options:
+      heading_level: 3
+      members:
+        - "generate_canary_token"
+        - "assert_no_canary_leak"
+        - "canary_present"
+        - "CANARY_PREFIX"
 
 ## Grading — LLM judge (optional `[judge]` extra)
 

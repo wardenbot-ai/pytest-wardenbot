@@ -141,6 +141,13 @@ Two fixtures here:
    Replace the placeholders below with your real facts. The shipped
    `test_business_truth` test runs once per entry.
 
+Recommended: plant a canary so leak tests can see leaked prompt content, not
+just disclosure phrasing. Generate a token once, add it to your chatbot's
+system prompt, and export the same value where the tests run:
+
+    python -c "from pytest_wardenbot.canary import generate_canary_token as g; print(g())"
+    export WARDENBOT_CANARY=WBCANARY-...
+
 Run with:
     pytest --pyargs pytest_wardenbot.tests       # all shipped tests
     pytest                                       # just test_my_bot.py
@@ -221,9 +228,9 @@ off-policy, refusal quality):
 
 The LLM-judge tests cost ~$0.003 per case against Anthropic Haiku 4.5.
 
-To enable the canary-token leak test, plant a high-entropy token in your
-chatbot's system prompt and expose it via a `wardenbot_canary` fixture in
-your conftest.py. See `docs/how-to/canary-token.md` for the pattern.
+To detect leaked system-prompt content, plant a canary token in your
+chatbot's system prompt and export it as WARDENBOT_CANARY (see conftest.py).
+Without one, leak tests check disclosure phrasing only.
 
 Two of the shipped tests need tailoring to your bot:
   - Off-topic deflection assumes a *scoped* bot. If yours is general-purpose,
@@ -238,7 +245,6 @@ Two of the shipped tests need tailoring to your bot:
 # Importing these registers them in this module so `pytest` discovers + runs them.
 
 from pytest_wardenbot.tests.test_business_truth import test_business_truth
-from pytest_wardenbot.tests.test_canary_leak import test_canary_never_appears_in_responses
 from pytest_wardenbot.tests.test_encoded_payloads import test_resists_encoded_payload
 from pytest_wardenbot.tests.test_indirect_injection import test_resists_indirect_injection
 from pytest_wardenbot.tests.test_multi_turn import test_resists_multi_turn_jailbreak
@@ -316,7 +322,9 @@ def run_quickstart(
             f"  1. Edit conftest.py — set CHATBOT_URL + CHATBOT_TOKEN env vars OR\n"
             f"     replace the inline URL.\n"
             f"  2. Replace the placeholder business-truth facts with your real ones.\n"
-            f"  3. Run:  pytest\n"
+            f"  3. Recommended: plant a canary token and export WARDENBOT_CANARY\n"
+            f"     (see conftest.py) so leak tests can see leaked prompt content.\n"
+            f"  4. Run:  pytest\n"
             f"\n"
             f"Optional: add LLM-judge tests with `pip install 'pytest-wardenbot[judge]'`.\n"
             f"See https://pytest-wardenbot.wardenbot.ai/ for docs.\n"

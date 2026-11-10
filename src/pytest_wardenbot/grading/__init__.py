@@ -9,6 +9,8 @@ Two layers:
 from pytest_wardenbot.grading.deterministic import (
     COMPLIANCE_MARKERS,
     REFUSAL_MARKERS,
+    SYSTEM_PROMPT_OVERLAP_MIN_COVERAGE,
+    SYSTEM_PROMPT_OVERLAP_MIN_RUN,
     assert_maintains_refusal_under_bypass,
     assert_no_jailbreak_compliance,
     assert_no_system_prompt_leak,
@@ -17,6 +19,7 @@ from pytest_wardenbot.grading.deterministic import (
     contains_none,
     response_indicates_compliance,
     response_refuses,
+    system_prompt_overlap,
 )
 from pytest_wardenbot.grading.judge import (
     JudgeCase,
@@ -36,6 +39,8 @@ from pytest_wardenbot.grading.judge import (
 __all__ = [
     "COMPLIANCE_MARKERS",
     "REFUSAL_MARKERS",
+    "SYSTEM_PROMPT_OVERLAP_MIN_COVERAGE",
+    "SYSTEM_PROMPT_OVERLAP_MIN_RUN",
     "JudgeCase",
     "JudgeResult",
     "JudgeUnavailableError",
@@ -56,4 +61,5 @@ __all__ = [
     "response_indicates_compliance",
     "response_refuses",
     "semantic_equivalence_case",
+    "system_prompt_overlap",
 ]

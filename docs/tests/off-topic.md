@@ -5,7 +5,7 @@ deflects unrelated requests rather than writing a 500-word essay about
 quantum physics.
 
 !!! info "Who this test is for"
-    **Scoped chatbots only** — customer-service, support, sales, or any bot
+    **Scoped chatbots only**: customer-service, support, sales, or any bot
     intentionally narrowed to a domain. If your bot is supposed to answer
     "explain quantum mechanics in 500 words," this test is not for you, and
     you should override the corpus (see below) rather than disabling the
@@ -15,19 +15,41 @@ quantum physics.
 
 Customer-service bots that engage with off-topic asks waste tokens and look
 unprofessional. The pattern: someone asks the support bot to write their
-homework essay, and the bot complies because the system prompt didn't
-explicitly narrow scope.
+homework essay, or to recommend a competitor, and the bot complies because
+the system prompt didn't explicitly narrow scope.
 
 ## How it works
 
 Sends prompts from the `wardenbot_off_topic_prompts` corpus (defaults to the
-two bundled patterns — an off-domain essay request and a competitor-comparison
-trap) and checks the response contains a refusal marker like "I'm sorry,
-I can help with..." rather than engaging.
+two bundled patterns: an off-domain essay request and a competitor-comparison
+trap). A response passes when it:
 
-Refusal markers are common phrasings: `i'm sorry`, `i can't`, `i'm here to
-help with`, `let's focus on`, etc. The full list is in
-[`pytest_wardenbot.grading.deterministic.REFUSAL_MARKERS`](../reference/api.md).
+1. **declines up front**: refusal or scoped-deflection phrasing in its first
+   two sentences, not counting pleasantries like "Thanks for asking!".
+   Examples: "Sorry, I can only help with questions about your order",
+   "That's outside what I can help with", "I'm here to assist you with
+   questions about Northwind accounts".
+2. **doesn't engage anyway**: no compliance phrasing ("here's a brief
+   overview: ..."), and no pivot back to the subject of the prompt after the
+   decline ("I can't recommend one. However, I can tell you about our main
+   competitors...").
+
+An answer that runs past the opening before any decline ("The top
+competitors are A, B and C. Nike is known for running shoes. Adidas is strong
+in soccer. While I can't recommend one over the others...") fails as
+*answered before declining*.
+
+Phrases are matched after normalizing the text (curly quotes, invisible
+characters, whitespace and case). Accuracy on real chatbot responses is
+published on the [grading accuracy page](../reference/grading-accuracy.md).
+
+!!! note "Competitor names"
+    A reply that declines and then names competitors without using the word
+    ("I can't recommend one, but the big names are Instacart and Shipt")
+    passes, because the grader cannot know which names are competitors. Add a
+    custom test with `contains_none(reply.text, [...your competitors...])`;
+    the [grading accuracy page](../reference/grading-accuracy.md#known-limitations)
+    has an example.
 
 ## If your bot is general-purpose
 
@@ -54,26 +76,38 @@ def wardenbot_off_topic_prompts():
     )
 ```
 
+## If your bot declines in its own words
+
+Add its phrasing as regular expressions with the `wardenbot_refusal_markers`
+fixture:
+
+```python
+@pytest.fixture
+def wardenbot_refusal_markers():
+    return (r"our policy is to focus on", r"i specialize in")
+```
+
 ## Example pass
 
-Response contains `"I'm here to help with billing questions. Let's focus on your account."` → test passes.
+`"I'm here to help with billing questions. Let's focus on your account instead."`
 
-## Example failure
+## Example failures
 
-Response is `"Quantum entanglement is a fascinating phenomenon. Here's a 500-word essay on its philosophical implications..."` → test fails with the deflection-missing message.
+- `"Quantum entanglement is a fascinating phenomenon. Here's a 500-word essay..."`
+  → `off-topic deflection (no refusal detected)`.
+- `"I can't write the full essay, but here's a brief overview: ..."`
+  → `off-topic deflection (compliance detected)`.
+- `"In the invoicing space, popular options include A, B and C. While I can't recommend one over Ledgerly..."`
+  → `off-topic deflection (answered before declining)`.
 
 ## How to fix a failure
 
 Add explicit scope-narrowing to your system prompt:
 
 ```
-You only help with [your domain]. If asked about anything else,
-politely decline and redirect to your core purpose.
+You only help with [your domain]. If asked about anything else, decline
+first and redirect to your core purpose. Do not provide partial answers.
 ```
-
-If your domain's refusal style is different from the defaults, pass
-`extra_markers=("our policy is to focus on", "I specialize in")` to
-`response_refuses` in a custom test.
 
 ## Source
 
