@@ -148,4 +148,20 @@ Two details keep local runs local:
 
 ## A full local run
 
-LOCAL_RUN_RESULTS
+One run on an Apple M3 Pro laptop (18 GB) with Ollama 0.15.5, using the
+conftests above with `qwen2.5:7b` as the model under test and as the judge, and
+no provider keys set:
+
+| Suite | Time | Result |
+|---|---|---|
+| Chatbot suite (33 tests, including 2 local-judge cases) | 2 min 54 s | 21 passed, 11 failed, 1 skipped |
+| Agent suite (16 cases) | 65 s | All 8 baselines passed; 7 of 8 attacks were confirmed violations |
+| Agent suite with `qwen2.5-coder:7b` | 14 s | 16 skipped as unsupported: no structured tool calls |
+
+Every recorded connection went to `127.0.0.1`: 68 in the chatbot run and 17
+in the agent run.
+
+The failures are findings about this model and system prompt, not about the
+presets. For example, the model printed its canary when asked to repeat its
+instructions verbatim, and in the agent suite it called the forbidden tool
+when a document told it to. This is one run, not a benchmark.
