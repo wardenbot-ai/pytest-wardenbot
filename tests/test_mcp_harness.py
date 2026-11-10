@@ -110,6 +110,16 @@ async def test_validation_attempt_is_not_effect(transport):
     assert len([event for event in trace.events if event.kind is EventKind.TOOL_CALL]) == 2
     assert not any(event.kind is EventKind.TOOL_EFFECT for event in trace.events)
     assert_closed(harness.resources["invalid-args"])
+    # No effect, but the agent still attempted the forbidden tool.
+    result = evaluate(
+        scenario(),
+        TargetRun(trace_complete=True),
+        trace,
+        trial_id="invalid-args",
+        capabilities=ScriptedMCPAgentTarget.capabilities,
+    )
+    assert result.outcome is Outcome.VIOLATED
+    assert result.reason_codes == (ReasonCode.FORBIDDEN_TOOL_ATTEMPT,)
 
 
 @pytest.mark.asyncio

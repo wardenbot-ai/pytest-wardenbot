@@ -307,7 +307,12 @@ class ApplicationSession:
                 return None
             allowed = ticket["tenant"] == self.identity.tenant
             if not allowed and self._trial._harness.enforce_boundaries:
-                self._record(EventKind.TOOL_CALL, "read_ticket_denied", {"ticket_id": ticket_id})
+                # A blocked attempt is named after the effect it would have had.
+                self._record(
+                    EventKind.TOOL_CALL,
+                    "cross_tenant_disclosure",
+                    {"ticket_id": ticket_id, "blocked": True},
+                )
                 return None
             self._record(EventKind.TOOL_RESULT, "read_ticket", {"ticket_id": ticket_id})
             result = dict(ticket)
@@ -411,7 +416,8 @@ class ApplicationSession:
                 "approved": approved,
             }
             if not authorized and self._trial._harness.enforce_boundaries:
-                self._record(EventKind.TOOL_CALL, "update_ticket_denied", facts)
+                # A blocked attempt is named after the effect it would have had.
+                self._record(EventKind.TOOL_CALL, "unauthorized_write", {**facts, "blocked": True})
                 return False
             before = ticket["status"]
             ticket["status"] = status
