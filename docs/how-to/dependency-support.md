@@ -25,6 +25,8 @@ pip resolves the additional requirements when installing that extra.
 | `langchain` | langchain-core 0.3.0 | 1.6.9 |
 | `judge` | DeepEval 4.2.8 | 4.2.8 |
 | `mcp` | MCP SDK 2.2.0; Uvicorn 0.31.1 | MCP SDK 2.3.0 |
+| `langgraph` | LangGraph 1.0.0 (with langgraph-prebuilt 1.0.0); langchain-core 1.0.0 | LangGraph 1.2.20; langchain-core 1.7.7 |
+| `claude-agent` | Claude Agent SDK 0.2.140 | Claude Agent SDK 0.2.180 |
 
 CI's real-SDK contract matrix installs these exact floors and a separate set
 of current stable releases on Python 3.12. OpenAI and Anthropic tests construct
@@ -49,6 +51,14 @@ The current lane also executes the LangGraph state recipe with
 `langgraph==1.2.14`; the observed checkpoint version is 4.2.0. LangGraph is not
 part of the LangChain extra, and the minimum LangChain lane does not claim
 compatibility with current LangGraph. See [the state recipe](langgraph-state.md).
+
+The `langgraph` and `claude-agent` extras are tested in the MCP contract
+lanes: the floors on Python 3.11 with MCP SDK 2.2.0, and current releases on
+Python 3.12 and 3.13. Claude Agent SDK 0.2.140 is the first release that allows
+MCP SDK 2.x. LangGraph 1.0.0 needs `langgraph-prebuilt==1.0.0`; newer prebuilt
+releases import names that LangGraph 1.0.0 lacks. The OpenAI Agents SDK recipe
+is tested with the current `openai-agents` release (0.24.0) and is not an
+extra.
 
 A dependency floor is a resolver constraint, not evidence that every release
 above it has been tested. Unit tests and real-SDK contracts check request construction,

@@ -16,8 +16,10 @@ in [GitHub Discussions](https://github.com/wardenbot-ai/pytest-wardenbot/discuss
 **Public API:**
 
 - Names listed in `__all__` of `pytest_wardenbot`, `pytest_wardenbot.adapters`,
-  `pytest_wardenbot.agents` and `pytest_wardenbot.agents.packs`, plus the
-  vendor adapters documented in the [API reference](api.md).
+  `pytest_wardenbot.agents`, `pytest_wardenbot.agents.packs`,
+  `pytest_wardenbot.mcp`, `pytest_wardenbot.local`,
+  `pytest_wardenbot.targets.langgraph` and `pytest_wardenbot.targets.claude`,
+  plus the vendor adapters documented in the [API reference](api.md).
 - Command-line options (`--wardenbot-*`), [pytest markers](markers.md) and the
   fixture names the plugin asks you to provide.
 - Shipped test node names and versioned scenario IDs, such as
