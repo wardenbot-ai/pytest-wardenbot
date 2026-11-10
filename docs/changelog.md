@@ -5,7 +5,14 @@ All notable changes to `pytest-wardenbot` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.5.0] — 2026-11-10
+
+**Trustworthy grading.** The chatbot graders are rebuilt and measured against
+744 labeled responses, leak checks see leaked content through a canary or the
+known system prompt, agent scenarios count blocked attempts against the
+agent, and several silent fallbacks now fail loudly. Several changes can turn
+a passing 0.4 run into a failing one; each is marked below. Agent evidence
+bundles move to grader `agent-boundary-2`.
 
 ### Changed (grading)
 

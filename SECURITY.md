@@ -10,7 +10,7 @@ We aim to acknowledge within 24 hours and provide an initial assessment within
 
 ## Supported versions
 
-Beta. The latest 0.x minor release (currently 0.4.x) is the supported line.
+Beta. The latest 0.x minor release (currently 0.5.x) is the supported line.
 Security fixes ship as patches on that line. See the
 [versioning and stability policy](docs/reference/stability.md).
 
