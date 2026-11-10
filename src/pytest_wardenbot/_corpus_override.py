@@ -11,6 +11,11 @@ fixture machinery isn't fully available at collection time; we call the
 fixture function directly. If the override needs more setup, the user should
 build their corpus at import time and have the fixture return the prepared
 tuple.
+
+An override that cannot be used (it takes parameters, raises, or returns
+None or a non-iterable) raises `WardenBotConfigError` instead of silently
+falling back to the bundled corpus: a security run must not test something
+other than what was configured.
 """
 
 from __future__ import annotations
@@ -18,6 +23,10 @@ from __future__ import annotations
 import inspect
 from collections.abc import Sequence
 from typing import Any
+
+from pytest_wardenbot._errors import WardenBotConfigError
+
+_PLUGIN_MODULE = "pytest_wardenbot.plugin"
 
 # Different corpora have different entry shapes (jailbreak: (prompt, attack_id),
 # encoded: (prompt, triggers, attack_id), multi-turn: (priming, payload, attack_id)).
@@ -79,9 +88,9 @@ def resolve_corpus(
 ) -> Sequence[CorpusEntry]:
     """Look up `fixture_name` in the active fixture chain; return its value or default.
 
-    Walks the fixture defs from most-specific to most-generic and returns the
-    first fixture function value that's callable with zero args. Falls back to
-    `default_corpus` if no usable override is registered.
+    The most specific fixture wins. The plugin's own default returns
+    `default_corpus`; any other (user) override must be usable or this raises
+    `WardenBotConfigError`.
     """
     fixturedefs = _lookup_fixture_defs(metafunc, fixture_name)
     if not fixturedefs:
@@ -91,19 +100,42 @@ def resolve_corpus(
         func = getattr(fixturedef, "func", None)
         if func is None:
             continue
-        try:
-            sig = inspect.signature(func)
-        except (TypeError, ValueError):
-            continue
-        if sig.parameters:
-            # Fixture has dependencies we can't satisfy at collection time.
-            continue
-        try:
-            value = func()
-        except Exception:
-            continue
-        if value is None:
-            continue
-        return tuple(value)
+        if getattr(func, "__module__", None) == _PLUGIN_MODULE:
+            # The bundled default: nothing more specific overrides it.
+            return default_corpus
+        return _read_override(fixture_name, func)
 
     return default_corpus
+
+
+def _read_override(fixture_name: str, func: Any) -> tuple[CorpusEntry, ...]:
+    where = f"{getattr(func, '__module__', '?')}.{getattr(func, '__qualname__', fixture_name)}"
+    try:
+        parameters = list(inspect.signature(func).parameters)
+    except (TypeError, ValueError):
+        parameters = []
+    if parameters:
+        raise WardenBotConfigError(
+            f"The `{fixture_name}` override ({where}) takes parameters ({', '.join(parameters)}). "
+            "Corpus overrides are read at collection time and must take no arguments: build "
+            "the corpus at import time and have the fixture return it."
+        )
+    try:
+        value = func()
+    except Exception as exc:
+        raise WardenBotConfigError(
+            f"The `{fixture_name}` override ({where}) raised {type(exc).__name__} while the "
+            "corpus was being read at collection time."
+        ) from exc
+    if value is None:
+        raise WardenBotConfigError(
+            f"The `{fixture_name}` override ({where}) returned None. Return a tuple of corpus "
+            "entries, or () to collect no cases."
+        )
+    try:
+        return tuple(value)
+    except TypeError as exc:
+        raise WardenBotConfigError(
+            f"The `{fixture_name}` override ({where}) returned {type(value).__name__}, not an "
+            "iterable of corpus entries."
+        ) from exc

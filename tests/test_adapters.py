@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import traceback
-from typing import Any
+from typing import Any, cast
 
 import httpx
 import pytest
@@ -163,6 +163,8 @@ def test_http_adapter_raises_on_missing_response_field_with_helpful_message() ->
     with pytest.raises(WardenBotInfraError, match="could not be extracted") as exc_info:
         adapter.send_message("hi")
     rendered = "".join(traceback.format_exception(exc_info.value))
+    # The key names help fix the configuration; values never appear.
+    assert "Available keys: ['unexpected_key']" in str(exc_info.value)
     assert "missing-field-secret" not in rendered
     assert "url-secret" not in rendered
     assert "user:pass" not in rendered
@@ -303,3 +305,37 @@ def test_http_adapter_keeps_sensitive_fields_when_opted_in() -> None:
 
     assert result.raw is not None
     assert result.raw["api_key"] == "sk-keep-this"
+
+
+def test_http_adapter_reports_wrong_value_type_without_the_value() -> None:
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"response": {"nested": "private-value"}})
+
+    adapter = _make_http_adapter(httpx.MockTransport(handler))
+    with pytest.raises(WardenBotInfraError, match="contained dict, expected str") as exc_info:
+        adapter.send_message("hi")
+    assert "private-value" not in str(exc_info.value)
+
+
+def test_http_adapter_reports_callable_failure_without_its_message() -> None:
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"response": "ok"})
+
+    def extract(data: dict) -> str:
+        raise LookupError("private-detail")
+
+    adapter = _make_http_adapter(httpx.MockTransport(handler))
+    adapter._response_field = extract
+    with pytest.raises(WardenBotInfraError, match="callable raised LookupError") as exc_info:
+        adapter.send_message("hi")
+    assert "private-detail" not in "".join(traceback.format_exception(exc_info.value))
+
+
+def test_http_adapter_reports_callable_returning_non_string() -> None:
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"response": "ok"})
+
+    adapter = _make_http_adapter(httpx.MockTransport(handler))
+    adapter._response_field = cast(Any, lambda data: 42)
+    with pytest.raises(WardenBotInfraError, match="returned int, expected str"):
+        adapter.send_message("hi")

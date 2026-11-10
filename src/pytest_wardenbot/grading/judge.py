@@ -160,9 +160,31 @@ def judge_available() -> bool:
     return True
 
 
-def api_key_available(env_var: str = "ANTHROPIC_API_KEY") -> bool:
-    """True if the given environment variable is set to a non-empty value."""
-    return bool(os.environ.get(env_var, "").strip())
+_VENDOR_KEY_ENV = {
+    "anthropic": "ANTHROPIC_API_KEY",
+    "openai": "OPENAI_API_KEY",
+    "gemini": "GOOGLE_API_KEY",
+}
+
+
+def judge_key_env(model_name: str = "claude-haiku-4-5") -> str:
+    """Name of the environment variable holding the API key for `model_name`'s vendor.
+
+    `claude*` models need `ANTHROPIC_API_KEY`, `gpt*`/`o*` models `OPENAI_API_KEY`,
+    and `gemini*` models `GOOGLE_API_KEY`.
+    """
+    return _VENDOR_KEY_ENV[_vendor_for_model(model_name)]
+
+
+def api_key_available(env_var: str | None = None, *, model: str | None = None) -> bool:
+    """True if the judge's API key environment variable is set to a non-empty value.
+
+    Pass `env_var` to check a specific variable, or `model` to check the key for
+    that judge model's vendor. With neither, checks the default judge's key
+    (`ANTHROPIC_API_KEY`).
+    """
+    name = env_var or judge_key_env(model or "claude-haiku-4-5")
+    return bool(os.environ.get(name, "").strip())
 
 
 # ---------------------------------------------------------------------------

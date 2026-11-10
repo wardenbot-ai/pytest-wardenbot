@@ -118,12 +118,7 @@ class HTTPChatbotAdapter:
                 "or supply a custom `response_field` callable."
             ) from None
 
-        try:
-            text = _extract_text_from_dict(data, self._response_field)
-        except Exception:
-            raise WardenBotInfraError(
-                "Chatbot response could not be extracted using response_field."
-            ) from None
+        text = _extract_text_from_dict(data, self._response_field)
 
         stored_raw = data if self._keep_sensitive_response_fields else redact_response_payload(data)
         return ChatbotResponse(text=text, raw=stored_raw, latency_ms=elapsed_ms)
@@ -212,12 +207,7 @@ class AsyncHTTPChatbotAdapter:
                 "or supply a custom `response_field` callable."
             ) from None
 
-        try:
-            text = _extract_text_from_dict(data, self._response_field)
-        except Exception:
-            raise WardenBotInfraError(
-                "Chatbot response could not be extracted using response_field."
-            ) from None
+        text = _extract_text_from_dict(data, self._response_field)
 
         stored_raw = data if self._keep_sensitive_response_fields else redact_response_payload(data)
         return ChatbotResponse(text=text, raw=stored_raw, latency_ms=elapsed_ms)
@@ -238,25 +228,38 @@ def _extract_text_from_dict(
     data: dict[str, Any],
     response_field: str | Callable[[dict[str, Any]], str],
 ) -> str:
-    """Module-level helper so sync + async adapters share extraction logic."""
+    """Module-level helper so sync + async adapters share extraction logic.
+
+    Errors name the field, the available key names and value types, never
+    response values or the text of a custom callable's exception.
+    """
     if callable(response_field):
-        value = response_field(data)
+        try:
+            value = response_field(data)
+        except Exception as exc:
+            raise WardenBotInfraError(
+                "Chatbot response could not be extracted: the custom response_field callable "
+                f"raised {type(exc).__name__}."
+            ) from None
         if not isinstance(value, str):
-            raise TypeError(
-                f"Custom response_field callable must return str, got {type(value).__name__}"
-            )
+            raise WardenBotInfraError(
+                "Chatbot response could not be extracted: the custom response_field callable "
+                f"returned {type(value).__name__}, expected str."
+            ) from None
         return value
 
     if response_field not in data:
-        available = sorted(data.keys())
-        raise KeyError(
-            f"Response field {response_field!r} not found in chatbot response. "
+        available = sorted(str(key)[:50] for key in data)[:20]
+        raise WardenBotInfraError(
+            f"Chatbot response could not be extracted: field {response_field!r} not found. "
             f"Available keys: {available}. "
             "Pass `response_field=<your-key>` or a callable to HTTPChatbotAdapter."
-        )
+        ) from None
     value = data[response_field]
     if not isinstance(value, str):
-        raise TypeError(
-            f"Response field {response_field!r} contained {type(value).__name__}, expected str."
-        )
+        raise WardenBotInfraError(
+            f"Chatbot response could not be extracted: field {response_field!r} contained "
+            f"{type(value).__name__}, expected str. Pass a callable as `response_field` to "
+            "pull the text out of nested data."
+        ) from None
     return value

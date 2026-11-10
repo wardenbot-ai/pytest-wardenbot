@@ -129,15 +129,14 @@ def test_brand_with_sonnet(chatbot):
     assert_judge_passes(case, response.text, model_name="claude-sonnet-4-6")
 ```
 
-## Disable LLM-judge tests entirely
+## Disable LLM-judge tests
 
-Three ways:
+- **Don't define a `judge_case` fixture.** The shipped test skips with the
+  onboarding template.
+- **Pass `--wardenbot-judge-optional`** for runs that have judge cases
+  configured but no key, such as fork pull requests. The shipped test then
+  skips instead of failing.
 
-- **Don't install the `[judge]` extra.** The shipped `test_semantic` will
-  skip with the install instructions.
-- **Don't set `ANTHROPIC_API_KEY`.** The shipped test skips with the
-  env-var note.
-- **Don't define a `judge_case` fixture.** The shipped test skips with
-  the onboarding template.
-
-Any of these is fine for CI runs where you want zero LLM spend.
+Without that flag, configured judge cases fail when the `[judge]` extra is
+missing or `ANTHROPIC_API_KEY` is unset, so a CI run can't look green without
+running them.

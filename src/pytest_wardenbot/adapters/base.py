@@ -31,11 +31,13 @@ class ChatbotResponse(BaseModel):
     text: str = Field(description="The text the chatbot returned to the user.")
     raw: dict[str, Any] | None = Field(
         default=None,
+        repr=False,
         description=(
             "The raw API response (vendor-specific). Bundled adapters redact "
-            "values whose keys look sensitive (authorization, api-key, cookie, "
-            "etc.) before storing — pass `keep_sensitive_response_fields=True` "
-            "on the adapter to disable. Useful for debugging."
+            "values whose keys look sensitive (authorization, api-key, token, "
+            "cookie, etc.) and secret-looking strings before storing — pass "
+            "`keep_sensitive_response_fields=True` on the adapter to disable. "
+            "Left out of repr so it doesn't appear in tracebacks. Useful for debugging."
         ),
     )
     latency_ms: float | None = Field(
