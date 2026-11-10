@@ -12,7 +12,7 @@ MCP and application boundary checks, data leaks and semantic regressions.
 
 📖 **Documentation:** [pytest-wardenbot.wardenbot.ai](https://pytest-wardenbot.wardenbot.ai/)
 
-> **Status: Beta (0.4).** The feature set for the first stable release is in place. Public APIs change only under the [versioning and stability policy](https://pytest-wardenbot.wardenbot.ai/reference/stability/). Questions and feedback: [GitHub Discussions](https://github.com/wardenbot-ai/pytest-wardenbot/discussions). Bugs: [GitHub Issues](https://github.com/wardenbot-ai/pytest-wardenbot/issues).
+> **Status: Beta (0.5).** The feature set for the first stable release is in place. Public APIs change only under the [versioning and stability policy](https://pytest-wardenbot.wardenbot.ai/reference/stability/). Questions and feedback: [GitHub Discussions](https://github.com/wardenbot-ai/pytest-wardenbot/discussions). Bugs: [GitHub Issues](https://github.com/wardenbot-ai/pytest-wardenbot/issues).
 
 ---
 

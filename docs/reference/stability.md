@@ -57,8 +57,11 @@ minor releases.
 
 **Grading changes are versioned.** If a change could make a result more
 permissive (for example, turning `VIOLATED` or `INCONCLUSIVE` into `RESISTED`),
-it is treated as breaking. It ships in a minor release with a new grader
-version recorded in evidence.
+it is treated as breaking. It ships in a minor release. Agent trials record a
+new grader version in evidence. Chatbot tests have no evidence bundle, so
+their grading changes are listed under "Changed (grading)" in the changelog,
+and their measured accuracy is published on the
+[grading accuracy](grading-accuracy.md) page.
 
 **Evidence bundles.** Schema and grader versions change only in minor
 releases, and the changelog lists those changes. Loading is strict: a bundle
@@ -75,6 +78,9 @@ Fixes and security updates go to the latest 0.x minor release. Python
 
 - `to_legacy_attack_result` (deprecated in 0.1.9) bridges agent results to the
   reserved legacy `AttackResult`. Use `RunResult` directly.
+- The `test_canary_never_appears_in_responses` sweep (deprecated in 0.5.0,
+  removed no earlier than 0.6.0). Every shipped leak check now tests the
+  canary itself. See [Plant a canary token](../how-to/canary-token.md).
 - The OpenAI Assistants adapter classes remain importable for injected test
   clients. The public service is retired, so their default constructors fail.
   See [OpenAI migration](../how-to/migrate-openai.md).
