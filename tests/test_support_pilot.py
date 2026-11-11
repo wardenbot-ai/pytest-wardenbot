@@ -207,7 +207,10 @@ async def test_deadline_drains_blocked_sdk_request_and_retains_queued_denominato
             client,
             model="offline-support-model",
             samples=1,
-            campaign_timeout=0.03,
+            # The model never answers, so the deadline always ends the first
+            # trial mid-request. Half a second leaves room for that request to
+            # start on a loaded machine; 30 ms sometimes didn't.
+            campaign_timeout=0.5,
         )
     finally:
         await client.close()
