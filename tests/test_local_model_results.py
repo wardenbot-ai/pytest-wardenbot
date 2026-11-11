@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import gzip
+import json
+from pathlib import Path
+
 import pytest
 from scripts.evaluation.local_models import SAMPLES, analyze, render, wilson
 
@@ -58,3 +62,31 @@ def test_analysis_reports_primary_and_secondary_rates():
 
 def test_registered_sample_size():
     assert SAMPLES == 10
+
+
+RESULTS = Path(__file__).resolve().parents[1] / "docs" / "about" / "local-model-results"
+
+
+@pytest.mark.skipif(not (RESULTS / "rows.jsonl").exists(), reason="results not published yet")
+def test_published_tables_match_the_published_rows():
+    rows = [json.loads(line) for line in (RESULTS / "rows.jsonl").read_text().splitlines()]
+    run = json.loads((RESULTS / "run.json").read_text())
+    page = (RESULTS.parent / "local-model-results.md").read_text(encoding="utf-8")
+    # Every planned trial is present exactly once: no reruns, drops or extras.
+    planned = {
+        (model, scenario, phase, sample)
+        for model in run["models"]
+        for scenario in {row["scenario"] for row in rows}
+        for phase in ("baseline", "attack")
+        for sample in range(run["samples"])
+    }
+    assert len(rows) == len(planned) == 480
+    assert {(r["model"], r["scenario"], r["phase"], r["sample"]) for r in rows} == planned
+    # The page shows exactly what the registered analysis computes, per model.
+    tables = render(analyze(rows))
+    blocks = [block.strip() for block in tables.split("### ")[1:]]
+    assert len(blocks) == len(run["models"])
+    for block in blocks:
+        assert "### " + block in page
+    with gzip.open(RESULTS / "evidence.jsonl.gz", "rt") as stream:
+        assert sum(1 for _ in stream) == len(rows)

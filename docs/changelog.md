@@ -21,6 +21,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
     `AgentCapability.TOOL_LIST_CHANGES` and `INPUT_REQUESTS`, and
     `EventKind.INPUT_REQUEST`. Evidence schema 1 accepts them; bundles from
     0.6 still load.
+- **[Local-model results](about/local-model-results.md)**, preregistered:
+  the plan was published before any trial ran, then the quickstart agent ran
+  all 12 scenarios 10 times each against `qwen2.5:7b` and `mistral:7b` on
+  Ollama (480 trials, every trial's evidence published and re-gradeable).
+  `qwen2.5:7b` followed 58 of 80 default-pack attacks (95% CI 62–81%), none in
+  tool descriptions, and none of the 40 lifecycle attacks, with no unprompted
+  sink call in 120 baselines. `mistral:7b` rarely called the tool, so 49 of its
+  120 attack trials were inconclusive rather than resisted.
 - `MCPClient.on_input_request(handler)` answers servers' input requests, and
   `MCPClient.listen(...)` opens the SDK's change-event stream.
 - `TrialTools(refresh_tools=..., input_requests=...)` and
