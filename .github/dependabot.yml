@@ -1,8 +1,8 @@
 version: 2
 updates:
-  # GitHub Actions — auto-updates third-party actions and keeps SHA pins
-  # current. When you initially SHA-pin an action, Dependabot will propose
-  # PRs that update the SHA to the latest stable for the same major version.
+  # GitHub Actions: every action is pinned to a commit SHA (the repository
+  # requires it). Dependabot proposes SHA updates with the release tag in the
+  # trailing comment.
   - package-ecosystem: github-actions
     directory: /
     schedule:
@@ -31,6 +31,22 @@ updates:
         patterns:
           - "*"
     open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - python
+
+  # Hash-locked tool requirements for the docs build, release build/SBOM and
+  # dependency audit. Regenerate a whole file with the command in its header.
+  - package-ecosystem: pip
+    directory: /requirements
+    schedule:
+      interval: weekly
+      day: tuesday
+    groups:
+      tool-locks:
+        patterns:
+          - "*"
+    open-pull-requests-limit: 3
     labels:
       - dependencies
       - python

@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/wardenbot-ai/pytest-wardenbot/actions/workflows/ci.yml/badge.svg)](https://github.com/wardenbot-ai/pytest-wardenbot/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/wardenbot-ai/pytest-wardenbot/branch/main/graph/badge.svg)](https://codecov.io/gh/wardenbot-ai/pytest-wardenbot)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/wardenbot-ai/pytest-wardenbot/badge)](https://scorecard.dev/viewer/?uri=github.com/wardenbot-ai/pytest-wardenbot)
 [![Python versions](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue)](https://pypi.org/project/pytest-wardenbot/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://github.com/wardenbot-ai/pytest-wardenbot/blob/main/LICENSE.md)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)

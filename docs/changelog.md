@@ -32,6 +32,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - **API reference:** shows only public names, under the module to import them
   from, without source code. The page went from 3.2 MB to 0.5 MB.
 
+### Security
+
+- **Release gate:** publishing to PyPI now needs a `v*` tag (only maintainers
+  can create or move one) on a commit that is on `main` and passed CI, and a
+  maintainer's approval in the protected `pypi` environment. Release tools
+  are hash-locked.
+- **SBOM and attestations:** each release has a CycloneDX SBOM of the core
+  install, with GitHub build-provenance and SBOM attestations alongside the
+  PyPI (PEP 740) attestations.
+- **Pinned actions:** every GitHub Action is pinned to a commit SHA, and the
+  repository refuses unpinned ones. The docs deploy now runs in two jobs, so
+  the Cloudflare token never meets repository code or packages installed from
+  PyPI.
+- **Raised dependency floors with known vulnerabilities:** pydantic 2.4.0,
+  langchain-core 1.3.3 (both LangChain extras; the 0.3 line has unfixed
+  advisories) and LangGraph 1.0.10. A CI audit fails if any floor, the current
+  resolution or a tool lock has a published advisory.
+- CodeQL and OpenSSF Scorecard run on every change; `SECURITY.md` has
+  realistic response targets, a safe harbor and GitHub private vulnerability
+  reporting as the preferred channel.
+
+### Upcoming
+
+- **0.7.0 raises the pytest floor to 9.0.3**, the first release that fixes
+  [CVE-2025-71176](https://github.com/advisories/GHSA-6w46-j5rx-g56g). That
+  drops pytest 8.
+
 ## [0.6.0] — 2026-11-10
 
 **Local-first, and your framework.** The suites run end to end on Ollama,

@@ -1,0 +1,56 @@
+name: Dependency audit
+
+# Fails when a dependency has a published vulnerability:
+#   - the current resolution of the package with every user-facing extra;
+#   - every dependency floor declared in pyproject.toml (scripts/audit_floors.py);
+#   - the hash-locked docs, release and audit tool requirements.
+# Runs weekly as well, so new advisories surface without a code change.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "23 6 * * 2"  # Tuesdays 06:23 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependency-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: Dependency audit (pip-audit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Install hash-locked pip-audit
+        run: python -m pip install --require-hashes -r requirements/audit.txt
+      - name: Audit the current resolution with every extra
+        run: |
+          set -euo pipefail
+          python -m venv "$RUNNER_TEMP/current"
+          "$RUNNER_TEMP/current/bin/python" -m pip install --upgrade pip
+          "$RUNNER_TEMP/current/bin/python" -m pip install \
+            ".[judge,mcp,openai,anthropic,langchain,langgraph,claude-agent,async]"
+          PIPAPI_PYTHON_LOCATION="$RUNNER_TEMP/current/bin/python" \
+            python -m pip_audit --progress-spinner off --desc
+      - name: Audit the declared dependency floors
+        run: python scripts/audit_floors.py
+      - name: Audit the hash-locked tool requirements
+        run: |
+          set -euo pipefail
+          for lock in requirements/docs.txt requirements/release.txt requirements/audit.txt; do
+            echo "Auditing $lock"
+            python -m pip_audit --progress-spinner off --desc --no-deps --disable-pip -r "$lock"
+          done

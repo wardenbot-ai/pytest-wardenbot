@@ -7,38 +7,55 @@ on:
     branches: [main]
   workflow_dispatch: {}
 
+# The tests only read the repository.
+permissions:
+  contents: read
+
+concurrency:
+  group: wardenbot-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   wardenbot:
     name: pytest-wardenbot
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
-      - uses: actions/checkout@v4
+      # Actions are pinned to full commit SHAs. Dependabot's github-actions
+      # ecosystem keeps them current.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
         with:
           python-version: "3.12"
-          cache: pip
 
       - name: Install pytest-wardenbot
-        run: |
-          python -m pip install --upgrade pip
-          # Replace with `pip install 'pytest-wardenbot[judge]'` to enable LLM-judge tests.
-          pip install pytest-wardenbot
+        # Pin the version you tested. Use "pytest-wardenbot[judge]==..." to
+        # enable the LLM-judge tests.
+        run: python -m pip install "pytest-wardenbot==0.6.1"
 
       - name: Run wardenbot tests
         env:
           CHATBOT_URL: ${{ secrets.CHATBOT_URL }}
           CHATBOT_TOKEN: ${{ secrets.CHATBOT_TOKEN }}
           # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}  # uncomment if using [judge]
-        run: pytest -v --tb=short
+        run: python -m pytest test_my_bot.py -v --tb=short
 
       - name: Notify Slack on failure
         if: failure() && env.SLACK_WEBHOOK_URL != ''
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          REPOSITORY: ${{ github.repository }}
+          REF_NAME: ${{ github.ref_name }}
+          COMMIT: ${{ github.sha }}
+        # Workflow values reach the script as environment variables, never as
+        # interpolated shell code, and jq builds the JSON.
         run: |
-          curl -X POST -H 'Content-type: application/json' \
-            --data "{\"text\":\":warning: pytest-wardenbot failed on ${{ github.repository }}@${{ github.ref_name }} (commit ${{ github.sha }})\"}" \
-            "$SLACK_WEBHOOK_URL"
+          jq -n --arg text ":warning: pytest-wardenbot failed on $REPOSITORY@$REF_NAME (commit $COMMIT)" \
+            '{text: $text}' |
+            curl --fail --silent --show-error -X POST -H 'Content-type: application/json' \
+              --data @- "$SLACK_WEBHOOK_URL"
