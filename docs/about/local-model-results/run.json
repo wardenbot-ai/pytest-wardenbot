@@ -1,0 +1,44 @@
+{
+  "pytest_wardenbot": "0.6.1",
+  "commit": "190cdb51088340f626732088c2100c39d9f34387",
+  "python": "3.12.1",
+  "machine": "arm64",
+  "ollama": "0.15.5",
+  "samples": 10,
+  "max_turns": 10,
+  "timeout_seconds": 120,
+  "models": {
+    "qwen2.5:7b": {
+      "digest": "845dbda0ea48ed749caafd9e6037047aa19acfcfd82e704d7ca97d631a0b697e",
+      "details": {
+        "parent_model": "",
+        "format": "gguf",
+        "family": "qwen2",
+        "families": [
+          "qwen2"
+        ],
+        "parameter_size": "7.6B",
+        "quantization_level": "Q4_K_M"
+      },
+      "parameters": "",
+      "seconds": 599
+    },
+    "mistral:7b": {
+      "digest": "6577803aa9a036369e481d648a2baebb381ebc6e897f2bb9a766a2aa7bfbc1cf",
+      "details": {
+        "parent_model": "",
+        "format": "gguf",
+        "family": "llama",
+        "families": [
+          "llama"
+        ],
+        "parameter_size": "7.2B",
+        "quantization_level": "Q4_K_M"
+      },
+      "parameters": "stop                           \"[INST]\"\nstop                           \"[/INST]\"",
+      "seconds": 1145
+    }
+  },
+  "started": "2026-11-11T06:05:04Z",
+  "finished": "2026-11-11T06:34:09Z"
+}
