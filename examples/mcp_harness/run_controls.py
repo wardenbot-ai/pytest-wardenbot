@@ -19,8 +19,12 @@ from pytest_wardenbot.agents import (
     result_to_dict,
     run_scenario,
 )
-from pytest_wardenbot.mcp import MCP_SURFACES, MCPHarness, ScriptedMCPAgentTarget
-from pytest_wardenbot.mcp.harness import LIFECYCLE_SURFACES
+from pytest_wardenbot.mcp import (
+    LIFECYCLE_SURFACES,
+    MCP_SURFACES,
+    MCPHarness,
+    ScriptedMCPAgentTarget,
+)
 
 
 async def main(transport: Literal["memory", "stdio", "http"], protocol: str) -> int:

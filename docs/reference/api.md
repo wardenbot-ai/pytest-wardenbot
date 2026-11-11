@@ -281,6 +281,7 @@ for the tested SDK and protocol matrix, and
         - "MCPHarness"
         - "SUPPORTED_PROTOCOL_VERSIONS"
         - "MCP_SURFACES"
+        - "LIFECYCLE_SURFACES"
         - "MCPClient"
         - "TrialTools"
         - "ToolSpec"

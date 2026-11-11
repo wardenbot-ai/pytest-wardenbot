@@ -2,7 +2,12 @@
 
 try:
     from pytest_wardenbot.mcp._client import MCPClient
-    from pytest_wardenbot.mcp.harness import MCP_SURFACES, SUPPORTED_PROTOCOL_VERSIONS, MCPHarness
+    from pytest_wardenbot.mcp.harness import (
+        LIFECYCLE_SURFACES,
+        MCP_SURFACES,
+        SUPPORTED_PROTOCOL_VERSIONS,
+        MCPHarness,
+    )
     from pytest_wardenbot.mcp.targets import ScriptedMCPAgentTarget
     from pytest_wardenbot.mcp.trial_tools import ToolSpec, TrialTools, TurnLimitReached
 except ImportError:
@@ -12,6 +17,7 @@ except ImportError:
     ) from None
 
 __all__ = [
+    "LIFECYCLE_SURFACES",
     "MCP_SURFACES",
     "SUPPORTED_PROTOCOL_VERSIONS",
     "MCPClient",
