@@ -15,12 +15,14 @@ from pytest_wardenbot.quickstart import (
 
 pytest_plugins = ["pytester"]
 
+CHATBOT_TEMPLATES = tuple(name for name in AVAILABLE_TEMPLATES if name != "agent")
+
 # ---------------------------------------------------------------------------
 # generate() — direct file-creation tests
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("template", AVAILABLE_TEMPLATES)
+@pytest.mark.parametrize("template", CHATBOT_TEMPLATES)
 def test_generate_creates_both_files_per_template(tmp_path: Path, template: str) -> None:
     created = generate(template, tmp_path)  # type: ignore[arg-type]
     assert len(created) == 2
@@ -96,7 +98,7 @@ def test_generated_template_imports_resolve_to_real_symbols(tmp_path: Path) -> N
     )
 
 
-@pytest.mark.parametrize("template", AVAILABLE_TEMPLATES)
+@pytest.mark.parametrize("template", CHATBOT_TEMPLATES)
 @pytest.mark.parametrize("url", [None, ""])
 def test_generated_conftest_errors_when_chatbot_url_missing(
     pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch, template: str, url: str | None

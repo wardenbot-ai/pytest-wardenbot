@@ -118,6 +118,12 @@ line-length = 100
 target-version = "py311"
 src = ["src", "tests", "scripts"]
 
+[tool.ruff.format]
+# Ruff formats Python fences in Markdown, which rewrites MkDocs snippet
+# includes (`--8<-- "path"`) into Python expressions. Docs code is checked by
+# tests/test_public_api.py and tests/test_docs_commands.py instead.
+exclude = ["*.md"]
+
 [tool.ruff.lint]
 select = ["E", "F", "B", "I", "UP", "ASYNC", "A", "T20", "RUF", "SIM"]
 ignore = []

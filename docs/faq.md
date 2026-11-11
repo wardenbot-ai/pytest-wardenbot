@@ -24,21 +24,38 @@ requires. Separate judge credentials are needed for optional LLM-judge checks.
 
 ## My chatbot is general-purpose, not domain-scoped. Will the off-topic test fail?
 
-Yes — by design. The off-topic test assumes a scoped customer-service /
-support bot. If your bot is intentionally general-purpose, skip the file:
+Yes, by design. The off-topic test assumes a scoped customer-service or
+support bot. If your bot is intentionally general-purpose, turn it off in
+`conftest.py` by returning no prompts:
 
-```bash
-pytest --ignore=test_off_topic.py
+```python
+import pytest
+
+
+@pytest.fixture
+def wardenbot_off_topic_prompts():
+    return ()  # general-purpose bot: nothing is off-topic
 ```
 
-Or remove the import from your generated `test_my_bot.py`.
+Or deselect it for one run with `pytest -k "not off_topic"`. You can also
+return your own prompts that are off-topic for your bot.
 
-## What about agentic AI (tool calls / function calls)?
+## What about agents that call tools?
 
-The suite includes indirect prompt injection probes, but bundled vendor text
-adapters do not execute tool calls. Wrap your complete agent flow in a custom
-adapter to test its text behavior. Dedicated tool execution and side-effect
-assertions remain future work; track [GitHub Issues](https://github.com/wardenbot-ai/pytest-wardenbot/issues).
+Use the agent suite. It runs your agent against a controlled local MCP harness
+that serves injected tool results, tool descriptions, resources and prompts,
+and records every tool call the agent makes, including calls your own code
+blocks. A trial fails only on a recorded forbidden call or leaked canary, not
+on what the agent says. Start with `pytest --wardenbot-quickstart=agent`, then
+connect [LangGraph](how-to/langgraph-agent.md),
+[Claude Agent SDK](how-to/claude-agent.md),
+[OpenAI Agents SDK](how-to/openai-agents.md) or
+[your own tool loop](how-to/custom-agent.md).
+
+The suite tests your agent, not your MCP servers. To scan servers and tool
+definitions, use a scanner such as
+[Snyk Agent Scan](https://github.com/snyk/agent-scan) or
+[Cisco's MCP Scanner](https://github.com/cisco-ai-defense/mcp-scanner).
 
 ## My bot is behind a login. How do I test it?
 
@@ -54,16 +71,16 @@ Three options:
 
 ## Can I test a Slack / Discord / Teams bot?
 
-You'd need a custom adapter. v0.1 doesn't ship one. The pattern: have
-your test bot send DMs to a wardenbot bot account, and the adapter reads
-the response. Bundled Slack and Discord adapters remain future work in
-[issue #7](https://github.com/wardenbot-ai/pytest-wardenbot/issues/7); they are
-not included in this release.
+Write a small custom adapter: `send_message` posts the prompt as a test user
+and returns the bot's reply, and `reset_session` starts a new thread. See
+[Add your chatbot](how-to/add-chatbot.md). There are no bundled Slack,
+Discord or Teams adapters, and none are planned for now.
 
 ## What model does the LLM judge use?
 
-Anthropic Haiku 4.5 by default. Override via the `model_name` parameter
-in `judge_response` / `assert_judge_passes`, or write a custom adapter.
+Claude Haiku 4.5 by default. Choose another with `--wardenbot-judge-model` or
+`WARDENBOT_JUDGE_MODEL`, including a local model such as
+`ollama/qwen2.5:7b`; see [Enable LLM-judge tests](how-to/llm-judge-setup.md).
 
 ## How reliable is the LLM judge?
 
@@ -75,10 +92,12 @@ without guaranteeing agreement with human reviewers.
 
 ## My CI keeps failing flakily on the same test.
 
-For LLM-judge tests, set the chatbot's temperature to 0 (or as low as
-your model allows) to reduce variance. If a *deterministic* test fails
-intermittently, that's usually real model drift, not flake. Investigate
-before reaching for `--reruns`.
+Model output varies, so a check that usually passes can fail now and then.
+Treat that as a finding: a bot that follows an injection one time in ten will
+do it in production too. Don't retry failed security checks automatically.
+Set the model's temperature to 0 where you can, and to measure how often
+something happens, run repeated trials; see
+[CI integration](how-to/ci-integration.md#when-a-result-changes-between-runs).
 
 ## Can I run this in parallel?
 

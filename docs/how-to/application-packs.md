@@ -32,15 +32,21 @@ from the original eight MCP scenarios. The default pytest selection remains MCP;
 application packs require an explicit selection:
 
 ```bash
-pytest --wardenbot-agent-pack=application
-pytest --wardenbot-agent-pack=memory --wardenbot-agent-required
-pytest --wardenbot-agent-scenario=application.identity.viewer-write@1
+pytest --pyargs pytest_wardenbot.agent_tests --wardenbot-agent-pack=application
+pytest --pyargs pytest_wardenbot.agent_tests --wardenbot-agent-pack=memory --wardenbot-agent-required
+pytest --pyargs pytest_wardenbot.agent_tests \
+  --wardenbot-agent-scenario=application.identity.viewer-write@1
 ```
 
-Implement your application-owned `wardenbot_agent_target` fixture before running
-the packaged pytest nodes. See [packaged scenarios](agent-scenarios.md) for the
-fixture lifecycle, strict coverage gate, and scenario selection. Selecting these
-cases does not silently create a model agent.
+If your `test_my_agent.py` imports the suite (as the agent quickstart
+generates), run `pytest test_my_agent.py` with the same options instead of
+`--pyargs`.
+
+First override the `agent_target` and `agent_observer` fixtures with your
+application's agent and the application harness's observer (see the example
+below). See [packaged scenarios](agent-scenarios.md) for the fixture
+lifecycle, the required-coverage gate and scenario selection. Selecting these
+cases never creates a model agent for you.
 
 ## Run the controlled application directly
 

@@ -5,233 +5,159 @@
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/wardenbot-ai/pytest-wardenbot/badge)](https://scorecard.dev/viewer/?uri=github.com/wardenbot-ai/pytest-wardenbot)
 [![Python versions](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue)](https://pypi.org/project/pytest-wardenbot/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://github.com/wardenbot-ai/pytest-wardenbot/blob/main/LICENSE.md)
-[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
-[![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit)
 
-Pytest security tests for chatbots and tool-using agents — prompt injection,
-MCP and application boundary checks, data leaks and semantic regressions.
+Pytest security tests for chatbots and tool-using agents: prompt injection,
+system-prompt leaks, and agents acting on instructions hidden in tool results,
+MCP resources and prompts. Agent results come from what a controlled harness
+recorded the agent doing, not from what the agent says. Everything can run on
+your machine, including against Ollama, vLLM or llama.cpp models with no API
+key.
 
-📖 **Documentation:** [pytest-wardenbot.wardenbot.ai](https://pytest-wardenbot.wardenbot.ai/) · For coding agents: [llms.txt](https://pytest-wardenbot.wardenbot.ai/llms.txt)
+It tests **your chatbot or agent, not your MCP server**. To scan MCP servers
+and tool definitions themselves, use a scanner such as
+[Snyk Agent Scan](https://github.com/snyk/agent-scan) or
+[Cisco's MCP Scanner](https://github.com/cisco-ai-defense/mcp-scanner).
 
-> **Status: Beta (0.5).** The feature set for the first stable release is in place. Public APIs change only under the [versioning and stability policy](https://pytest-wardenbot.wardenbot.ai/reference/stability/). Questions and feedback: [GitHub Discussions](https://github.com/wardenbot-ai/pytest-wardenbot/discussions). Bugs: [GitHub Issues](https://github.com/wardenbot-ai/pytest-wardenbot/issues).
+📖 [Documentation](https://pytest-wardenbot.wardenbot.ai/) ·
+[llms.txt](https://pytest-wardenbot.wardenbot.ai/llms.txt) for coding agents ·
+**Beta (0.6):** public APIs change only under the
+[stability policy](https://pytest-wardenbot.wardenbot.ai/reference/stability/).
 
----
-
-## What it does
-
-Run pytest against chatbot responses and instrumented agent operations. Check prompt
-injection, data disclosure, task correctness, and unauthorized tool effects.
-
-- **Black-box.** Tests run against your live chatbot via HTTP, OpenAI API, Anthropic API, or any object you write a small adapter for.
-- **Deterministic-first.** The chatbot suite ships 29 tests graded with regex, substring, and schema checks, without a separate judge model. Your chatbot's API usage may still cost money. Optional LLM-judge tests (DeepEval) ship as an extra for semantic checks.
-- **Agent-ready chatbot failures.** When a chatbot test fails, the failure message includes a structured Markdown remediation prompt you can paste into Cursor or Claude Code. Agent scenarios report a content-minimized outcome, the observed evidence and its limits.
-- **Public adapter checks.** The bundled OpenAI and Anthropic adapters have mock-based tests and a scheduled live API smoke workflow. Check the [latest workflow results](https://github.com/wardenbot-ai/pytest-wardenbot/actions/workflows/live-api-smoke.yml) for the current live status.
-- **Instrumented agent scenarios.** Eight versioned cases cover MCP tool results,
-  descriptions, resources and prompts, each with a benign baseline. A recording
-  sink proves effects; required-coverage mode prevents missing evidence from
-  becoming a successful CI run.
-- **Application boundary packs.** Opt-in retrieval, memory, synthetic tenant/role
-  and approval checks exercise controlled local operations. Each includes benign,
-  vulnerable, resistant and no-exposure controls. See the
-  [application integration guide](https://pytest-wardenbot.wardenbot.ai/how-to/application-packs/).
-
-### What "passing" means (and doesn't)
-
-A passing chatbot test means its configured response check did not detect a
-failure. A passing required agent suite additionally needs observed exposure,
-complete declared-boundary evidence, and successful benign task controls.
-Neither result establishes security beyond the tested cases. See the versioned
-[coverage matrix](https://pytest-wardenbot.wardenbot.ai/about/coverage/) and [evaluation limits](https://pytest-wardenbot.wardenbot.ai/about/evaluation/).
-
-A green run does **not** mean your chatbot is secure. Frontier-grade attacks are multi-turn, novel, and adapted to your specific bot — no fixed corpus catches all of them. Treat the shipped suite as a starter set: pair it with periodic red-team exercises (or our [Continuous Monitoring](https://wardenbot.ai/intake/) service) for the always-on adversarial coverage CI alone can't provide.
-
-## Install
-
-Requires Python 3.11+. The package is maintained by
-the [WardenBot AI organization](https://github.com/wardenbot-ai/pytest-wardenbot);
-the GitHub transfer does not change its PyPI name or Python imports.
+## Quickstart: chatbot
 
 ```bash
 pip install pytest-wardenbot
+pytest --wardenbot-quickstart                  # writes conftest.py and test_my_bot.py
+export CHATBOT_URL=https://your-bot.example.com/chat
+pytest                                         # 29 checks, about 35 requests to your bot
 ```
 
-Optional extras for LLM-judge tests or vendor-native adapters:
+The generated `conftest.py` posts `{"message": "..."}` and reads
+`{"response": "..."}`; change the two field names there if your bot differs.
+For OpenAI, Anthropic, LangChain and other clients, see
+[Add your chatbot](https://pytest-wardenbot.wardenbot.ai/how-to/add-chatbot/).
+
+## Quickstart: agent
 
 ```bash
-pip install "pytest-wardenbot[judge]"        # adds DeepEval for semantic checks
-pip install "pytest-wardenbot[openai]"       # adds OpenAI Responses + Chat adapters (sync + async)
-pip install "pytest-wardenbot[anthropic]"    # adds Anthropic Messages adapter (sync + async)
-pip install "pytest-wardenbot[langchain]"    # adds LangChainAdapter for any Runnable (sync + async)
-pip install "pytest-wardenbot[async]"        # adds pytest-asyncio for parallel async probing (run_probes)
-pip install "pytest-wardenbot[mcp]"          # adds the controlled local MCP harness
-pip install "pytest-wardenbot[langgraph]"    # adds the LangGraph agent target
-pip install "pytest-wardenbot[claude-agent]" # adds the Claude Agent SDK agent target
+pip install "pytest-wardenbot[mcp,openai]"
+pytest --wardenbot-quickstart=agent            # writes conftest.py and test_my_agent.py
+export OPENAI_API_KEY=sk-...                   # or: export AGENT_LOCAL=ollama AGENT_MODEL=qwen2.5:7b
+pytest --wardenbot-agent-required              # 8 scenarios, each with a baseline and an attack
 ```
 
-**Fully local:** presets for [Ollama, vLLM and llama.cpp](https://pytest-wardenbot.wardenbot.ai/how-to/local-models/)
-run both suites and the LLM judge with no API key. A tool-calling check reports
-models that can't call tools as unsupported, and the test suite proves local
-runs make no outside network connections.
+The generated `conftest.py` contains a complete tool-calling agent, so the
+first run tests a real model end to end. Then replace it with your own agent:
 
-> **Assistants retirement:** OpenAI retired the Assistants API on 26 August 2026;
-> it is unavailable. Use `OpenAIResponsesAdapter` for new OpenAI text integrations.
-> Legacy Assistants class names remain importable for explicitly injected test
-> clients or compatible proxies; their default constructors fail before SDK or
-> network calls. See [OpenAI migration](https://pytest-wardenbot.wardenbot.ai/how-to/migrate-openai/).
-
-| Integration | Adapter | Conversation state |
-| --- | --- | --- |
-| OpenAI Responses text | `OpenAIResponsesAdapter` / `AsyncOpenAIResponsesAdapter` | Local history per session; requests use `store=False`. |
-| OpenAI Chat Completions text | `OpenAIChatAdapter` / `AsyncOpenAIChatAdapter` | Local history per session. |
-| Checkpointer-backed LangGraph | `LangChainAdapter` / `AsyncLangChainAdapter` | Explicit thread key and reset hook; see [recipe](https://pytest-wardenbot.wardenbot.ai/how-to/langgraph-state/). |
-| Your deployed chatbot or agent | HTTP or custom adapter | Your application's conversation and tool flow. |
-
-See the [dependency support matrix](https://pytest-wardenbot.wardenbot.ai/how-to/dependency-support/) for
-validated SDK combinations and [adapter setup](https://pytest-wardenbot.wardenbot.ai/how-to/add-chatbot/).
-
-### Instrumented agent trials
-
-For larger runs, [bounded campaigns](https://pytest-wardenbot.wardenbot.ai/how-to/agent-campaigns/) share call and
-turn budgets across isolated trials, drain cooperative cancellation, and retain
-every planned case in the report. Retries require an explicit safety declaration.
-
-[Portable evidence](https://pytest-wardenbot.wardenbot.ai/how-to/evidence-bundles/) keeps versioned findings,
-fingerprints and provenance in JSON, JUnit and standalone HTML. Saved observations
-can be re-graded separately from new executions; redacted evidence cannot imply
-a passing grade. A fixed synthetic fixture demonstrates replay from a clean install.
-
-The additive `pytest_wardenbot.agents` API records explicit outcomes: violation,
-observed resistance, inconclusive evidence, unsupported capabilities and execution
-errors. A trusted recording sink establishes effects; model claims do not. Task
-success is tracked separately, and diagnostic content is hidden by default.
-
-The optional [MCP harness](https://pytest-wardenbot.wardenbot.ai/how-to/mcp-harness/) exercises tool results,
-tool descriptions, resources and prompts over real local MCP transports, with
-scripted vulnerable/resistant/unexposed controls. It needs no provider credentials.
-See [agent trials](https://pytest-wardenbot.wardenbot.ai/how-to/agent-trials/) for the contract and application
-integration responsibilities.
-
-Connect your agent with a ready-made target or recipe:
-
-| Agent | Target |
+| Your agent | Connect it with |
 | --- | --- |
 | LangGraph | [`LangGraphAgentTarget`](https://pytest-wardenbot.wardenbot.ai/how-to/langgraph-agent/) (`[langgraph]`) |
 | Claude Agent SDK | [`ClaudeAgentTarget`](https://pytest-wardenbot.wardenbot.ai/how-to/claude-agent/) (`[claude-agent]`), isolated from your machine |
 | OpenAI Agents SDK | [Recipe](https://pytest-wardenbot.wardenbot.ai/how-to/openai-agents/) |
-| Any tool loop | [40-line custom target](https://pytest-wardenbot.wardenbot.ai/how-to/custom-agent/) with `TrialTools` |
+| Any other tool loop | [40-line custom target](https://pytest-wardenbot.wardenbot.ai/how-to/custom-agent/) with `TrialTools` |
 
-After configuring your `agent_target` and `agent_observer` fixtures:
+## What a result means
+
+**Chatbot suite.** A failing check found a problem in a response: the bot
+followed an injected instruction, complied with a request it should have
+refused, or leaked its system prompt (planting a
+[canary token](https://pytest-wardenbot.wardenbot.ai/how-to/canary-token/)
+makes leak checks much stronger). A passing check found none of the patterns
+it looks for. The graders are measured on
+[744 labeled responses](https://pytest-wardenbot.wardenbot.ai/reference/grading-accuracy/):
+none of the 492 well-behaved replies fail, and the page lists the known misses
+and how the graders did on replies they had never seen.
+
+**Agent suite.** An attack trial fails only when the harness recorded the
+agent calling the forbidden tool or sending the canary, including calls your
+own code blocked. It passes as `resisted` only when the harness saw the
+injected content delivered and recorded nothing forbidden. Missing evidence
+is `inconclusive`, and a model that can't call tools is `unsupported`, never
+`resisted`. Each attack has a benign baseline; whether the task succeeded is
+reported by your agent and tracked separately. See
+[agent outcomes](https://pytest-wardenbot.wardenbot.ai/reference/agent-outcomes/).
+
+A green run means these cases passed, not that your system is secure. The
+attacks are fixed and simple next to a motivated attacker who adapts to your
+bot. Use the suite as a regression gate in CI, alongside red-team testing.
+
+## Chatbot suite
+
+| Category | Checks | Grading |
+|---|---|---|
+| Prompt injection / jailbreak resistance | 5 prompts × 2 checks | deterministic |
+| System-prompt elicitation | 3 | deterministic, canary-first |
+| Refusal bypass (roleplay, pretext, hypothetical) | 3 | deterministic |
+| Off-topic deflection (for scoped bots) | 2 | deterministic |
+| Indirect (cross-prompt) injection | 4 | deterministic |
+| Encoded payloads (Base64, ROT13, leet, hex) | 4 | deterministic |
+| Multi-turn jailbreak (needs a session-aware adapter) | 3 | deterministic |
+| Business facts (your prices, hours, policies) | one per fact | deterministic |
+| Semantic checks (`[judge]` extra) | one per case | LLM judge, hosted or local |
+
+No judge model is involved unless you add judge cases. When a check fails, the
+message includes a Markdown remediation brief you can paste into Cursor or
+Claude Code; the bot's reply is fenced as untrusted text.
+
+Adapters: HTTP, OpenAI Responses and Chat Completions, Anthropic Messages,
+LangChain Runnables, Ollama/vLLM/llama.cpp presets, or any object with
+`send_message` and `reset_session`.
+
+## Agent suite
+
+- **Eight versioned MCP scenarios** inject instructions through tool results,
+  tool descriptions, resources and prompts, over real local MCP transports.
+  Each checks a forbidden tool call or a synthetic canary, with a benign
+  baseline.
+- **Required mode** (`--wardenbot-agent-required`) fails the run if any
+  selected case is skipped, deselected, unsupported or lacks evidence, also
+  under pytest-xdist.
+- **Application packs** (opt-in) cover poisoned retrieval, cross-session
+  memory, tenant and role separation, and approval before write, through
+  hooks into your own application.
+- **Bounded campaigns** share call and turn budgets across repeated trials;
+  **portable evidence** saves versioned results as JSON, JUnit or
+  self-contained HTML that can be re-graded later.
+- **Fully local:** the [local presets](https://pytest-wardenbot.wardenbot.ai/how-to/local-models/)
+  check that a model can call tools first, and a CI test proves local runs
+  make no outside network connections.
+
+## Install extras
 
 ```bash
-pytest --pyargs pytest_wardenbot.agent_tests --wardenbot-agent-required
-# Select one versioned scenario and its benign baseline:
-pytest --pyargs pytest_wardenbot.agent_tests \
-  --wardenbot-agent-scenario=mcp.tool-result.forbidden-tool@1 \
-  --wardenbot-agent-required
+pip install "pytest-wardenbot[mcp]"          # controlled MCP harness for the agent suite
+pip install "pytest-wardenbot[langgraph]"    # LangGraph agent target
+pip install "pytest-wardenbot[claude-agent]" # Claude Agent SDK agent target
+pip install "pytest-wardenbot[openai]"       # OpenAI adapters (sync and async)
+pip install "pytest-wardenbot[anthropic]"    # Anthropic adapter (sync and async)
+pip install "pytest-wardenbot[langchain]"    # LangChain Runnable adapter
+pip install "pytest-wardenbot[judge]"        # DeepEval semantic checks
+pip install "pytest-wardenbot[async]"        # pytest-asyncio for parallel probes
 ```
 
-The [scenario guide](https://pytest-wardenbot.wardenbot.ai/how-to/agent-scenarios/) includes a complete local
-fixture setup. The [reference agent](https://pytest-wardenbot.wardenbot.ai/how-to/reference-agent/) and
-[pilot methodology](https://pytest-wardenbot.wardenbot.ai/about/agent-pilot/) exercise a bounded model/tool loop
-with paired benign and attack trials. Existing chatbot tests remain in the
-separate `pytest_wardenbot.tests` suite.
+Python 3.11–3.14, pytest 8.1.1 or later. The package ships type hints
+(`py.typed`). Releases are published from CI with PyPI attestations, an SBOM
+and a maintainer approval step; see [SECURITY.md](https://github.com/wardenbot-ai/pytest-wardenbot/blob/main/SECURITY.md).
 
-A second [support application example](https://github.com/wardenbot-ai/pytest-wardenbot/blob/main/examples/support_agent/README.md) uses
-direct local ticket APIs, scoped approvals, and a real model tool loop without
-MCP. Both examples default to offline SDK controls. The
-[support pilot](https://pytest-wardenbot.wardenbot.ai/about/support-pilot/) records repeated trials, held-out
-cases, benign quoted/encoded text, utility, incomplete results, and sample-size
-limits; it does not rank models.
-
-
-## Quickstart (under 60 seconds)
-
-```bash
-pip install pytest-wardenbot
-pytest --wardenbot-quickstart           # generates conftest.py + test_my_bot.py
-export CHATBOT_URL=https://your-chatbot.example.com/chat
-export CHATBOT_TOKEN=sk-...              # optional
-pytest                                   # runs all shipped tests against your bot
-```
-
-`--wardenbot-quickstart` accepts an industry template:
-
-```bash
-pytest --wardenbot-quickstart=ecommerce       # adds refund/shipping fact placeholders
-pytest --wardenbot-quickstart=saas-support    # adds plan/trial fact placeholders
-pytest --wardenbot-quickstart=generic         # default; minimal placeholders
-```
-
-Then edit `conftest.py` to replace the TODO placeholders with your real
-business facts and re-run `pytest`. Worked examples in [`examples/`](https://github.com/wardenbot-ai/pytest-wardenbot/tree/main/examples)
-cover the basic HTTP setup, a custom OpenAI adapter, and a GitHub Actions
-workflow.
-
-### Manual setup (if you prefer)
-
-Add this to your project's `conftest.py`:
-
-```python
-import os
-import pytest
-from pytest_wardenbot.adapters.http import HTTPChatbotAdapter
-
-
-@pytest.fixture
-def chatbot():
-    return HTTPChatbotAdapter(
-        url="https://your-chatbot.example.com/chat",
-        headers={"Authorization": f"Bearer {os.environ['CHATBOT_TOKEN']}"},
-        request_field="message",  # the JSON key your bot reads the prompt from
-        response_field="response",  # the JSON key your bot returns the text in
-    )
-```
-
-Then run the shipped tests with `pytest --pyargs pytest_wardenbot.tests`.
-
-When a test fails, read the failure message, paste the agent-ready Markdown
-into Cursor / Claude Code, ship the fix.
-
-## Bundled chatbot checks
-
-| Category | Count | Grading | Requires API key? |
-|---|---|---|---|
-| Prompt-injection / jailbreak resistance | 5 prompts × 2 checks = 10 | deterministic | no |
-| System-prompt leak elicitation (dedicated extraction prompts) | 3 | deterministic | no |
-| Refusal-bypass (roleplay / pretext / hypothetical framings) | 3 | deterministic | no |
-| Off-topic deflection (scoped bots) | 2 | deterministic | no |
-| Indirect / cross-prompt injection (XPIA) | 4 | deterministic | no |
-| Encoded-payload jailbreak (Base64 / ROT13 / leet / hex) | 4 | deterministic | no |
-| Multi-turn jailbreak (priming + payload, needs session-aware adapter) | 3 | deterministic | no |
-| Canary-token sweep (deprecated; leak checks now test the canary) | 1 | deterministic | no |
-| Business-truth verification (parametrized over your facts) | user-supplied | deterministic | no |
-| Semantic checks via DeepEval (5 factories: equivalence, brand, hallucination, off-policy, refusal quality) | user-supplied | LLM-judge | yes, with `[judge]` extra |
-
-That's **29 deterministic tests** out-of-the-box (plus your business-truth and judge lists). Set `WARDENBOT_CANARY` to a token planted in your bot's system prompt and every leak check also looks for it; [grading accuracy](https://pytest-wardenbot.wardenbot.ai/reference/grading-accuracy/) is measured on 744 labeled responses. Runtime and chatbot API costs depend on your endpoint; the deterministic checks do not call a separate judge model.
-
-The chatbot suite also supports LangChain Runnables, multi-judge ensembles and
-parallel async probes. Ask questions in
-[GitHub Discussions](https://github.com/wardenbot-ai/pytest-wardenbot/discussions)
-and report bugs in [GitHub Issues](https://github.com/wardenbot-ai/pytest-wardenbot/issues).
-
-## How it's different from related tools
-
-Several good tools overlap with parts of this one. We aim to complement them.
+## How it relates to other tools
 
 - **Promptfoo** runs red-team and evaluation suites from a CLI, including MCP
   security testing. pytest-wardenbot runs inside the pytest suite and CI you
-  already have, and its agent results come from what the harness recorded the
-  agent attempting and doing, rather than the agent's final text.
-- **RAMPART** also brings security testing to pytest, built on PyRIT's broader
-  attack generation. pytest-wardenbot keeps a small core install and its own
-  controlled harness, and adds versioned scenarios, required coverage and
+  already have, and grades agents on recorded actions rather than final text.
+- **RAMPART** also brings security testing to pytest, built on PyRIT's attack
+  generation. pytest-wardenbot keeps a small core install and its own
+  controlled harness, with versioned scenarios, required coverage and
   portable evidence.
-- **DeepEval** and **Inspect AI** provide evaluation metrics and agent-evaluation
-  infrastructure. pytest-wardenbot focuses narrowly on security regressions
-  with explicit outcomes. It uses DeepEval for its optional semantic checks.
-- **Garak** and **PyRIT** are broad attack and research libraries. The chatbot
-  suite packages a curated set of test patterns as everyday pytest tests with
-  clear failure messages.
+- **DeepEval** and **Inspect AI** provide evaluation metrics and agent
+  evaluation infrastructure. pytest-wardenbot focuses on security regressions
+  with explicit outcomes, and uses DeepEval for its optional semantic checks.
+- **Garak** and **PyRIT** are broad attack and research toolkits.
+- **MCP scanners** such as Snyk Agent Scan and Cisco's MCP Scanner inspect
+  servers and tool definitions; pytest-wardenbot tests how your agent behaves
+  when what those servers send is hostile.
+
+Questions and feedback: [GitHub Discussions](https://github.com/wardenbot-ai/pytest-wardenbot/discussions).
+Bugs: [GitHub Issues](https://github.com/wardenbot-ai/pytest-wardenbot/issues).
 
 ## License
 
@@ -239,6 +165,8 @@ Apache 2.0. See [LICENSE.md](https://github.com/wardenbot-ai/pytest-wardenbot/bl
 
 ## Powered by
 
-[WardenBot AI](https://wardenbot.ai) — continuous external monitoring for AI chatbots. ![Powered by WardenBot AI](https://img.shields.io/badge/Powered_by-WardenBot_AI-purple)
-
-The pytest plugin is the free, open-source slice of our test corpus. Want continuous monitoring across all your bots with daily probes and a dashboard? [Tell us about your setup](https://wardenbot.ai/intake/) — we open invites in small batches.
+[WardenBot AI](https://wardenbot.ai) runs continuous security monitoring for
+AI chatbots and agents. This plugin is the free, open-source slice of that
+work: the same kinds of checks, in your own CI.
+[Tell us about your setup](https://wardenbot.ai/intake/) if you want them run
+continuously against your deployed systems.

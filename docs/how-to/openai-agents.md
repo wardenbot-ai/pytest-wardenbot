@@ -15,7 +15,7 @@ Save this as `conftest.py` and replace the `Agent(...)` arguments with your
 agent's instructions, model and settings:
 
 ```python
---8 < --"examples/openai_agents/conftest.py"
+--8<-- "examples/openai_agents/conftest.py"
 ```
 
 ```bash

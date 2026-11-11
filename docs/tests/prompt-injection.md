@@ -7,7 +7,7 @@ patterns.
 
 A class of inputs that try to make the bot ignore its system prompt and
 follow new instructions from the user message instead. Public datasets
-contain hundreds of these patterns; v0.1 ships five chosen for variety.
+contain hundreds of these patterns; the suite ships five chosen for variety.
 
 ## How it works
 
