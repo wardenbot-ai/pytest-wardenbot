@@ -75,7 +75,7 @@ same scenario and both phases:
 
 ```bash
 pytest --pyargs pytest_wardenbot.agent_tests \
-  --wardenbot-agent-scenario=mcp.tool-result.forbidden-tool@1
+  --wardenbot-agent-scenario=mcp.tool-result.forbidden-tool@2
 ```
 
 For required coverage, define the expected scenarios with

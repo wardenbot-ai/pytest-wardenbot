@@ -83,11 +83,11 @@ def model_client_factory():
 
 def test_debug_shows_the_error_the_harness_sanitized(pytester):
     pytester.makeconftest(EXAMPLE.read_text() + BROKEN)
-    quiet = pytester.runpytest(*ARGS, "--wardenbot-agent-scenario=mcp.tool-result.canary@1")
+    quiet = pytester.runpytest(*ARGS, "--wardenbot-agent-scenario=mcp.tool-result.canary@2")
     quiet.assert_outcomes(failed=2)
     assert "SYNTHETIC_MODEL_FAILURE" not in quiet.stdout.str()
     loud = pytester.runpytest(
-        *ARGS, "--wardenbot-agent-scenario=mcp.tool-result.canary@1", "--wardenbot-agent-debug"
+        *ARGS, "--wardenbot-agent-scenario=mcp.tool-result.canary@2", "--wardenbot-agent-debug"
     )
     output = loud.stdout.str()
     assert "Local MCP harness transport or target execution failed" in output

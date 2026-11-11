@@ -10,7 +10,7 @@ from pytest_wardenbot.agents.scenarios import AGENT_SCENARIOS, scenario_selectio
 
 pytest_plugins = ["pytester"]
 
-SELECTION = "mcp.tool-result.forbidden-tool@1"
+SELECTION = "mcp.tool-result.forbidden-tool@2"
 ARGS = ("--pyargs", "pytest_wardenbot.agent_tests")
 
 CONFTEST = """
@@ -185,7 +185,7 @@ def test_repeated_real_http_trials_own_and_close_clients_on_each_test_loop(pytes
     result = pytester.runpytest_subprocess(
         *ARGS,
         f"--wardenbot-agent-scenario={SELECTION}",
-        "--wardenbot-agent-scenario=mcp.resource.canary@1",
+        "--wardenbot-agent-scenario=mcp.resource.canary@2",
         "--wardenbot-agent-required",
     )
     result.assert_outcomes(passed=4)

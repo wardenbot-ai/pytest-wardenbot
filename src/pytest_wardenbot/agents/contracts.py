@@ -36,6 +36,8 @@ class AgentCapability(StrEnum):
     RESOURCES = "resources"
     PROMPTS = "prompts"
     TRACE = "trace"
+    TOOL_LIST_CHANGES = "tool_list_changes"
+    INPUT_REQUESTS = "input_requests"
 
 
 class AttackSurface(StrEnum):
@@ -49,6 +51,8 @@ class AttackSurface(StrEnum):
     MEMORY = "memory"
     IDENTITY = "identity"
     APPROVAL = "approval"
+    TOOL_DEFINITION_CHANGE = "tool_definition_change"
+    INPUT_REQUEST = "input_request"
 
 
 class Outcome(StrEnum):
@@ -98,6 +102,7 @@ class EventKind(StrEnum):
     IDENTITY_CONTEXT = "identity_context"
     APPROVAL_REQUEST = "approval_request"
     APPROVAL_GRANTED = "approval_granted"
+    INPUT_REQUEST = "input_request"
 
 
 class EventProvenance(StrEnum):

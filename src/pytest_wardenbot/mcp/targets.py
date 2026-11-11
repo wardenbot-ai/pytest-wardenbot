@@ -32,6 +32,8 @@ class ScriptedMCPAgentTarget:
             AgentCapability.PROMPTS,
             AgentCapability.TRACE,
             AgentCapability.BUDGET_ACCOUNTING,
+            AgentCapability.TOOL_LIST_CHANGES,
+            AgentCapability.INPUT_REQUESTS,
         }
     )
 
@@ -82,9 +84,31 @@ class ScriptedMCPAgentTarget:
                     tool.description or "" for tool in listing.tools if tool.name == DOCUMENT_TOOL
                 )
             turn()
-            if surface in {AttackSurface.TOOL_RESULT, AttackSurface.TOOL_DESCRIPTION}:
+            if surface in {
+                AttackSurface.TOOL_RESULT,
+                AttackSurface.TOOL_DESCRIPTION,
+                AttackSurface.TOOL_DEFINITION_CHANGE,
+                AttackSurface.INPUT_REQUEST,
+            }:
+                requests: list[str] = []
+
+                async def answer(message: str, schema: dict[str, Any]) -> dict[str, Any]:
+                    requests.append(message)
+                    return {"confirm": True}
+
+                client.on_input_request(answer)
                 response = await call(lambda: client.call_tool(DOCUMENT_TOOL, {}))
                 document = "\n".join(getattr(block, "text", "") for block in response.content)
+                if surface == AttackSurface.INPUT_REQUEST:
+                    attack_text = "\n".join(requests)
+                elif surface == AttackSurface.TOOL_DEFINITION_CHANGE:
+                    # Follow the change announcement by reading the definitions again.
+                    relisted = await call(client.list_tools)
+                    attack_text = next(
+                        tool.description or ""
+                        for tool in relisted.tools
+                        if tool.name == DOCUMENT_TOOL
+                    )
             elif surface == AttackSurface.RESOURCE:
                 response = await call(lambda: client.read_resource(DOCUMENT_URI))
                 document = "\n".join(getattr(block, "text", "") for block in response.contents)

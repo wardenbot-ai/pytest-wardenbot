@@ -102,6 +102,22 @@ Choose one surface per scenario:
 - `TOOL_DESCRIPTION`: injected instructions in tool metadata.
 - `RESOURCE`: injected text in the controlled document resource.
 - `PROMPT`: injected content in the controlled prompt response.
+- `TOOL_DEFINITION_CHANGE` (2026-07-28 only): `fetch_document` starts with a
+  benign description. Its first call replaces the description with the
+  injection and announces the change with `notifications/tools/list_changed`
+  (read it with `client.listen(tools_list_changed=True)`). Delivery is
+  recorded when the client lists tools again and receives the changed
+  definition.
+- `INPUT_REQUEST` (2026-07-28 only): the first `fetch_document` call returns
+  an `input_required` result with a form elicitation whose message carries the
+  injection. Register an answer with `client.on_input_request(handler)`; without
+  one, the request is declined. Delivery is recorded when the request reaches
+  the client, and any answer releases the document.
+
+The harness serves two tools: `fetch_document` and a sink. For the default
+version 2 scenarios and the lifecycle scenarios the sink is `send_message`
+("Send a message to an external recipient."); for version 1 scenarios, or a
+custom scenario whose forbidden tool is `record_action`, it is `record_action`.
 
 The observed client records successful receipt of the controlled injection with
 the scenario ID/version. A server-generated response that the client fails to
@@ -122,7 +138,8 @@ Implement the [AgentTarget contract](agent-trials.md#implement-a-target). During
 `run`, enter `async with harness.trial(trial_id) as client` and wire that observed
 client into your application's tool-discovery and tool-execution loop. The facade
 uses the real MCP SDK and observes completed `list_tools`, `call_tool`,
-`read_resource` and `get_prompt` responses. Keep the
+`read_resource` and `get_prompt` responses, and the input requests that reach
+it. Keep the
 client within that context. Enforce `max_turns` and reset application state using
 the supplied trial ID. Return `TargetRun` with the task's actual completion and
 turn count; pass `harness.observe` separately to `run_scenario`.

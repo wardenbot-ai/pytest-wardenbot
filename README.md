@@ -109,6 +109,9 @@ LangChain Runnables, Ollama/vLLM/llama.cpp presets, or any object with
   tool descriptions, resources and prompts, over real local MCP transports.
   Each checks a forbidden tool call or a synthetic canary, with a benign
   baseline.
+- **MCP 2026-07-28 lifecycle scenarios** (opt-in): a tool definition that
+  changes after the agent listed it, and a poisoned input request that pauses
+  a tool call mid-flight.
 - **Required mode** (`--wardenbot-agent-required`) fails the run if any
   selected case is skipped, deselected, unsupported or lacks evidence, also
   under pytest-xdist.

@@ -64,7 +64,7 @@ def test_turn_limit_stops_before_the_next_model_request(pytester):
         + "@pytest.fixture\ndef wardenbot_agent_limits():\n    return RunLimits(max_turns=4)\n"
     )
     result = pytester.runpytest(
-        *ARGS, "--wardenbot-agent-scenario=mcp.tool-result.forbidden-tool@1"
+        *ARGS, "--wardenbot-agent-scenario=mcp.tool-result.forbidden-tool@2"
     )
     # Baseline: discovery, model, fetch, final answer fit in four turns.
     # Attack: no turn was left for the sink call, so it was blocked and counted.

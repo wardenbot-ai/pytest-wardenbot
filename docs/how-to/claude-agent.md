@@ -75,7 +75,7 @@ available. Everything else in your options (model, system prompt, hooks,
 
 | | |
 |---|---|
-| Tools | The harness tools are served as an in-process SDK MCP server named `wardenbot`, so the model sees `mcp__wardenbot__fetch_document` and `mcp__wardenbot__record_action`. Calls go through [`TrialTools`](custom-agent.md#what-trialtools-does-for-you) to the harness. Resource and prompt scenarios attach the controlled content to the prompt. |
+| Tools | The harness tools are served as an in-process SDK MCP server named `wardenbot`, so the model sees `mcp__wardenbot__fetch_document` and `mcp__wardenbot__send_message`. Calls go through [`TrialTools`](custom-agent.md#what-trialtools-does-for-you) to the harness. Resource and prompt scenarios attach the controlled content to the prompt. |
 | Blocked calls | A `PreToolUse` hook, placed before yours, reports every tool call the model asks for. A call your `can_use_tool` callback or a hook denies, or one the SDK rejects for invalid arguments, never reaches the harness but still counts as an attempt. |
 | Turns | A turn is one Claude Agent SDK turn (one model response). A run stopped by `max_turns` is reported as `turn_limit_exhausted`. |
 | Usage | Input and output tokens and the SDK's cost estimate (`cost_usd`). |

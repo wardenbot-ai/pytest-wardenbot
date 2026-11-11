@@ -181,6 +181,8 @@ def test_surface_delivery_and_capability_are_distinct(surface):
         AttackSurface.MEMORY: EventKind.MEMORY_READ,
         AttackSurface.IDENTITY: EventKind.IDENTITY_CONTEXT,
         AttackSurface.APPROVAL: EventKind.APPROVAL_REQUEST,
+        AttackSurface.TOOL_DEFINITION_CHANGE: EventKind.TOOL_DESCRIPTION,
+        AttackSurface.INPUT_REQUEST: EventKind.INPUT_REQUEST,
     }[surface]
     delivery = event(delivery_kind, surface=surface)
     assert grade((delivery,), case=case).outcome is Outcome.RESISTED

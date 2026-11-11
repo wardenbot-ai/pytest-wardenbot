@@ -49,7 +49,7 @@ error code added.
 
 | Code | Meaning | What to do |
 |---|---|---|
-| `missing_capability` | The target does not declare a capability the scenario needs, such as `tool_results` or `retrieval`, or it raised `CapabilityUnavailable` at run time (for example, its model cannot call tools). | Implement and declare it, use a model that supports it, or deselect the scenario. |
+| `missing_capability` | The target does not declare a capability the scenario needs, such as `tool_results`, `retrieval` or the lifecycle pack's `tool_list_changes` and `input_requests`, or it raised `CapabilityUnavailable` at run time (for example, its model cannot call tools). | Implement and declare it, use a model that supports it, or deselect the scenario. |
 | `budget_instrumentation_required` | In a campaign, the target lacks `budget_accounting` (`unsupported`), or reported more turns than the campaign counted (`error`). | Route the target's model calls and turns through the campaign's trial context. See [Bound agent campaigns](../how-to/agent-campaigns.md). |
 
 ### Errors

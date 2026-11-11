@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Awaitable, Callable
+from contextlib import AbstractAsyncContextManager
 from pathlib import Path
 from typing import Any
 
 from mcp import Client  # type: ignore[import-not-found]
 from mcp_types import (  # type: ignore[import-not-found]
     CallToolResult,
+    ElicitResult,
     GetPromptResult,
     Implementation,
     ListToolsResult,
@@ -32,6 +35,34 @@ from pytest_wardenbot.mcp._server import (
 )
 from pytest_wardenbot.mcp._wire import write_event
 
+InputHandler = Callable[[str, dict[str, Any]], Awaitable[dict[str, Any] | None]]
+"""Answers one input request: ``(message, requested_schema) -> content``, or ``None`` to decline."""
+
+
+class _InputRouter:
+    """The SDK client's elicitation callback, set up before the facade exists.
+
+    It records delivery of a controlled input request, then hands the request
+    to the integration's handler (``MCPClient.on_input_request``). Without a
+    handler the request is declined.
+    """
+
+    def __init__(self) -> None:
+        self.handler: InputHandler | None = None
+        self.record: Callable[[str], None] | None = None
+
+    async def __call__(self, context: Any, params: Any) -> ElicitResult:
+        message = str(getattr(params, "message", "") or "")
+        schema = getattr(params, "requested_schema", None)
+        if self.record is not None:
+            self.record(message)
+        if self.handler is None:
+            return ElicitResult(action="decline")
+        content = await self.handler(message, dict(schema) if isinstance(schema, dict) else {})
+        if content is None:
+            return ElicitResult(action="decline")
+        return ElicitResult(action="accept", content=dict(content))
+
 
 class MCPClient:
     """Observed facade backed by a real, context-owned official SDK Client.
@@ -53,6 +84,7 @@ class MCPClient:
         *,
         attack_enabled: bool = True,
         injection_text: str | None = None,
+        input_router: _InputRouter | None = None,
     ) -> None:
         self._client = client
         self._scenario = scenario
@@ -62,6 +94,11 @@ class MCPClient:
         self._injection = (
             injection_text if injection_text is not None else attack_instruction(scenario)
         )
+        self._input_router = input_router
+        if input_router is not None and scenario.surface is AttackSurface.INPUT_REQUEST:
+            input_router.record = lambda message: self._delivered(
+                EventKind.INPUT_REQUEST, DOCUMENT_TOOL, message
+            )
 
     @property
     def protocol_version(self) -> str:
@@ -134,9 +171,35 @@ class MCPClient:
             )
         write_event(self._journal, event)
 
+    def on_input_request(self, handler: InputHandler | None) -> None:
+        """Choose how this client answers servers' input requests (MCP 2026-07-28).
+
+        A server can pause a tool call, resource read or prompt and ask the
+        client for input, such as a form elicitation. ``handler`` receives the
+        request's message and requested JSON schema and returns the form
+        content, or ``None`` to decline. Without a handler, requests are
+        declined. Delivery of a controlled request is recorded either way.
+        """
+        if self._input_router is None:
+            raise RuntimeError("This client was not created by MCPHarness.trial")
+        if handler is not None and not callable(handler):
+            raise ValueError("The input handler must be an async callable or None")
+        self._input_router.handler = handler
+
+    def listen(self, **kwargs: Any) -> AbstractAsyncContextManager[Any]:
+        """Open the SDK's ``subscriptions/listen`` stream of change events (2026-07-28).
+
+        For example ``async with client.listen(tools_list_changed=True) as events``.
+        A tool-definition-change trial announces its change this way.
+        """
+        return self._client.listen(**kwargs)
+
     async def list_tools(self, **kwargs: Any) -> ListToolsResult:
         result = await self._client.list_tools(**kwargs)
-        if self._scenario.surface is AttackSurface.TOOL_DESCRIPTION:
+        if self._scenario.surface in {
+            AttackSurface.TOOL_DESCRIPTION,
+            AttackSurface.TOOL_DEFINITION_CHANGE,
+        }:
             for tool in result.tools:
                 if tool.name == DOCUMENT_TOOL:
                     self._delivered(EventKind.TOOL_DESCRIPTION, tool.name, tool.description or "")
