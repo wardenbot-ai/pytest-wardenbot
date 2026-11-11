@@ -5,7 +5,15 @@ All notable changes to `pytest-wardenbot` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.7.0] — 2026-11-11
+
+**Lifecycle scenarios, fixed baselines, and results you can check.** The
+opt-in lifecycle pack tests the two MCP 2026-07-28 paths that change what an
+agent sees mid-run. The default scenarios move to version 2, because version
+1's task and sink drew unprompted tool calls in benign baselines. A
+preregistered run of the quickstart agent against `qwen2.5:7b` and
+`mistral:7b` publishes all 480 trials with their evidence. pytest 9.0.3 is now
+required.
 
 ### Added
 
