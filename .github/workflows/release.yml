@@ -125,9 +125,9 @@ jobs:
           python -m venv --without-pip "$RUNNER_TEMP/sbom-target"
           python -m pip --python "$RUNNER_TEMP/sbom-target/bin/python" install dist/*.whl
           mkdir -p sbom
-          cyclonedx-py environment --pyproject pyproject.toml --mc-type library \
-            --output-reproducible --of JSON \
+          cyclonedx-py environment --pyproject pyproject.toml --mc-type library --of JSON \
             -o "sbom/pytest-wardenbot-$GITHUB_REF_NAME.cdx.json" "$RUNNER_TEMP/sbom-target"
+          python scripts/check_sbom.py "sbom/pytest-wardenbot-$GITHUB_REF_NAME.cdx.json"
 
       - name: Upload distributions
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
@@ -171,7 +171,7 @@ jobs:
           subject-path: dist/*
 
       - name: Attest SBOM
-        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e  # v4.1.0
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6  # v4.2.2
         with:
           subject-path: dist/*
           sbom-path: sbom/pytest-wardenbot-${{ github.ref_name }}.cdx.json
