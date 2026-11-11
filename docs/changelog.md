@@ -79,6 +79,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   langchain-core 1.3.3 (both LangChain extras; the 0.3 line has unfixed
   advisories) and LangGraph 1.0.10. A CI audit fails if any floor, the current
   resolution or a tool lock has a published advisory.
+- Dependabot waits until a release is 14 days old before proposing it, for
+  actions, Python dependencies and the tool locks.
 - CodeQL and OpenSSF Scorecard run on every change; `SECURITY.md` has
   realistic response targets, a safe harbor and GitHub private vulnerability
   reporting as the preferred channel.

@@ -8,6 +8,10 @@ updates:
     schedule:
       interval: weekly
       day: tuesday
+    # Wait until a release is two weeks old, so a compromised or broken
+    # release is likely caught before it reaches CI or a release build.
+    cooldown:
+      default-days: 14
     groups:
       actions:
         patterns:
@@ -17,36 +21,23 @@ updates:
       - dependencies
       - github-actions
 
-  # Python dependencies — Python deps are mostly pinned with >= ranges in
-  # pyproject.toml, so Dependabot's value here is announcing major-version
-  # bumps in our extras (deepeval, openai, anthropic) so we can test against
-  # them and bump the lower bound if needed.
+  # Python dependencies: pyproject.toml (mostly >= ranges, plus the pinned dev
+  # tools) and the hash-locked tool requirements in requirements/. When the
+  # dev ruff pin changes, update .pre-commit-config.yaml to match.
   - package-ecosystem: pip
     directory: /
     schedule:
       interval: weekly
       day: tuesday
+    # Wait until a release is two weeks old, so a compromised or broken
+    # release is likely caught before it reaches CI or a release build.
+    cooldown:
+      default-days: 14
     groups:
       python:
         patterns:
           - "*"
     open-pull-requests-limit: 5
-    labels:
-      - dependencies
-      - python
-
-  # Hash-locked tool requirements for the docs build, release build/SBOM and
-  # dependency audit. Regenerate a whole file with the command in its header.
-  - package-ecosystem: pip
-    directory: /requirements
-    schedule:
-      interval: weekly
-      day: tuesday
-    groups:
-      tool-locks:
-        patterns:
-          - "*"
-    open-pull-requests-limit: 3
     labels:
       - dependencies
       - python
