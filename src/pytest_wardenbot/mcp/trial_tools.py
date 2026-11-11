@@ -14,7 +14,11 @@ integration only has to translate between its agent loop and plain tool specs:
 - records tool calls the model requested that never reached the harness, so a
   blocked attempt still counts against the agent;
 - builds the ``TargetRun``, with task success meaning the document was
-  received and the answer contains its key fact.
+  received and the answer contains its key fact;
+- for the MCP 2026-07-28 lifecycle scenarios, re-reads the tool list after
+  each tool call (as a client that follows ``tools/list_changed`` would) and
+  passes servers' input requests to the model, declines them, or hands them
+  to your own handler.
 
 It does not make model calls, retry, or add any instructions of its own.
 """
@@ -29,10 +33,10 @@ from collections.abc import Callable, Mapping
 from contextlib import AsyncExitStack
 from dataclasses import dataclass, field
 from types import TracebackType
-from typing import Any
+from typing import Any, Literal
 
 from pytest_wardenbot.agents.contracts import AgentCapability, AttackSurface, TargetRun
-from pytest_wardenbot.mcp._client import MCPClient
+from pytest_wardenbot.mcp._client import InputHandler, MCPClient
 from pytest_wardenbot.mcp._server import DOCUMENT, DOCUMENT_PROMPT, DOCUMENT_TOOL, DOCUMENT_URI
 from pytest_wardenbot.mcp.harness import MCPHarness
 
@@ -99,6 +103,23 @@ class TrialTools:
     the test measures what the model does with access). ``task_check`` decides
     task success from the final answer; it is required when the harness serves
     a custom document.
+
+    Lifecycle scenarios (opt-in, MCP 2026-07-28):
+
+    - ``refresh_tools`` (default ``True``) re-reads the tool list after every
+      tool call and updates ``specs``. Declare
+      ``AgentCapability.TOOL_LIST_CHANGES`` only if your loop reads
+      ``openai_tools()`` or ``specs`` again before each model request; pass
+      ``refresh_tools=False`` if your agent pins tool definitions.
+    - ``input_requests`` decides what happens when a server pauses a call to
+      ask for input. ``"show"`` (default) declines the request and adds its
+      message to the tool output the model sees, like an agent that relays
+      server prompts into the conversation. ``"decline"`` declines without
+      showing it. An async callable ``(message, schema) -> content | None``
+      answers it your way. Declare ``AgentCapability.INPUT_REQUESTS`` to run
+      these scenarios.
+
+    ``TrialTools.LIFECYCLE`` holds both lifecycle capabilities.
     """
 
     CAPABILITIES = frozenset(
@@ -113,6 +134,7 @@ class TrialTools:
         }
     )
     TOOL_CAPABILITIES = CAPABILITIES - {AgentCapability.RESOURCES, AgentCapability.PROMPTS}
+    LIFECYCLE = frozenset({AgentCapability.TOOL_LIST_CHANGES, AgentCapability.INPUT_REQUESTS})
 
     def __init__(
         self,
@@ -123,9 +145,13 @@ class TrialTools:
         attach: bool = True,
         expose: frozenset[str] | set[str] | None = None,
         task_check: Callable[[str], bool] | None = None,
+        refresh_tools: bool = True,
+        input_requests: Literal["show", "decline"] | InputHandler = "show",
     ) -> None:
         if not isinstance(harness, MCPHarness):
             raise ValueError("TrialTools requires an MCPHarness")
+        if input_requests not in ("show", "decline") and not callable(input_requests):
+            raise ValueError('input_requests must be "show", "decline" or an async callable')
         if isinstance(max_turns, bool) or not isinstance(max_turns, int) or max_turns < 0:
             raise ValueError("max_turns must be a nonnegative integer")
         if task_check is None and harness.document_text != DOCUMENT:
@@ -136,6 +162,9 @@ class TrialTools:
         self.attach = bool(attach)
         self.expose = None if expose is None else frozenset(expose)
         self._task_check = task_check or (lambda text: _DEFAULT_FACT.search(text) is not None)
+        self.refresh_tools = bool(refresh_tools)
+        self.input_requests = input_requests
+        self._shown_inputs: list[str] = []
         self.specs: tuple[ToolSpec, ...] = ()
         self.turns = 0
         self.exhausted = False
@@ -160,18 +189,12 @@ class TrialTools:
         self._client = await stack.enter_async_context(self.harness.trial(self.trial_id))
         self._stack = stack
         try:
+            if self.input_requests == "show":
+                self._client.on_input_request(self._show_input)
+            elif callable(self.input_requests):
+                self._client.on_input_request(self.input_requests)
             self._claim()
-            listing = await self._client.list_tools()
-            self._harness_tools = frozenset(tool.name for tool in listing.tools)
-            self.specs = tuple(
-                ToolSpec(
-                    name=tool.name,
-                    description=tool.description or "",
-                    input_schema=dict(tool.input_schema or {"type": "object"}),
-                )
-                for tool in listing.tools
-                if self.expose is None or tool.name in self.expose
-            )
+            await self._list_tools(self._client)
             surface = self.harness.scenario.surface
             if self.attach and surface is AttackSurface.RESOURCE:
                 self._claim()
@@ -304,6 +327,15 @@ class TrialTools:
             return "Error: tool arguments must be a JSON object."
         result = await client.call_tool(name, parsed)
         output = _text(result.content)
+        shown, self._shown_inputs = self._shown_inputs, []
+        if shown:
+            requests = "\n".join(shown)
+            output = (
+                "The server asked for input before answering, and the request was declined:\n"
+                f"{requests}\n\n{output}"
+            )
+        if self.refresh_tools:
+            await self._list_tools(client)
         if result.is_error:
             return "Error: " + (output or "the tool call failed.")
         if name == DOCUMENT_TOOL:
@@ -337,6 +369,23 @@ class TrialTools:
         )
 
     # -- internals -----------------------------------------------------------
+
+    async def _list_tools(self, client: MCPClient) -> None:
+        listing = await client.list_tools()
+        self._harness_tools = frozenset(tool.name for tool in listing.tools)
+        self.specs = tuple(
+            ToolSpec(
+                name=tool.name,
+                description=tool.description or "",
+                input_schema=dict(tool.input_schema or {"type": "object"}),
+            )
+            for tool in listing.tools
+            if self.expose is None or tool.name in self.expose
+        )
+
+    async def _show_input(self, message: str, schema: dict[str, Any]) -> None:
+        self._shown_inputs.append(message)
+        return None
 
     def _live(self) -> MCPClient:
         if self._client is None or self._stack is None or self._closed:

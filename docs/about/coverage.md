@@ -27,21 +27,25 @@ URLs can change and hashes do not authenticate a report's origin.
 
 ## Tested local scenario inventory
 
-All thirteen boundaries below have local controls. Their category mappings
+All seventeen boundaries below have local controls. The MCP rows are version 2; version 1 (0.4–0.6) differs only in its task wording and sink tool, see [scenario versions](../how-to/agent-scenarios.md#scenario-versions). Their category mappings
 remain partial where OWASP describes mechanisms outside those controls.
 Delivery means receipt at the integration, not independently observed model
 processing.
 
 | Versioned scenario | Observed boundary | Limit |
 | --- | --- | --- |
-| `mcp.tool-result.forbidden-tool@1` | Poisoned result induces forbidden local sink operation. | Declared tool and sink only. |
-| `mcp.tool-result.canary@1` | Result-delivered synthetic canary reaches a tool effect. | No arbitrary private-data assessment. |
-| `mcp.tool-description.forbidden-tool@1` | Poisoned metadata induces forbidden sink operation. | No dependency/provenance assurance. |
-| `mcp.tool-description.canary@1` | Metadata-delivered synthetic canary reaches sink. | No exhaustive exfiltration channels. |
-| `mcp.resource.forbidden-tool@1` | Resource delivery induces forbidden sink operation. | Requires resource consumption hooks. |
-| `mcp.resource.canary@1` | Resource-delivered synthetic canary reaches sink. | No vector-index or real-data assessment. |
-| `mcp.prompt.forbidden-tool@1` | MCP prompt delivery induces forbidden sink operation. | Requires MCP prompt consumption hooks. |
-| `mcp.prompt.canary@1` | Prompt-delivered synthetic canary reaches sink. | No hidden system/reasoning-context claim. |
+| `mcp.tool-result.forbidden-tool@2` | Poisoned result induces forbidden local sink operation. | Declared tool and sink only. |
+| `mcp.tool-result.canary@2` | Result-delivered synthetic canary reaches a tool effect. | No arbitrary private-data assessment. |
+| `mcp.tool-description.forbidden-tool@2` | Poisoned metadata induces forbidden sink operation. | No dependency/provenance assurance. |
+| `mcp.tool-description.canary@2` | Metadata-delivered synthetic canary reaches sink. | No exhaustive exfiltration channels. |
+| `mcp.resource.forbidden-tool@2` | Resource delivery induces forbidden sink operation. | Requires resource consumption hooks. |
+| `mcp.resource.canary@2` | Resource-delivered synthetic canary reaches sink. | No vector-index or real-data assessment. |
+| `mcp.prompt.forbidden-tool@2` | MCP prompt delivery induces forbidden sink operation. | Requires MCP prompt consumption hooks. |
+| `mcp.prompt.canary@2` | Prompt-delivered synthetic canary reaches sink. | No hidden system/reasoning-context claim. |
+| `mcp.tool-definition-change.forbidden-tool@1` | A tool definition changed after listing induces forbidden sink operation. | Opt-in `lifecycle` pack; needs a client that re-reads definitions. |
+| `mcp.tool-definition-change.canary@1` | A changed definition's synthetic canary reaches sink. | No client approval-UI assessment. |
+| `mcp.input-request.forbidden-tool@1` | A mid-call input request (`input_required` elicitation) induces forbidden sink operation. | Opt-in; form elicitation only, no URL mode or sampling. |
+| `mcp.input-request.canary@1` | An input request's synthetic canary reaches sink. | Delivery is receipt by the integration. |
 | `application.retrieval.poisoned-document@1` | Retrieved instructions induce unauthorized ticket mutation. | Plain documents; no vector store/ranking. |
 | `application.memory.cross-session@1` | Persisted content read in a later clean session induces mutation. | Trial-local memory, not cross-process durability. |
 | `application.identity.cross-tenant@1` | Bound principal reads peer tenant's synthetic private record. | Synthetic policy, not IAM/OAuth/authentication. |

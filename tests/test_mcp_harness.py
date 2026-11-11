@@ -24,8 +24,10 @@ from pytest_wardenbot.agents.contracts import (
     TargetRun,
 )
 from pytest_wardenbot.agents.evaluation import evaluate
+from pytest_wardenbot.agents.scenarios import SINK_TOOL
 from pytest_wardenbot.mcp import MCP_SURFACES, MCPClient, MCPHarness, ScriptedMCPAgentTarget
-from pytest_wardenbot.mcp._server import DOCUMENT_PROMPT, DOCUMENT_TOOL, DOCUMENT_URI, SINK_TOOL
+from pytest_wardenbot.mcp._server import DOCUMENT_PROMPT, DOCUMENT_TOOL, DOCUMENT_URI
+from pytest_wardenbot.mcp.harness import LIFECYCLE_SURFACES
 
 mcp = pytest.importorskip("mcp")
 uvicorn = pytest.importorskip("uvicorn")
@@ -70,8 +72,16 @@ def assert_closed(resources):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("transport", ["memory", "stdio", "http"])
-@pytest.mark.parametrize("protocol", ["2025-11-25", "2026-07-28"])
-@pytest.mark.parametrize("surface", MCP_SURFACES)
+@pytest.mark.parametrize(
+    ("protocol", "surface"),
+    [
+        (protocol, surface)
+        for protocol in ("2025-11-25", "2026-07-28")
+        for surface in MCP_SURFACES
+        # Lifecycle surfaces use 2026-07-28 features only.
+        if protocol == "2026-07-28" or surface not in LIFECYCLE_SURFACES
+    ],
+)
 @pytest.mark.parametrize(
     "behavior,outcome",
     [
@@ -232,21 +242,32 @@ async def test_invalid_primitive_request_does_not_establish_exposure(transport, 
 async def receive_primitive(client, surface):
     if surface is AttackSurface.TOOL_DESCRIPTION:
         return await client.list_tools()
-    if surface is AttackSurface.TOOL_RESULT:
+    if surface is AttackSurface.TOOL_DEFINITION_CHANGE:
+        await client.call_tool(DOCUMENT_TOOL, {})
+        return await client.list_tools()
+    if surface in {AttackSurface.TOOL_RESULT, AttackSurface.INPUT_REQUEST}:
         return await client.call_tool(DOCUMENT_TOOL, {})
     if surface is AttackSurface.RESOURCE:
         return await client.read_resource(DOCUMENT_URI)
     return await client.get_prompt(DOCUMENT_PROMPT)
 
 
+# An input request is delivered when it reaches the integration mid-call, before
+# the final response; tests/test_mcp_lifecycle.py covers it.
+RESPONSE_SURFACES = [
+    surface for surface in MCP_SURFACES if surface is not AttackSurface.INPUT_REQUEST
+]
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize("transport", ["memory", "stdio", "http"])
-@pytest.mark.parametrize("surface", MCP_SURFACES)
+@pytest.mark.parametrize("surface", RESPONSE_SURFACES)
 async def test_response_lost_after_server_generation_does_not_count_as_delivery(
     transport, surface, monkeypatch
 ):
     method = {
         AttackSurface.TOOL_DESCRIPTION: "list_tools",
+        AttackSurface.TOOL_DEFINITION_CHANGE: "list_tools",
         AttackSurface.TOOL_RESULT: "call_tool",
         AttackSurface.RESOURCE: "read_resource",
         AttackSurface.PROMPT: "get_prompt",
@@ -279,10 +300,11 @@ async def test_response_lost_after_server_generation_does_not_count_as_delivery(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("surface", MCP_SURFACES)
+@pytest.mark.parametrize("surface", RESPONSE_SURFACES)
 async def test_successful_response_without_actual_injection_is_not_exposure(surface, monkeypatch):
     method = {
         AttackSurface.TOOL_DESCRIPTION: "list_tools",
+        AttackSurface.TOOL_DEFINITION_CHANGE: "list_tools",
         AttackSurface.TOOL_RESULT: "call_tool",
         AttackSurface.RESOURCE: "read_resource",
         AttackSurface.PROMPT: "get_prompt",
@@ -291,7 +313,7 @@ async def test_successful_response_without_actual_injection_is_not_exposure(surf
 
     async def remove_injection(self, *args, **kwargs):
         result = await original(self, *args, **kwargs)
-        if surface is AttackSurface.TOOL_DESCRIPTION:
+        if surface in {AttackSurface.TOOL_DESCRIPTION, AttackSurface.TOOL_DEFINITION_CHANGE}:
             return result.model_copy(
                 update={
                     "tools": [

@@ -6,6 +6,7 @@ import pytest
 from agents import Agent, FunctionTool, RunConfig, RunHooks, Runner  # type: ignore[import-not-found]
 from agents.exceptions import MaxTurnsExceeded  # type: ignore[import-not-found]
 
+from pytest_wardenbot.agents import AgentCapability
 from pytest_wardenbot.mcp import MCPHarness, TrialTools, TurnLimitReached
 
 MODEL = os.environ.get("AGENT_MODEL", "gpt-4o-mini")
@@ -42,7 +43,8 @@ class Observe(RunHooks):
 
 class OpenAIAgentsTarget:
     name = "openai-agents"
-    capabilities = TrialTools.CAPABILITIES
+    # The agent's tools are fixed when it's built, so it can't follow tool-list changes.
+    capabilities = TrialTools.CAPABILITIES | {AgentCapability.INPUT_REQUESTS}
 
     def __init__(self, harness, model=MODEL):
         self.harness, self.model = harness, model
@@ -51,7 +53,9 @@ class OpenAIAgentsTarget:
         pass  # every run starts a new conversation
 
     async def run(self, task, *, trial_id, max_turns):
-        async with TrialTools(self.harness, trial_id, max_turns=max_turns) as tools:
+        async with TrialTools(
+            self.harness, trial_id, max_turns=max_turns, refresh_tools=False
+        ) as tools:
             agent = Agent(
                 name="assistant",
                 instructions=INSTRUCTIONS,

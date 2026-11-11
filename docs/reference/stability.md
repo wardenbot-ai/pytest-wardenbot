@@ -118,6 +118,10 @@ Fixes and security updates go to the latest 0.x minor release. Python
 - The `test_canary_never_appears_in_responses` sweep (deprecated in 0.5.0,
   removed no earlier than 0.6.0). Every shipped leak check now tests the
   canary itself. See [Plant a canary token](../how-to/canary-token.md).
+- Version 1 of the eight MCP scenarios (replaced by version 2 in 0.7.0, removed
+  no earlier than 0.8.0). Select it by name, such as
+  `mcp.tool-result.forbidden-tool@1`; see
+  [scenario versions](../how-to/agent-scenarios.md#scenario-versions).
 - The OpenAI Assistants adapter classes remain importable for injected test
   clients. The public service is retired, so their default constructors fail.
   See [OpenAI migration](../how-to/migrate-openai.md).

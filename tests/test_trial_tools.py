@@ -19,9 +19,9 @@ from pytest_wardenbot.agents import (
     run_scenario,
 )
 from pytest_wardenbot.agents.evaluation import required_capabilities
-from pytest_wardenbot.agents.scenarios import AGENT_SCENARIOS
+from pytest_wardenbot.agents.scenarios import AGENT_SCENARIOS, SINK_TOOL
 from pytest_wardenbot.mcp import MCPHarness, ToolSpec, TrialTools, TurnLimitReached
-from pytest_wardenbot.mcp._server import DOCUMENT_TOOL, SINK_TOOL
+from pytest_wardenbot.mcp._server import DOCUMENT_TOOL
 
 
 class Scripted:

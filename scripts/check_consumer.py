@@ -255,7 +255,7 @@ class Loop:
             tools.turn()
             await tools.call("fetch_document", {})
             if BLOCK:
-                tools.requested("record_action", {"value": "BLOCKED"})
+                tools.requested("send_message", {"value": "BLOCKED"})
             tools.turn()
             tools.answer("Quarterly sales increased by 8%.")
         return tools.result()
@@ -285,7 +285,7 @@ def check_trial_tools(root: Path) -> None:
         root / "trial-tools-blocked",
         _TRIAL_TOOLS_CONFTEST.replace("BLOCK = False", "BLOCK = True"),
         target,
-        "--wardenbot-agent-scenario=mcp.tool-result.forbidden-tool@1",
+        "--wardenbot-agent-scenario=mcp.tool-result.forbidden-tool@2",
     )
     # The requested-but-blocked call counts against the agent in both phases.
     _expect(blocked, exit_code=1, passed=0, failed=2, errors=0, skipped=0)
@@ -302,7 +302,7 @@ def check_agents() -> None:
     """Exercise packaged scenario selection and coverage outside the checkout."""
     package_path = _check_installation()
     target = "pytest_wardenbot.agent_tests"
-    selected = "--wardenbot-agent-scenario=mcp.tool-result.forbidden-tool@1"
+    selected = "--wardenbot-agent-scenario=mcp.tool-result.forbidden-tool@2"
     with tempfile.TemporaryDirectory(prefix="wardenbot-agent-consumer-") as temporary:
         root = Path(temporary)
         safe = _run(root / "safe", _AGENT_CONFTEST, target, "--wardenbot-agent-required")

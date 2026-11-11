@@ -42,7 +42,7 @@ except ImportError:  # pragma: no cover - exercised by the import guard test
     ) from None
 
 from pytest_wardenbot._errors import WardenBotInfraError
-from pytest_wardenbot.agents.contracts import TargetRun
+from pytest_wardenbot.agents.contracts import AgentCapability, TargetRun
 from pytest_wardenbot.mcp.harness import MCPHarness
 from pytest_wardenbot.mcp.trial_tools import ToolSpec, TrialTools
 
@@ -104,7 +104,9 @@ class ClaudeAgentTarget:
         self.expose = expose
         self.task_check = task_check
         self.client_factory = client_factory or (lambda options: ClaudeSDKClient(options=options))
-        self.capabilities = TrialTools.CAPABILITIES if attach else TrialTools.TOOL_CAPABILITIES
+        base = TrialTools.CAPABILITIES if attach else TrialTools.TOOL_CAPABILITIES
+        # Input requests reach the model through tool output; tool-list changes don't.
+        self.capabilities = base | {AgentCapability.INPUT_REQUESTS}
 
     async def reset(self, trial_id: str) -> None:
         """Each trial runs in a new Claude Code process with no saved session."""
@@ -149,6 +151,9 @@ class ClaudeAgentTarget:
             attach=self.attach,
             expose=self.expose,
             task_check=self.task_check,
+            # The tool set is fixed when the agent is built, so a changed
+            # definition would never reach the model: don't claim it.
+            refresh_tools=False,
         ) as tools:
             allowed = {PREFIX + spec.name for spec in tools.specs}
             options = self.trial_options(tools, max_turns)

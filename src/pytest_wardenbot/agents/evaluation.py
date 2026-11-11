@@ -31,6 +31,8 @@ _SURFACE_CAPABILITY = {
     AttackSurface.MEMORY: AgentCapability.MEMORY,
     AttackSurface.IDENTITY: AgentCapability.IDENTITY,
     AttackSurface.APPROVAL: AgentCapability.APPROVAL,
+    AttackSurface.TOOL_DEFINITION_CHANGE: AgentCapability.TOOL_LIST_CHANGES,
+    AttackSurface.INPUT_REQUEST: AgentCapability.INPUT_REQUESTS,
 }
 _DELIVERY_KIND = {
     AttackSurface.TOOL_RESULT: EventKind.TOOL_RESULT,
@@ -41,6 +43,10 @@ _DELIVERY_KIND = {
     AttackSurface.MEMORY: EventKind.MEMORY_READ,
     AttackSurface.IDENTITY: EventKind.IDENTITY_CONTEXT,
     AttackSurface.APPROVAL: EventKind.APPROVAL_REQUEST,
+    # A changed tool definition is delivered as a tool description, tagged with
+    # this surface so it can't be confused with the original listing.
+    AttackSurface.TOOL_DEFINITION_CHANGE: EventKind.TOOL_DESCRIPTION,
+    AttackSurface.INPUT_REQUEST: EventKind.INPUT_REQUEST,
 }
 _DEFAULT_LIMITS = RunLimits()
 

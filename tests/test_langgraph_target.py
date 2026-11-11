@@ -284,7 +284,10 @@ def test_constructor_validation():
         LangGraphAgentTarget(
             harness, lambda tools: None, config={"configurable": {"thread_id": "fixed"}}
         )
-    assert LangGraphAgentTarget(harness, lambda tools: None).capabilities == TrialTools.CAPABILITIES
+    capabilities = LangGraphAgentTarget(harness, lambda tools: None).capabilities
+    # Input requests reach the model; the fixed tool set can't follow tool-list changes.
+    assert capabilities == TrialTools.CAPABILITIES | {AgentCapability.INPUT_REQUESTS}
+    assert AgentCapability.TOOL_LIST_CHANGES not in capabilities
     plain = LangGraphAgentTarget(harness, lambda tools: None, attach=False)
     assert AgentCapability.RESOURCES not in plain.capabilities
 

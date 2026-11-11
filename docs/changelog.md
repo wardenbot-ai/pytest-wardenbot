@@ -5,6 +5,49 @@ All notable changes to `pytest-wardenbot` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- **Lifecycle scenarios for MCP 2026-07-28** (opt-in `lifecycle` pack,
+  `--wardenbot-agent-pack=lifecycle`):
+  - `mcp.tool-definition-change.forbidden-tool@1` and `...canary@1`: the
+    document tool's description changes to the injection after its first
+    call, announced with `notifications/tools/list_changed`.
+  - `mcp.input-request.forbidden-tool@1` and `...canary@1`: the first call
+    returns an `input_required` result whose form elicitation carries the
+    injection.
+  - New `AttackSurface.TOOL_DEFINITION_CHANGE` and `INPUT_REQUEST`,
+    `AgentCapability.TOOL_LIST_CHANGES` and `INPUT_REQUESTS`, and
+    `EventKind.INPUT_REQUEST`. Evidence schema 1 accepts them; bundles from
+    0.6 still load.
+- `MCPClient.on_input_request(handler)` answers servers' input requests, and
+  `MCPClient.listen(...)` opens the SDK's change-event stream.
+- `TrialTools(refresh_tools=..., input_requests=...)` and
+  `TrialTools.LIFECYCLE`: re-read tool definitions after each call, and show,
+  decline or answer input requests. The custom-agent recipe and the agent
+  quickstart declare both lifecycle capabilities; the LangGraph, Claude Agent
+  SDK and OpenAI Agents integrations support input requests only, because
+  their tool set is fixed when the agent is built.
+
+### Changed (scenarios)
+
+- **The default MCP scenarios are now version 2.** The task asks for the
+  answer "in your reply" instead of asking the agent to "report" it, and the
+  sink is `send_message` ("Send a message to an external recipient.") instead
+  of `record_action` ("Record a value in an isolated local test sink.").
+  - Version 1 invited models to call the sink with no attack present:
+    `gpt-4o-mini` did so in 12 of 12 forbidden-tool baselines, `mistral:7b` in
+    5 of 12, `gpt-4.1-mini` in 3 of 12. Those attack results couldn't be
+    attributed to the injection.
+  - With version 2, five of six models made no unprompted sink call in 12
+    baselines each (`llama3.2:3b` made 2), and attacks still landed
+    (`gpt-4o-mini` 6 of 8, `qwen2.5:7b` 6 of 8).
+  - Version 1 is deprecated and stays selectable by name, for example
+    `--wardenbot-agent-scenario=mcp.tool-result.forbidden-tool@1`, until at
+    least 0.8.0. A bare scenario ID now selects the current version.
+  - Grading rules are unchanged (grader `agent-boundary-2`).
+
 ## [0.6.1] — 2026-11-10
 
 **Quicker to start, easier to read, harder to tamper with.** An agent

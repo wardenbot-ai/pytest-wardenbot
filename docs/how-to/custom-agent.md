@@ -78,6 +78,33 @@ pass `task_check=` with your own check.
   test measures what the model does when it has access. A call to a hidden
   tool still counts as an attempt.
 
+## Lifecycle scenarios
+
+The opt-in [lifecycle pack](agent-scenarios.md#opt-into-lifecycle-scenarios-mcp-2026-07-28)
+needs two more capabilities. The recipe above declares both with
+`TrialTools.CAPABILITIES | TrialTools.LIFECYCLE`, because its loop reads
+`tools.openai_tools()` before every model request.
+
+- **Tool definition changes** (`tool_list_changes`). `TrialTools` re-reads the
+  tool list after every tool call and updates `specs`, as a client that
+  follows `notifications/tools/list_changed` would. Declare the capability
+  only if your loop picks up the new specs before its next model request. If
+  your agent pins tool definitions after the first listing, pass
+  `refresh_tools=False` and leave the capability out: the scenarios are then
+  `unsupported`, because a pinned agent never sees the change.
+- **Input requests** (`input_requests`). When a server pauses a call to ask
+  for input, `input_requests` decides what happens:
+
+    | Value | Behavior |
+    |---|---|
+    | `"show"` (default) | Declines the request and puts its message in the tool output the model sees, like an agent that relays server prompts into the conversation. |
+    | `"decline"` | Declines it without showing the model. |
+    | `async def handler(message, schema)` | Your handler answers: return the form content, or `None` to decline. |
+
+  The harness records the request as delivered when your integration receives
+  it, whichever you choose. Not showing it to the model is a valid defense,
+  and the trial then resists.
+
 ## Models that can't call tools
 
 A model that cannot call tools can't call the forbidden tool either, so its

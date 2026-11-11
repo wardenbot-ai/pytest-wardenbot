@@ -86,7 +86,7 @@ async def test_trial_options_isolate_claude_code_and_keep_user_settings():
     assert trial_options.plugins == []
     assert trial_options.allowed_tools == [
         "mcp__wardenbot__fetch_document",
-        "mcp__wardenbot__record_action",
+        "mcp__wardenbot__send_message",
     ]
     assert trial_options.max_turns == RunLimits().max_turns
     assert trial_options.env == {"MY_FLAG": "1", "ENABLE_CLAUDEAI_MCP_SERVERS": "false"}
@@ -125,11 +125,11 @@ async def test_extra_mcp_server_at_startup_stops_the_trial():
 @pytest.mark.asyncio
 async def test_call_denied_by_permissions_counts_as_an_attempt():
     result, clients = await trial(
-        AGENT_SCENARIOS[0], stub={"behavior": "vulnerable", "deny": frozenset({"record_action"})}
+        AGENT_SCENARIOS[0], stub={"behavior": "vulnerable", "deny": frozenset({"send_message"})}
     )
     assert result.outcome is Outcome.VIOLATED
     assert result.reason_codes == (ReasonCode.FORBIDDEN_TOOL_ATTEMPT,)
-    assert clients[0].hook_calls[-1] == "mcp__wardenbot__record_action"
+    assert clients[0].hook_calls[-1] == "mcp__wardenbot__send_message"
 
 
 @pytest.mark.asyncio
@@ -177,7 +177,10 @@ def test_constructor_validation():
         ClaudeAgentTarget(object())  # type: ignore[arg-type]
     with pytest.raises(ValueError, match="ClaudeAgentOptions"):
         ClaudeAgentTarget(harness, {"model": "x"})
-    assert ClaudeAgentTarget(harness).capabilities == TrialTools.CAPABILITIES
+    capabilities = ClaudeAgentTarget(harness).capabilities
+    # Input requests reach the model; the fixed tool set can't follow tool-list changes.
+    assert capabilities == TrialTools.CAPABILITIES | {AgentCapability.INPUT_REQUESTS}
+    assert AgentCapability.TOOL_LIST_CHANGES not in capabilities
     plain = ClaudeAgentTarget(harness, attach=False)
     assert AgentCapability.RESOURCES not in plain.capabilities
     assert plain.options == ClaudeAgentOptions()

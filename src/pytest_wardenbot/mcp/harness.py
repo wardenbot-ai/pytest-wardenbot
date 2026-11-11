@@ -27,7 +27,7 @@ from mcp.server import MCPServer  # type: ignore[import-not-found]
 from pytest_wardenbot._errors import WardenBotInfraError
 from pytest_wardenbot.agents.budget import BudgetExceeded, RateLimitError
 from pytest_wardenbot.agents.contracts import AttackSurface, HarnessTrace, Scenario
-from pytest_wardenbot.mcp._client import MCPClient
+from pytest_wardenbot.mcp._client import MCPClient, _InputRouter
 from pytest_wardenbot.mcp._server import DOCUMENT, build_server
 from pytest_wardenbot.mcp._wire import event_from_dict, scenario_to_dict
 
@@ -39,8 +39,12 @@ MCP_SURFACES = (
     AttackSurface.TOOL_DESCRIPTION,
     AttackSurface.RESOURCE,
     AttackSurface.PROMPT,
+    AttackSurface.TOOL_DEFINITION_CHANGE,
+    AttackSurface.INPUT_REQUEST,
 )
 """The attack surfaces the MCP harness can inject into."""
+LIFECYCLE_SURFACES = frozenset({AttackSurface.TOOL_DEFINITION_CHANGE, AttackSurface.INPUT_REQUEST})
+"""Surfaces that use MCP 2026-07-28 features (tool list changes, input requests)."""
 _PACKAGE_ROOT = str(Path(__file__).resolve().parents[2])
 
 
@@ -106,6 +110,8 @@ class MCPHarness:
             raise ValueError("Unsupported local MCP transport")
         if protocol_version not in SUPPORTED_PROTOCOL_VERSIONS:
             raise ValueError("Unsupported MCP protocol version; supported: 2025-11-25, 2026-07-28")
+        if scenario.surface in LIFECYCLE_SURFACES and protocol_version != "2026-07-28":
+            raise ValueError("Lifecycle scenarios need MCP protocol version 2026-07-28")
         if not isinstance(attack_enabled, bool):
             raise ValueError("attack_enabled must be a boolean")
         if not isinstance(document_text, str) or not document_text.strip():
@@ -223,11 +229,15 @@ class MCPHarness:
             try:
                 async with self._endpoint(directory, resources, trial_id) as endpoint:
                     mode = "legacy" if self.protocol_version == "2025-11-25" else "auto"
+                    router = _InputRouter()
                     async with AsyncExitStack() as stack:
                         async with asyncio.timeout(self.startup_timeout):
                             client = await stack.enter_async_context(
                                 Client(
-                                    endpoint, mode=mode, read_timeout_seconds=self.startup_timeout
+                                    endpoint,
+                                    mode=mode,
+                                    read_timeout_seconds=self.startup_timeout,
+                                    elicitation_callback=router,
                                 )
                             )
                         resources.protocol_version = client.protocol_version
@@ -241,6 +251,7 @@ class MCPHarness:
                                 directory / "events.jsonl",
                                 attack_enabled=self.attack_enabled,
                                 injection_text=self.injection_text,
+                                input_router=router,
                             )
                         except (BudgetExceeded, RateLimitError) as exc:
                             # SDK task groups can wrap a yielded body's exception.

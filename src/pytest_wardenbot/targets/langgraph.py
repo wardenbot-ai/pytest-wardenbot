@@ -207,7 +207,9 @@ class LangGraphAgentTarget:
         self.input_mapper = input_mapper
         self.output_mapper = output_mapper
         self.config = dict(config or {})
-        self.capabilities = TrialTools.CAPABILITIES if attach else TrialTools.TOOL_CAPABILITIES
+        base = TrialTools.CAPABILITIES if attach else TrialTools.TOOL_CAPABILITIES
+        # Input requests reach the model through tool output; tool-list changes don't.
+        self.capabilities = base | {AgentCapability.INPUT_REQUESTS}
         self._graphs: dict[str, Any] = {}
 
     async def reset(self, trial_id: str) -> None:
@@ -223,6 +225,9 @@ class LangGraphAgentTarget:
             attach=self.attach,
             expose=self.expose,
             task_check=self.task_check,
+            # The tool set is fixed when the agent is built, so a changed
+            # definition would never reach the model: don't claim it.
+            refresh_tools=False,
         ) as tools:
             graph = await _built(self.build_graph, [_proxy(tools, spec) for spec in tools.specs])
             self._graphs[trial_id] = graph

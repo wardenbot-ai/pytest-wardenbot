@@ -27,25 +27,40 @@ from pytest_wardenbot.agents.packs import (
     application_spec,
 )
 from pytest_wardenbot.agents.runner import Observer, run_scenario
-from pytest_wardenbot.agents.scenarios import AGENT_SCENARIOS, scenario_selection_id
+from pytest_wardenbot.agents.scenarios import (
+    AGENT_SCENARIOS,
+    LIFECYCLE_SCENARIOS,
+    PREVIOUS_AGENT_SCENARIOS,
+    scenario_selection_id,
+)
 
 CaseKey = tuple[str, str, str]
 
 
 def _pack_name(scenario: Scenario) -> str:
-    return "mcp" if scenario in AGENT_SCENARIOS else application_spec(scenario.id).pack.value
+    if scenario in AGENT_SCENARIOS or scenario in PREVIOUS_AGENT_SCENARIOS:
+        return "mcp"
+    if scenario in LIFECYCLE_SCENARIOS:
+        return "lifecycle"
+    return application_spec(scenario.id).pack.value
 
 
 def _packs() -> dict[str, tuple[Scenario, ...]]:
+    """Current scenario versions by pack. Earlier versions are selectable by ``ID@VERSION``."""
     return {
         "mcp": AGENT_SCENARIOS,
+        "lifecycle": LIFECYCLE_SCENARIOS,
         "application": APPLICATION_SCENARIOS,
-        "all": (*AGENT_SCENARIOS, *APPLICATION_SCENARIOS),
+        "all": (*AGENT_SCENARIOS, *LIFECYCLE_SCENARIOS, *APPLICATION_SCENARIOS),
         **{
             pack.value: tuple(spec.scenario for spec in APPLICATION_PACKS if spec.pack is pack)
             for pack in ApplicationPack
         },
     }
+
+
+def _known_scenarios() -> tuple[Scenario, ...]:
+    return (*_packs()["all"], *PREVIOUS_AGENT_SCENARIOS)
 
 
 @dataclass
@@ -151,27 +166,30 @@ def add_options(group: pytest.OptionGroup) -> None:
 
 
 def _selected(config: pytest.Config) -> tuple[Scenario, ...]:
+    """Selected scenarios: packs choose current versions; ``ID@VERSION`` picks any version.
+
+    A bare ``ID`` means the current version. An earlier version such as
+    ``mcp.tool-result.canary@1`` runs only when named with its version.
+    """
     selectors = config.getoption("wardenbot_agent_scenario", default=[])
     pack_names = config.getoption("wardenbot_agent_pack", default=[])
     packs = _packs()
-    available_cases = packs["all"]
-    selected_ids = {case.id for name in (pack_names or ["mcp"]) for case in packs[name]}
+    in_packs = [case for name in (pack_names or ["mcp"]) for case in packs[name]]
     if not selectors:
-        return tuple(case for case in available_cases if case.id in selected_ids)
-    lookup = {
-        key: scenario
-        for scenario in available_cases
-        for key in (scenario.id, scenario_selection_id(scenario))
-    }
+        return tuple(case for case in packs["all"] if case in in_packs)
+    known = _known_scenarios()
+    lookup: dict[str, Scenario] = {scenario_selection_id(case): case for case in known}
+    lookup.update({case.id: case for case in packs["all"]})
     if any(selector not in lookup for selector in selectors):
-        available = ", ".join(scenario_selection_id(case) for case in available_cases)
+        available = ", ".join(scenario_selection_id(case) for case in known)
         raise pytest.UsageError(
             "Unknown --wardenbot-agent-scenario. Available versioned IDs: " + available
         )
-    requested = {lookup[selector].id for selector in selectors}
-    if pack_names and requested - selected_ids:
+    requested = [lookup[selector] for selector in selectors]
+    pack_ids = {case.id for case in in_packs}
+    if pack_names and any(case.id not in pack_ids for case in requested):
         raise pytest.UsageError("Selected agent scenario is outside the selected agent packs")
-    return tuple(case for case in available_cases if case.id in requested)
+    return tuple(case for case in known if case in requested)
 
 
 def configure(config: pytest.Config) -> None:
@@ -369,7 +387,7 @@ def sanitize_warning(warning_message: warnings.WarningMessage, nodeid: str) -> N
         return
     if not any(
         nodeid.endswith(f"[{scenario_selection_id(case)}-{phase}]")
-        for case in (*AGENT_SCENARIOS, *APPLICATION_SCENARIOS)
+        for case in _known_scenarios()
         for phase in ("baseline", "attack")
     ):
         return
