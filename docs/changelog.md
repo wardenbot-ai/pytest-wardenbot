@@ -5,7 +5,14 @@ All notable changes to `pytest-wardenbot` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.6.1] — 2026-11-10
+
+**Quicker to start, easier to read, harder to tamper with.** An agent
+quickstart tests a real model on the first run. The wheel ships type hints,
+the public API is explicit, and the docs publish `llms.txt` for coding
+agents. Releases now need CI on the tagged commit and a maintainer's
+approval, ship an SBOM with attestations, and every GitHub Action is pinned.
+Grading is unchanged.
 
 ### Added
 
