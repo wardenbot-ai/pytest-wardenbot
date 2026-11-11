@@ -9,13 +9,16 @@ your framework and keep the rest.
 python -m pip install "pytest-wardenbot[mcp,openai]"
 ```
 
+`pytest --wardenbot-quickstart=agent` writes this target into a new
+`conftest.py` for you, with a switch for local models.
+
 ## The target and its fixtures
 
 Save this as `conftest.py` in your test directory. The agent class is about
 40 lines; the fixtures connect it to the suite.
 
 ```python
---8 < --"examples/custom_agent/conftest.py"
+--8<-- "examples/custom_agent/conftest.py"
 ```
 
 Run it with your provider key set:

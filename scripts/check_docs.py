@@ -45,6 +45,12 @@ def fetch(url: str) -> bytes:
     ).stdout
 
 
+def _is_file(url: str) -> bool:
+    """A link to a file other than an HTML page, such as llms.txt or page.md."""
+    name = urlsplit(url).path.rsplit("/", 1)[-1]
+    return "." in name and not name.endswith(".html")
+
+
 def check_site(base_url: str) -> None:
     base_url = base_url.rstrip("/") + "/"
     base = urlsplit(base_url)
@@ -79,6 +85,10 @@ def check_site(base_url: str) -> None:
             ):
                 raise ValueError(f"Outdated repository link on {url}: {href}")
             if not is_internal(target):
+                continue
+            if _is_file(target):
+                # llms.txt, Markdown copies and other non-HTML files are assets.
+                assets.add(target)
                 continue
             if fragment:
                 fragments.add((target, unquote(fragment)))

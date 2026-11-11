@@ -60,8 +60,10 @@ jobs:
         run: |
           set -euo pipefail
           for attempt in $(seq 1 90); do
+            # Any CI run on this exact commit counts: the push run, or a manual
+            # rerun if a later run in the same concurrency group cancelled it.
             runs=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml \
-              --commit "$GITHUB_SHA" --event push --json status,conclusion,url)
+              --commit "$GITHUB_SHA" --json status,conclusion,url)
             if echo "$runs" | jq -e 'any(.[]; .conclusion == "success")' > /dev/null; then
               echo "CI passed: $(echo "$runs" | jq -r '[.[] | select(.conclusion == "success")][0].url')"
               exit 0

@@ -18,21 +18,22 @@ when a wardenbot test fails (optional).
 
 ## What this does
 
-- Runs on every push to `main` and every PR.
-- Installs Python 3.12 + pytest-wardenbot.
-- Executes the shipped tests against your real chatbot.
-- Posts a Slack message on failure (if `SLACK_WEBHOOK_URL` is set).
+- Runs on every push to `main` and every PR, with read-only repository access.
+- Installs Python 3.12 and an exact pytest-wardenbot version; every action is
+  pinned to a commit SHA. Bump both when you choose to (Dependabot can).
+- Runs the shipped checks in `test_my_bot.py` against your real chatbot.
+- Posts a Slack message on failure (if `SLACK_WEBHOOK_URL` is set), passing
+  workflow values as environment variables rather than shell code.
 
 ## Cost
 
-The deterministic tests are free (no LLM API calls). If you've added LLM-judge
-tests via the `[judge]` extra, expect ~$0.02 per workflow run against Anthropic
-Haiku 4.5.
+The deterministic checks call no judge model, but they send about 35 requests
+to your chatbot per run (more with each business fact you add), which your
+model provider may bill. With LLM-judge tests from the `[judge]` extra, add
+about $0.003 per judge case with Claude Haiku 4.5, or nothing with a local
+judge model.
 
-For frequent runs, consider:
-
-- Marking the LLM-judge tests with `@pytest.mark.slow` and gating them behind a
-  manual `workflow_dispatch` trigger.
-- Running only on PR (not every push to main).
-- Using the deterministic-only subset on every push, with a nightly cron for
-  the full suite.
+To keep pull requests cheap, run the judge tests on a nightly schedule and the
+deterministic checks on every pull request. See the
+[CI guide](https://pytest-wardenbot.wardenbot.ai/how-to/ci-integration/) for
+per-run request counts and an agent-suite job.

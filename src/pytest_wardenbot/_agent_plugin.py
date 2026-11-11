@@ -285,6 +285,12 @@ def record_report(item: pytest.Item, report: pytest.TestReport) -> None:
         )
     elif isinstance(reason_codes, str) and "no_harness_trace" in reason_codes:
         diagnostic += ". Override `agent_observer` with an independent harness.observe callback"
+    elif report.failed and not debug and properties.get("wardenbot.agent.outcome") == "error":
+        # The error itself stays hidden (it can contain secrets); say how to see it.
+        diagnostic += (
+            ". To see the underlying error, run again with --wardenbot-agent-debug "
+            "(local only; the output can contain private data)"
+        )
     if report.failed:
         label = "Agent case failed"
         if properties.get("wardenbot.agent.outcome") == "violated":

@@ -2,7 +2,9 @@
 
 `pytest-wardenbot` ships **29 deterministic tests** out of the box, plus
 user-parametrized business-truth and LLM-judge tests. All discoverable via
-`pytest --pyargs pytest_wardenbot.tests`. Plant a
+`pytest --pyargs pytest_wardenbot.tests`. A default run sends about 35
+requests to your chatbot. For tool-using agents, see the
+[agent suite](../how-to/agent-scenarios.md). Plant a
 [canary token](../how-to/canary-token.md) so the leak checks in these tests
 can see leaked prompt content, not just disclosure phrasing. Measured grading
 accuracy is on the [grading accuracy page](../reference/grading-accuracy.md).
@@ -43,8 +45,8 @@ that can produce a reliable signal:
 2. **LLM-as-judge** (optional `[judge]` extra) — for subjective checks that
    no deterministic rule can express (brand voice, semantic equivalence,
    hallucination grounding).
-3. **Human sampling** — not in v0.1 (lives in the managed [WardenBot AI](https://wardenbot.ai)
-   service, not the OSS plugin).
+3. **Human review** is not part of the plugin; it belongs in your own red-team
+   process or the managed [WardenBot AI](https://wardenbot.ai) service.
 
 ## How failures are reported
 

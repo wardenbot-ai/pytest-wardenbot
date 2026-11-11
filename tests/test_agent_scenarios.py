@@ -290,7 +290,9 @@ def test_agent_reports_stay_private_without_debug(pytester):
     result = run_one(pytester)
     output = result.stdout.str()
     assert PRIVATE_TEXT not in output
-    assert "--wardenbot-agent-debug" not in output.split("short test summary")[0]
+    assert "--wardenbot-agent-debug (local only; may contain private data):" not in output
+    # The error stays hidden, but the report says how to see it locally.
+    assert "To see the underlying error, run again with --wardenbot-agent-debug" in output
 
 
 def test_agent_debug_shows_exceptions_and_captured_output(pytester):

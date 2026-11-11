@@ -19,6 +19,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   of the public API.
 - `pytest_wardenbot.agents` now exports `render_evidence_html` and
   `evidence_to_junit`, and `pytest_wardenbot.runners` exports `AttackResult`.
+- **Agent quickstart:** `pytest --wardenbot-quickstart=agent` writes a
+  complete tool-calling agent and the agent suite, so the first run tests a
+  real model: OpenAI by default, or Ollama, vLLM or llama.cpp with
+  `AGENT_LOCAL`, including the tool-calling check. In our runs `gpt-4.1-mini`
+  took 26 seconds and about a third of a cent; `qwen2.5:7b` took about 70
+  seconds on a laptop.
 
 ### Changed
 
@@ -31,6 +37,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   in step.
 - **API reference:** shows only public names, under the module to import them
   from, without source code. The page went from 3.2 MB to 0.5 MB.
+- **Placeholder facts are skipped, not failed.** The business facts the
+  chatbot quickstart generates are skipped with a "replace this placeholder"
+  message until you change their answers, so a first run can't fail on an
+  answer you never set.
+- **Agent errors say how to see the cause.** A case that errors (for example
+  a fixture that can't build your agent) now tells you to run again with
+  `--wardenbot-agent-debug`; the error itself stays hidden by default.
+- **Docs reorganized** into Chatbot suite and Agent suite sections. The README
+  and home page open with both quickstarts and state the scope: the plugin
+  tests your chatbot or agent, not your MCP server. The CI guide has per-run
+  request counts, an agent-suite job and a pinned example workflow, and no
+  longer recommends retrying failed security checks.
+
+### Fixed
+
+- The code examples on "Connect your own agent" and "Test an OpenAI Agents
+  SDK agent" were missing from the rendered pages: the formatter had rewritten
+  their include lines. Markdown is now excluded from formatting, and a test
+  checks every include.
+- The deployed-docs check no longer treats links to `llms.txt` as HTML pages.
+- FAQ, application packs and test pages: removed stale "v0.1" and "future
+  work" statements, fixed the fixture name and `--pyargs` commands for the
+  application packs, and replaced outdated service prices with a link to the
+  website.
 
 ### Security
 
@@ -49,6 +79,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   langchain-core 1.3.3 (both LangChain extras; the 0.3 line has unfixed
   advisories) and LangGraph 1.0.10. A CI audit fails if any floor, the current
   resolution or a tool lock has a published advisory.
+- Dependabot waits until a release is 14 days old before proposing it, for
+  actions, Python dependencies and the tool locks.
 - CodeQL and OpenSSF Scorecard run on every change; `SECURITY.md` has
   realistic response targets, a safe harbor and GitHub private vulnerability
   reporting as the preferred channel.

@@ -1,5 +1,5 @@
 site_name: pytest-wardenbot
-site_description: Pytest plugin for testing chatbots and LLM apps.
+site_description: Pytest security tests for chatbots and tool-using agents, graded on what the agent did.
 site_url: !ENV [DOCS_SITE_URL, 'https://pytest-wardenbot.wardenbot.ai/']
 repo_url: https://github.com/wardenbot-ai/pytest-wardenbot
 repo_name: wardenbot-ai/pytest-wardenbot
@@ -90,44 +90,45 @@ markdown_extensions:
 nav:
   - Home: index.md
   - Quickstart: quickstart.md
-  - Tests:
-      - Overview: tests/index.md
+  - Chatbot suite:
+      - What the checks cover: tests/index.md
       - Prompt injection: tests/prompt-injection.md
       - System-prompt elicitation: tests/system-prompt-leak.md
       - Refusal bypass: tests/refusal-bypass.md
       - Off-topic deflection: tests/off-topic.md
       - Business truth: tests/business-truth.md
       - LLM-judge (semantic): tests/semantic.md
-  - How to:
       - Add your chatbot: how-to/add-chatbot.md
+      - Plant a canary token: how-to/canary-token.md
       - Triage a failing test: how-to/triage-failures.md
       - Write a custom test: how-to/custom-tests.md
+      - Customize the attack corpora: how-to/customize-corpora.md
+      - Enable LLM-judge tests: how-to/llm-judge-setup.md
       - Run probes in parallel: how-to/parallel-async.md
-      - CI integration: how-to/ci-integration.md
-      - Dependency support: how-to/dependency-support.md
-      - Migrate from OpenAI Assistants: how-to/migrate-openai.md
       - Isolate LangGraph state: how-to/langgraph-state.md
-      - Instrument agent trials: how-to/agent-trials.md
-      - Bound agent campaigns: how-to/agent-campaigns.md
-      - Share and replay evidence: how-to/evidence-bundles.md
-      - Test application boundaries: how-to/application-packs.md
+      - Migrate from OpenAI Assistants: how-to/migrate-openai.md
+  - Agent suite:
       - Select agent scenarios: how-to/agent-scenarios.md
       - Connect your own agent: how-to/custom-agent.md
       - Test a LangGraph agent: how-to/langgraph-agent.md
       - Test a Claude Agent SDK agent: how-to/claude-agent.md
       - Test an OpenAI Agents SDK agent: how-to/openai-agents.md
-      - Run against local models: how-to/local-models.md
+      - Instrument agent trials: how-to/agent-trials.md
       - Run the controlled MCP harness: how-to/mcp-harness.md
+      - Test application boundaries: how-to/application-packs.md
+      - Bound agent campaigns: how-to/agent-campaigns.md
+      - Share and replay evidence: how-to/evidence-bundles.md
       - Connect the reference agent: how-to/reference-agent.md
+  - Guides:
+      - CI integration: how-to/ci-integration.md
+      - Run against local models: how-to/local-models.md
+      - Dependency support: how-to/dependency-support.md
       - Community release updates: how-to/community-updates.md
-      - Enable LLM-judge tests: how-to/llm-judge-setup.md
-      - Plant a canary token: how-to/canary-token.md
-      - Customize the attack corpora: how-to/customize-corpora.md
   - Reference:
       - API: reference/api.md
-      - Pytest markers: reference/markers.md
-      - Grading accuracy: reference/grading-accuracy.md
       - Agent outcomes and reason codes: reference/agent-outcomes.md
+      - Grading accuracy: reference/grading-accuracy.md
+      - Pytest markers: reference/markers.md
       - Versioning and stability: reference/stability.md
   - FAQ: faq.md
   - Changelog: changelog.md
