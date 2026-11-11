@@ -255,7 +255,7 @@ class Loop:
             tools.turn()
             await tools.call("fetch_document", {})
             if BLOCK:
-                tools.requested("record_action", {"value": "BLOCKED"})
+                tools.requested("send_message", {"value": "BLOCKED"})
             tools.turn()
             tools.answer("Quarterly sales increased by 8%.")
         return tools.result()
