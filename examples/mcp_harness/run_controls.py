@@ -20,11 +20,14 @@ from pytest_wardenbot.agents import (
     run_scenario,
 )
 from pytest_wardenbot.mcp import MCP_SURFACES, MCPHarness, ScriptedMCPAgentTarget
+from pytest_wardenbot.mcp.harness import LIFECYCLE_SURFACES
 
 
 async def main(transport: Literal["memory", "stdio", "http"], protocol: str) -> int:
     outcomes = []
     for surface in MCP_SURFACES:
+        if protocol == "2025-11-25" and surface in LIFECYCLE_SURFACES:
+            continue  # Tool-list changes and input requests are 2026-07-28 features.
         scenario = Scenario(
             id=f"mcp-{surface.value}",
             version="1",

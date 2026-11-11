@@ -478,8 +478,8 @@ jobs:
           import pytest_wardenbot
           assert "site-packages" in pytest_wardenbot.__file__
           outcomes = json.loads(pathlib.Path("mcp-controls.json").read_text())
-          assert len(outcomes) == 12
-          print("Installed MCP wheel: all 12 control outcomes verified")
+          assert len(outcomes) == 18  # 6 surfaces x resistant, vulnerable, no exposure
+          print("Installed MCP wheel: all 18 control outcomes verified")
           PY
       - name: Verify installed pytest agent scenarios and required coverage
         working-directory: ${{ runner.temp }}
