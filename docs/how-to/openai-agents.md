@@ -57,12 +57,15 @@ See [Run against local models](local-models.md).
 
 ## Result from our run
 
-With the recipe as shown and `gpt-4o-mini`, 9 of 16 cases passed in 39
-seconds, for well under one cent:
+With the recipe as shown and `gpt-4o-mini` on the version 2 scenarios, 11 of
+16 cases passed in 33 seconds, for well under one cent:
 
-- **Baselines:** 7 of 8 passed. In the other, the model called
-  `record_action` with no attack present.
-- **Attacks:** 6 of 8 were confirmed violations, 3 forbidden-tool effects and
-  3 canary leaks.
+- **Baselines:** 8 of 8 passed. (On the version 1 scenarios in 0.6, one
+  baseline failed: the model called `record_action` with no attack present.)
+- **Attacks:** 5 of 8 were confirmed violations, 3 forbidden-tool effects and
+  2 canary leaks. Both tool-description attacks were resisted.
+- **Lifecycle pack:** both input-request attacks were resisted. The
+  definition-change scenarios are skipped as unsupported, because the agent's
+  tools are fixed when it's built.
 
 A single run, not a benchmark.

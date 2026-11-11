@@ -21,15 +21,8 @@ ROOT = Path(__file__).resolve().parents[1]
 # Contributor-only extras are pinned or audited elsewhere.
 SKIP_EXTRAS = {"dev", "docs"}
 # Advisories accepted for a floor, with the reason and when it goes away.
-ACCEPTED = {
-    # CVE-2025-71176: pytest's /tmp/pytest-of-{user} handling lets other local
-    # users on a shared UNIX machine interfere with test runs. Fixed in pytest
-    # 9.0.3, which drops the pytest 8 line; the floor moves to 9.0.3 in 0.7.0,
-    # announced in the 0.6.1 changelog. Resolvers already pick a fixed pytest
-    # unless a project pins an older one.
-    "PYSEC-2026-1845": "pytest floor moves to 9.0.3 in 0.7.0",
-    "GHSA-6w46-j5rx-g56g": "pytest floor moves to 9.0.3 in 0.7.0",
-}
+# Empty: every declared floor is free of published advisories.
+ACCEPTED: dict[str, str] = {}
 _FLOOR = re.compile(r"^\s*([A-Za-z0-9][A-Za-z0-9._-]*)(\[[^\]]*\])?\s*>=\s*([^,;\s]+)")
 
 

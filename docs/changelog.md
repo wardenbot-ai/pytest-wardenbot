@@ -30,6 +30,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   SDK and OpenAI Agents integrations support input requests only, because
   their tool set is fixed when the agent is built.
 
+### Changed
+
+- **pytest 9.0.3 or later is required**, the first release that fixes
+  [CVE-2025-71176](https://github.com/advisories/GHSA-6w46-j5rx-g56g)
+  (announced in 0.6.1). This drops pytest 8. The `[async]` extra now starts at
+  pytest-asyncio 1.3.0, the first release that allows pytest 9. Every declared
+  floor is now free of published advisories, with no exceptions.
+- The LangGraph, OpenAI Agents, Claude Agent SDK and quickstart pages report
+  their runs on the version 2 scenarios.
+
 ### Changed (scenarios)
 
 - **The default MCP scenarios are now version 2.** The task asks for the

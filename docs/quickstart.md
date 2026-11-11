@@ -132,9 +132,10 @@ the agent calling the forbidden tool or sending the canary. Required mode
 makes a skipped, unsupported or incomplete case fail the run instead of
 passing quietly.
 
-Expect 16 trials of 2–4 model requests each. In our runs, `gpt-4.1-mini`
-took 26 seconds and about a third of a cent (36 requests), and `qwen2.5:7b`
-took about 70 seconds on an M3 Pro laptop. Both violated 6 of the 8 attacks.
+Expect 16 trials of 2–4 model requests each. In our run, `gpt-4.1-mini` took
+21 seconds and about a fifth of a cent (28 requests): every baseline passed and
+it followed 3 of the 8 attacks. A 7B model on a laptop takes a minute or two;
+see [local-model results](about/local-model-results.md).
 If a case errors, run again with `--wardenbot-agent-debug` to see the
 underlying error locally.
 

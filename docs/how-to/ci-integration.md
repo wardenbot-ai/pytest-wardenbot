@@ -12,7 +12,7 @@ provider.
 | Run | Requests | Notes |
 |---|---|---|
 | Chatbot suite, default quickstart | 35 to your chatbot | 29 tests; the three multi-turn tests send three messages each. Each business fact you add is one more. |
-| Agent suite | 16 trials, usually 2–4 model requests each | 8 scenarios, each with a baseline and an attack. The quickstart agent made 36 requests with `gpt-4.1-mini`: 26 seconds, about a third of a cent. A local model costs nothing. |
+| Agent suite | 16 trials, usually 2–4 model requests each | 8 scenarios, each with a baseline and an attack. The quickstart agent made 28 requests with `gpt-4.1-mini`: 21 seconds, about a fifth of a cent. A local model costs nothing. |
 | LLM-judge tests (`[judge]`) | 1 judge request per case, plus 1 chatbot request | About $0.003 per case with Claude Haiku 4.5, or free with a [local judge](llm-judge-setup.md#local-judge). |
 
 ## GitHub Actions: chatbot suite
