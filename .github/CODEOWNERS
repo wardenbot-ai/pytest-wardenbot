@@ -1,0 +1,8 @@
+# Default owner for everything in the repository.
+*                       @pardamike
+
+# Release, CI and dependency-locking changes: listed explicitly so new paths
+# here never fall outside an owner rule.
+/.github/               @pardamike
+/requirements/          @pardamike
+/pyproject.toml         @pardamike

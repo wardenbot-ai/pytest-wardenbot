@@ -148,20 +148,36 @@ To release:
 1. Update the version in `pyproject.toml` and describe the changes in
    `docs/changelog.md`. Runtime `__version__` reads installed package metadata.
 2. Run the checks above, `python -m build`, and `twine check --strict dist/*`
-   using an empty output directory. Wait for CI on the release commit to pass.
-3. Push an annotated `v<version>` tag on that commit. `release.yml` verifies
-   the tag, builds distributions, and publishes with Trusted Publishing.
+   using an empty output directory. Merge the release pull request.
+3. Push an annotated `v<version>` tag on the merge commit. Only maintainers can
+   create, move or delete `v*` tags. `release.yml` then:
+   - checks the commit is on `main` and waits for CI on it to pass;
+   - builds the sdist, wheel and a CycloneDX SBOM with the hash-locked tools in
+     `requirements/release.txt`;
+   - attests the build provenance and the SBOM;
+   - waits for a maintainer to approve the `pypi` environment, then publishes
+     with Trusted Publishing.
    To retry, rerun the failed job on the tag; do not dispatch from `main`.
 4. Confirm the version and project links on
    [PyPI](https://pypi.org/project/pytest-wardenbot/), then test installation
-   in a fresh virtual environment. The new release updates the PyPI page's
-   README and repository links; old release metadata stays unchanged.
+   in a fresh virtual environment. Attach the SBOM artifact from the release run
+   to the GitHub release.
+
+The tool locks in `requirements/` are generated; regenerate a whole file with
+the `uv pip compile` command in its header. `requirements/docs.txt` is compiled
+from the `[docs]` extra, so regenerate it after changing that extra. A test
+fails if a lock falls out of step with its input or loses its hashes.
+
+Every GitHub Action is pinned to a full commit SHA, and the repository refuses
+unpinned actions. Dependabot proposes updates; a new action also needs adding
+to the repository's allowed actions.
 
 Docs deploy on `main` to the Cloudflare Pages project `pytest-wardenbot` at
 <https://pytest-wardenbot.wardenbot.ai/> and, independently, to the GitHub Pages
 fallback at <https://wardenbot-ai.github.io/pytest-wardenbot/>. Each deployment
-runs the navigation and asset checks in `scripts/check_docs.py`. Keep the
-Cloudflare account/token secrets available to this repository after transfers.
+runs the navigation, asset and llms.txt checks in `scripts/check_docs.py`. The
+Cloudflare deploy job runs in the `docs` environment, which only `main` can
+deploy to; keep the Cloudflare account and token secrets there.
 The GitHub Pages fallback uses the `github-pages` environment and Actions as
 its publishing source; the custom domain belongs to Cloudflare.
 

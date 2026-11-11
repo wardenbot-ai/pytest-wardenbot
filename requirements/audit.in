@@ -1,0 +1,2 @@
+# Dependency audit tool for .github/workflows/dependency-audit.yml.
+pip-audit==2.10.1
