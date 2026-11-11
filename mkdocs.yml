@@ -137,6 +137,7 @@ nav:
       - Evaluation: about/evaluation.md
       - MCP integration pilot: about/agent-pilot.md
       - Support application pilot: about/support-pilot.md
+      - Local-model results: about/local-model-results.md
       - Versioned coverage: about/coverage.md
       - Research intake: about/research-intake.md
       - Powered by WardenBot AI: about/powered-by.md

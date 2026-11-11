@@ -108,6 +108,7 @@ include = [
     "/scripts/evaluation/__init__.py",
     "/scripts/evaluation/agent_pilot.py",
     "/scripts/evaluation/support_pilot.py",
+    "/scripts/evaluation/local_models.py",
     "/README.md",
     "/LICENSE.md",
     "/pyproject.toml",
