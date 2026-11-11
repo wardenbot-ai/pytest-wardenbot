@@ -149,6 +149,10 @@ def _check_installation() -> str:
         ),
         "Wheel is missing the wardenbot pytest11 entry point.",
     )
+    _require(
+        (package_path.parent / "py.typed").is_file(),
+        "Wheel is missing the py.typed marker, so type checkers would ignore its annotations.",
+    )
     return str(package_path)
 
 

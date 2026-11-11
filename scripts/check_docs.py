@@ -1,8 +1,9 @@
-"""Check a deployed docs site, including its navigation, assets, and repo links."""
+"""Check a deployed docs site: navigation, assets, repo links and the llms.txt files."""
 
 from __future__ import annotations
 
 import argparse
+import re
 import subprocess
 import time
 from html.parser import HTMLParser
@@ -94,7 +95,31 @@ def check_site(base_url: str) -> None:
         content = fetch(url)
         if not content or b"<!doctype html" in content[:100].lower():
             raise ValueError(f"Missing asset (or HTML fallback): {url}")
-    print(f"Verified {len(documents)} pages and {len(assets)} assets at {base_url}")  # noqa: T201
+    markdown = check_llms(base_url)
+    print(  # noqa: T201
+        f"Verified {len(documents)} pages, {len(assets)} assets and "
+        f"{markdown} Markdown copies at {base_url}"
+    )
+
+
+def check_llms(base_url: str) -> int:
+    """llms.txt, llms-full.txt and every Markdown page they link to are served."""
+    index = fetch(urljoin(base_url, "llms.txt")).decode("utf-8")
+    if not index.startswith("# pytest-wardenbot\n"):
+        raise ValueError("llms.txt is missing or is not the generated index")
+    links = re.findall(r"\]\((\S+?\.md)\)", index)
+    home = next((link for link in links if link.endswith("/index.md")), None)
+    if home is None or len(links) < 20:
+        raise ValueError("llms.txt does not list the documentation pages")
+    # Links use the configured site URL; check the same paths on this deployment.
+    root = home.removesuffix("index.md")
+    for link in links:
+        content = fetch(urljoin(base_url, link.removeprefix(root)))
+        if not content.lstrip().startswith(b"#") and b"\n# " not in content[:2000]:
+            raise ValueError(f"Markdown copy is missing or not Markdown: {link}")
+    if b"### `TrialTools`" not in fetch(urljoin(base_url, "llms-full.txt")):
+        raise ValueError("llms-full.txt is missing or has no API summary")
+    return len(links)
 
 
 def main() -> None:

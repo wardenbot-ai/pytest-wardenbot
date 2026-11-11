@@ -16,6 +16,7 @@ on:
       - ".github/workflows/docs-cloudflare.yml"
       - "pyproject.toml"
       - "scripts/check_docs.py"
+      - "scripts/mkdocs_llms.py"
   workflow_dispatch: {}
 
 permissions:

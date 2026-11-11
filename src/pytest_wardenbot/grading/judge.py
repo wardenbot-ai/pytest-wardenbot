@@ -179,6 +179,7 @@ _VENDOR_KEY_ENV = {
 
 
 DEFAULT_JUDGE_MODEL = "claude-haiku-4-5"
+"""Judge model used unless ``--wardenbot-judge-model`` or ``WARDENBOT_JUDGE_MODEL`` is set."""
 
 LOCAL_JUDGE_PREFIXES: tuple[str, ...] = ("ollama/", "vllm/", "llamacpp/")
 """Judge model names with these prefixes run on a local OpenAI-compatible
@@ -737,3 +738,29 @@ def _format_ensemble_failure(case: JudgeCase, actual_response: str, result: Ense
         f"reconsider whether 'majority' is the right policy here versus "
         f"'unanimous' (stricter) or 'any' (looser).\n"
     )
+
+
+__all__ = [
+    "DEFAULT_ENSEMBLE_MODELS",
+    "DEFAULT_JUDGE_MODEL",
+    "LOCAL_JUDGE_PREFIXES",
+    "ConsensusPolicy",
+    "EnsembleResult",
+    "JudgeCase",
+    "JudgeResult",
+    "JudgeUnavailableError",
+    "aggregate_verdicts",
+    "api_key_available",
+    "assert_judge_ensemble_passes",
+    "assert_judge_passes",
+    "brand_alignment_case",
+    "hallucination_case",
+    "is_local_judge_model",
+    "judge_available",
+    "judge_ensemble",
+    "judge_key_env",
+    "judge_response",
+    "off_policy_case",
+    "refusal_quality_case",
+    "semantic_equivalence_case",
+]

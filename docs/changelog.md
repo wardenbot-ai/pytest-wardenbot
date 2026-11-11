@@ -5,6 +5,33 @@ All notable changes to `pytest-wardenbot` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- **Typed package:** the wheel ships `py.typed`, so type checkers read its
+  annotations. Every public name has a docstring.
+- **Python 3.14** is supported and tested in CI, including the framework
+  extras.
+- **Docs for coding agents:** the docs site publishes
+  [`llms.txt`](https://pytest-wardenbot.wardenbot.ai/llms.txt),
+  `llms-full.txt` and a Markdown copy of every page, with a compact summary
+  of the public API.
+- `pytest_wardenbot.agents` now exports `render_evidence_html` and
+  `evidence_to_junit`, and `pytest_wardenbot.runners` exports `AttackResult`.
+
+### Changed
+
+- **The stability policy lists every public module.** It now includes the
+  modules the docs already imported from: the vendor adapter modules,
+  `grading.deterministic`, `grading.judge`, `canary`, `business_truth` and
+  `corpus`. Each declares `__all__`. Other paths, such as
+  `pytest_wardenbot.agents.contracts`, are internal; import from the public
+  module instead. A test keeps the docs, examples, API reference and policy
+  in step.
+- **API reference:** shows only public names, under the module to import them
+  from, without source code. The page went from 3.2 MB to 0.5 MB.
+
 ## [0.6.0] — 2026-11-10
 
 **Local-first, and your framework.** The suites run end to end on Ollama,

@@ -35,12 +35,16 @@ def _ticket_arguments(ticket_id: str, status: str | None = None) -> None:
 
 
 class ApplicationRole(StrEnum):
+    """Role of a synthetic identity in the local application fixture."""
+
     VIEWER = "viewer"
     EDITOR = "editor"
 
 
 @dataclass(frozen=True)
 class SyntheticIdentity:
+    """A fake user in tenant ``alpha`` or ``beta`` with a viewer or editor role."""
+
     id: str
     tenant: str
     role: ApplicationRole
@@ -52,8 +56,11 @@ class SyntheticIdentity:
 
 
 ALPHA_EDITOR = SyntheticIdentity("alpha.editor", "alpha", ApplicationRole.EDITOR)
+"""Editor in tenant ``alpha``, the tenant that owns the test ticket."""
 ALPHA_VIEWER = SyntheticIdentity("alpha.viewer", "alpha", ApplicationRole.VIEWER)
+"""Read-only viewer in tenant ``alpha``."""
 BETA_EDITOR = SyntheticIdentity("beta.editor", "beta", ApplicationRole.EDITOR)
+"""Editor in tenant ``beta``, which must not reach tenant ``alpha``'s data."""
 
 
 @dataclass
@@ -199,6 +206,12 @@ class ApplicationHarness:
 
 
 class ApplicationTrial:
+    """One isolated trial of the local application, from ``ApplicationHarness.trial``.
+
+    Open ``session()`` to get the ``ApplicationSession`` whose operations your
+    agent calls.
+    """
+
     def __init__(self, harness: ApplicationHarness, trial_id: str, state: _State) -> None:
         self._harness = harness
         self.trial_id = trial_id

@@ -10,7 +10,7 @@ Two Protocols are exposed: `ChatbotAdapter` (sync) and `AsyncChatbotAdapter`
    `[openai]` or `[anthropic]` extra).
 2. Writing a small class that satisfies one of the Protocols.
 
-The shipped tests in v0.1 are synchronous and consume a `ChatbotAdapter`.
+The shipped tests are synchronous and consume a `ChatbotAdapter`.
 Users with an `AsyncChatbotAdapter` (their bot is behind an async-only API,
 or they prefer `httpx.AsyncClient` for parallel fan-out in their own tests)
 can use `with pytest_wardenbot.adapters.to_sync(...) as chatbot:` to satisfy
@@ -95,7 +95,7 @@ class AsyncChatbotAdapter(Protocol):
     behind async-only transports or when you want parallel fan-out in your
     own async test suite.
 
-    The shipped tests in v0.1 are synchronous; pass an async adapter through
+    The shipped tests are synchronous; pass an async adapter through
     `pytest_wardenbot.adapters.to_sync(...)` to consume it from the shipped
     `chatbot` fixture. Use the bridge as a context manager or close it explicitly;
     it invokes the adapter's public `aclose()` hook when available. Alternatively,
@@ -116,3 +116,10 @@ class AsyncChatbotAdapter(Protocol):
     async def reset_session(self, session_id: str) -> None:
         """Async counterpart to `ChatbotAdapter.reset_session`."""
         ...
+
+
+__all__ = [
+    "AsyncChatbotAdapter",
+    "ChatbotAdapter",
+    "ChatbotResponse",
+]

@@ -97,7 +97,7 @@ A good new test:
 2. Make the change. Run the check pipeline locally.
 3. Open a PR using the template. Make sure the scope-check boxes are honestly
    checked.
-4. CI must be green before review (lint, typecheck, tests across 3.11/3.12/3.13,
+4. CI must be green before review (lint, typecheck, tests across 3.11/3.12/3.13/3.14,
    coverage ≥80%, minimum/current pytest, strict docs build, wheel + sdist,
    fresh-wheel consumer).
    See [dependency support](docs/how-to/dependency-support.md) for the matrix.

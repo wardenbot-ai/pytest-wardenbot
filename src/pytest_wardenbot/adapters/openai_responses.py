@@ -377,3 +377,9 @@ class AsyncOpenAIResponsesAdapter(_ResponsesAdapterBase[_AsyncSessions]):
 
     def __repr__(self) -> str:
         return f"AsyncOpenAIResponsesAdapter(model={self._model!r})"
+
+
+__all__ = [
+    "AsyncOpenAIResponsesAdapter",
+    "OpenAIResponsesAdapter",
+]

@@ -34,7 +34,9 @@ from pytest_wardenbot.agents.evaluation import evaluate
 from pytest_wardenbot.agents.reporting import result_to_dict
 
 EVIDENCE_SCHEMA_VERSION = schema.SCHEMA_VERSION
+"""Version of the evidence bundle JSON schema this release writes and loads."""
 EVIDENCE_GRADER_VERSION = schema.GRADER_VERSION
+"""Version of the agent grader recorded in evidence; bundles from another grader are rejected."""
 GRADER_VERSION = EVIDENCE_GRADER_VERSION
 
 
@@ -66,6 +68,11 @@ class EvidenceBundle:
 
 @dataclass(frozen=True)
 class ReplayManifest:
+    """Binds evidence to a built-in synthetic fixture that can be run again.
+
+    Create one with ``make_replay_manifest`` and run it with ``execute_fixture``.
+    """
+
     fixture_id: str
     fixture_version: str
     behavior: str
@@ -83,6 +90,9 @@ class ReplayManifest:
 
 @dataclass(frozen=True)
 class EvidenceComparison:
+    """The result of ``compare_evidence``: outcome and utility changes between two
+    saved trials, or the reasons they can't be compared."""
+
     compatible: bool
     reasons: tuple[str, ...]
     baseline_outcome: Outcome
@@ -94,6 +104,7 @@ class EvidenceComparison:
 
 
 def comparison_to_dict(comparison: EvidenceComparison) -> dict[str, Any]:
+    """Serialize an ``EvidenceComparison`` to JSON-compatible values."""
     return {
         "compatible": comparison.compatible,
         "reasons": list(comparison.reasons),
@@ -542,6 +553,10 @@ def _fixture_config(behavior: str) -> str:
 
 
 def make_replay_manifest(behavior: str = "vulnerable") -> ReplayManifest:
+    """Manifest for the built-in synthetic fixture.
+
+    ``behavior`` is ``"vulnerable"``, ``"resistant"`` or ``"no_exposure"``.
+    """
     if behavior not in {"resistant", "vulnerable", "no_exposure"}:
         raise ValueError("Unsupported synthetic fixture behavior")
     return ReplayManifest(

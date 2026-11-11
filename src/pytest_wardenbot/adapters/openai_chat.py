@@ -261,3 +261,9 @@ class AsyncOpenAIChatAdapter:
 
     def __repr__(self) -> str:
         return f"AsyncOpenAIChatAdapter(model={self._model!r})"
+
+
+__all__ = [
+    "AsyncOpenAIChatAdapter",
+    "OpenAIChatAdapter",
+]

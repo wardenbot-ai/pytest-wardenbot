@@ -336,3 +336,9 @@ class AsyncOpenAIAssistantsAdapter:
 
     def __repr__(self) -> str:
         return f"AsyncOpenAIAssistantsAdapter(assistant_id={self._assistant_id!r})"
+
+
+__all__ = [
+    "AsyncOpenAIAssistantsAdapter",
+    "OpenAIAssistantsAdapter",
+]

@@ -410,3 +410,9 @@ class AsyncLangChainAdapter:
 
     def __repr__(self) -> str:
         return f"AsyncLangChainAdapter(runnable={type(self._runnable).__name__})"
+
+
+__all__ = [
+    "AsyncLangChainAdapter",
+    "LangChainAdapter",
+]

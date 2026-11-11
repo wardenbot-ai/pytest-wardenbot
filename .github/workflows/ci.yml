@@ -83,7 +83,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12", "3.13"]
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
         pytest: [current]
         include:
           - python-version: "3.11"
@@ -269,6 +269,8 @@ jobs:
             dependencies: current
           - python: "3.13"
             dependencies: current
+          - python: "3.14"
+            dependencies: current
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -354,6 +356,10 @@ jobs:
         run: pip install -e ".[docs]"
       - name: Build documentation
         run: mkdocs build --strict
+      - name: Check navigation, links, llms.txt and Markdown copies on a local server
+        run: |
+          python -m http.server 8000 --bind 127.0.0.1 --directory site &
+          python scripts/check_docs.py http://127.0.0.1:8000/ --attempts 3
 
   consumer:
     name: Fresh-wheel consumer (pytest ${{ matrix.pytest }})

@@ -1,3 +1,7 @@
+---
+description: Which names are public, what each kind of release may change, and current deprecations.
+---
+
 # Versioning and stability
 
 `pytest-wardenbot` is in **Beta** as of 0.4.0. The features planned for the
@@ -15,21 +19,52 @@ in [GitHub Discussions](https://github.com/wardenbot-ai/pytest-wardenbot/discuss
 
 **Public API:**
 
-- Names listed in `__all__` of `pytest_wardenbot`, `pytest_wardenbot.adapters`,
-  `pytest_wardenbot.agents`, `pytest_wardenbot.agents.packs`,
-  `pytest_wardenbot.mcp`, `pytest_wardenbot.local`,
-  `pytest_wardenbot.targets.langgraph` and `pytest_wardenbot.targets.claude`,
-  plus the vendor adapters documented in the [API reference](api.md).
-- Command-line options (`--wardenbot-*`), [pytest markers](markers.md) and the
-  fixture names the plugin asks you to provide.
-- Shipped test node names and versioned scenario IDs, such as
-  `application.retrieval.poisoned-document@1`.
+- Names listed in `__all__` of the modules below, imported from the module
+  they are listed in. The [API reference](api.md) documents each of them.
+- Type annotations of those names. The package ships `py.typed`, so type
+  checkers read them. Patch releases may make an annotation more precise
+  without changing behavior.
+- Command-line options (`--wardenbot-*`), [pytest markers](markers.md), the
+  `wardenbot_*` fixtures the plugin provides and the fixture names it asks you
+  to provide.
+- Shipped test node names, and the shipped test functions in
+  `pytest_wardenbot.tests` and `pytest_wardenbot.agent_tests` that you can
+  import into your own test module.
+- Versioned scenario IDs, such as `application.retrieval.poisoned-document@1`.
 - `Outcome` and `ReasonCode` values, and the meaning of each outcome.
 - The evidence bundle schema (`EVIDENCE_SCHEMA_VERSION`) and the JSON written
   by the public report functions.
 
+| Module | What it holds |
+|---|---|
+| `pytest_wardenbot` | Adapter protocols, the response type, business facts, judge cases and errors |
+| `pytest_wardenbot.adapters` | HTTP adapters and the async-to-sync bridge |
+| `pytest_wardenbot.adapters.base` | Adapter protocols and the response type |
+| `pytest_wardenbot.adapters.http` | `HTTPChatbotAdapter` and its async version |
+| `pytest_wardenbot.adapters.openai_responses` | OpenAI Responses adapters (`[openai]`) |
+| `pytest_wardenbot.adapters.openai_chat` | OpenAI Chat Completions adapters (`[openai]`) |
+| `pytest_wardenbot.adapters.openai_assistants` | Legacy Assistants adapters for injected clients |
+| `pytest_wardenbot.adapters.anthropic_msgs` | Anthropic Messages adapters (`[anthropic]`) |
+| `pytest_wardenbot.adapters.langchain_runnable` | LangChain Runnable adapters (`[langchain]`) |
+| `pytest_wardenbot.local` | Ollama, vLLM and llama.cpp presets and the tool-calling check |
+| `pytest_wardenbot.business_truth` | Business facts and their matcher |
+| `pytest_wardenbot.canary` | Canary tokens |
+| `pytest_wardenbot.corpus` | The attack prompts the shipped tests use |
+| `pytest_wardenbot.grading` | Deterministic graders and the main judge helpers |
+| `pytest_wardenbot.grading.deterministic` | Deterministic graders |
+| `pytest_wardenbot.grading.judge` | LLM-judge helpers and ensembles (`[judge]`) |
+| `pytest_wardenbot.runners` | Parallel async probes and the legacy runner protocol |
+| `pytest_wardenbot.agents` | Agent contracts, runner, campaigns, evidence and reports |
+| `pytest_wardenbot.agents.packs` | Application packs |
+| `pytest_wardenbot.mcp` | The controlled MCP harness and `TrialTools` (`[mcp]`) |
+| `pytest_wardenbot.targets.langgraph` | `LangGraphAgentTarget` (`[langgraph]`) |
+| `pytest_wardenbot.targets.claude` | `ClaudeAgentTarget` (`[claude-agent]`) |
+
 **Not public API:**
 
+- Any module not in the table, even if its name has no underscore (for
+  example `pytest_wardenbot.agents.contracts`). Import from the module in the
+  table instead.
 - Modules and names starting with an underscore.
 - Everything under `examples/` and `scripts/`.
 - The wording of failure messages, HTML report styling and corpus text.
@@ -37,7 +72,7 @@ in [GitHub Discussions](https://github.com/wardenbot-ai/pytest-wardenbot/discuss
 
 ## Rules during 0.x
 
-**Patch releases (0.4.x)** contain fixes, documentation, dependency-range
+**Patch releases (such as 0.6.1)** contain fixes, documentation, dependency-range
 updates and new **opt-in** scenarios. They never remove or rename public API.
 They never change the default scenario selection. They never change grading
 in a way that could turn a failing run into a passing one.
@@ -73,7 +108,7 @@ Re-grade saved evidence with the release that wrote it.
 ## Supported versions
 
 Fixes and security updates go to the latest 0.x minor release. Python
-3.11–3.13 are supported. Tested dependency floors and ranges are listed in
+3.11–3.14 are supported. Tested dependency floors and ranges are listed in
 [dependency support](../how-to/dependency-support.md).
 
 ## Current deprecations

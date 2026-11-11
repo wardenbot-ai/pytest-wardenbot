@@ -57,6 +57,7 @@ from pytest_wardenbot.agents.evidence import (
     regrade_evidence,
     replay_evidence,
 )
+from pytest_wardenbot.agents.evidence_reports import evidence_to_junit, render_evidence_html
 from pytest_wardenbot.agents.packs import (
     ALPHA_EDITOR,
     ALPHA_VIEWER,
@@ -142,11 +143,13 @@ __all__ = [
     "evidence_fingerprint",
     "evidence_to_dict",
     "evidence_to_json",
+    "evidence_to_junit",
     "execute_fixture",
     "format_result",
     "load_evidence_bundle",
     "make_replay_manifest",
     "regrade_evidence",
+    "render_evidence_html",
     "render_result_html",
     "replay_evidence",
     "required_capabilities",

@@ -1,33 +1,50 @@
+---
+description: Every public class, function and constant, with the module to import it from.
+---
+
 # API reference
 
-Auto-generated from docstrings via `mkdocstrings`.
+Generated from docstrings. Every name on this page is public and covered by
+the [versioning and stability policy](stability.md). Import each name from the
+module named at the top of its section; other module paths are internal and
+can change without notice.
 
-## Top-level exports
+## Core
+
+Import from `pytest_wardenbot`.
 
 ::: pytest_wardenbot
     options:
-      members: ["__version__", "ChatbotAdapter", "ChatbotResponse", "BusinessTruthFact", "JudgeCase"]
       show_root_heading: false
+      heading_level: 3
+      members:
+        - "__version__"
+        - "ChatbotAdapter"
+        - "AsyncChatbotAdapter"
+        - "ChatbotResponse"
+        - "WardenBotError"
+        - "WardenBotConfigError"
+        - "WardenBotInfraError"
 
 ## Adapters
 
-::: pytest_wardenbot.adapters.base
-    options:
-      heading_level: 3
+Import from `pytest_wardenbot.adapters`.
 
-::: pytest_wardenbot.adapters.http
+::: pytest_wardenbot.adapters
     options:
+      show_root_heading: false
       heading_level: 3
+      members: ["HTTPChatbotAdapter", "AsyncHTTPChatbotAdapter", "to_sync"]
 
 ### Vendor adapters (optional extras)
 
-Adapter modules remain importable without vendor SDKs; SDK-backed default
-clients require the corresponding extra at construction time. The legacy
-Assistants adapters require an explicitly injected compatible client.
-See [Add your chatbot](../how-to/add-chatbot.md) and
-[dependency support](../how-to/dependency-support.md) for usage and tested versions.
+Adapter modules import without vendor SDKs; SDK-backed default clients need
+the matching extra when you construct them. The legacy Assistants adapters need
+an injected compatible client. See [Add your chatbot](../how-to/add-chatbot.md)
+and [dependency support](../how-to/dependency-support.md) for usage and tested
+versions.
 
-| Class (sync / async) | Module | Extra |
+| Class (sync / async) | Import from | Extra |
 |---|---|---|
 | `OpenAIResponsesAdapter` / `AsyncOpenAIResponsesAdapter` | `pytest_wardenbot.adapters.openai_responses` | `[openai]` |
 | `OpenAIChatAdapter` / `AsyncOpenAIChatAdapter` | `pytest_wardenbot.adapters.openai_chat` | `[openai]` |
@@ -35,217 +52,269 @@ See [Add your chatbot](../how-to/add-chatbot.md) and
 | `AnthropicMessagesAdapter` / `AsyncAnthropicMessagesAdapter` | `pytest_wardenbot.adapters.anthropic_msgs` | `[anthropic]` |
 | `LangChainAdapter` / `AsyncLangChainAdapter` | `pytest_wardenbot.adapters.langchain_runnable` | `[langchain]` |
 
-The public Assistants API retired on 26 August 2026. Its legacy adapter imports
-remain available, but construction without an injected compatible client raises
-an infrastructure error. See [OpenAI migration](../how-to/migrate-openai.md).
-Responses adapters maintain local session histories; reset clears those histories,
-and does not delete old remote threads. For LangGraph state and reset hooks, see
+OpenAI retired the public Assistants API on 26 August 2026. The legacy adapter
+classes still import, but constructing one without an injected compatible
+client raises an infrastructure error. See
+[OpenAI migration](../how-to/migrate-openai.md). The Responses adapters keep
+local session histories; reset clears them and doesn't delete old remote
+threads. For LangGraph state and reset hooks, see
 [the graph recipe](../how-to/langgraph-state.md).
+
+::: pytest_wardenbot.adapters.openai_responses
+    options:
+      show_root_heading: false
+      heading_level: 4
+
+::: pytest_wardenbot.adapters.openai_chat
+    options:
+      show_root_heading: false
+      heading_level: 4
+
+::: pytest_wardenbot.adapters.openai_assistants
+    options:
+      show_root_heading: false
+      heading_level: 4
+
+::: pytest_wardenbot.adapters.anthropic_msgs
+    options:
+      show_root_heading: false
+      heading_level: 4
+
+::: pytest_wardenbot.adapters.langchain_runnable
+    options:
+      show_root_heading: false
+      heading_level: 4
 
 ## Local model servers
 
+Import from `pytest_wardenbot.local`. See
+[Run against local models](../how-to/local-models.md).
+
 ::: pytest_wardenbot.local
     options:
+      show_root_heading: false
       heading_level: 3
-      members: ["local_chatbot", "ollama_chatbot", "vllm_chatbot", "llamacpp_chatbot", "LocalChatAdapter", "local_base_url", "LOCAL_SERVERS", "LocalServer", "probe_tool_calling", "aprobe_tool_calling", "require_tool_calling", "ToolCallingProbe"]
 
 ## Business truth
 
+Import from `pytest_wardenbot.business_truth`.
+
 ::: pytest_wardenbot.business_truth
     options:
+      show_root_heading: false
       heading_level: 3
-      members: ["BusinessTruthFact", "MatchType", "assert_truth_fact_match"]
 
-## Grading — deterministic
+## Deterministic grading
+
+Import from `pytest_wardenbot.grading.deterministic`. The same names are also
+exported by `pytest_wardenbot.grading`. Measured accuracy and known misses:
+[Grading accuracy](grading-accuracy.md).
 
 ::: pytest_wardenbot.grading.deterministic
     options:
+      show_root_heading: false
       heading_level: 3
-      members:
-        - "REFUSAL_MARKERS"
-        - "COMPLIANCE_MARKERS"
-        - "assert_no_jailbreak_compliance"
-        - "assert_no_system_prompt_leak"
-        - "assert_response_refuses"
-        - "assert_maintains_refusal_under_bypass"
-        - "response_refuses"
-        - "response_indicates_compliance"
-        - "system_prompt_overlap"
-        - "SYSTEM_PROMPT_OVERLAP_MIN_RUN"
-        - "SYSTEM_PROMPT_OVERLAP_MIN_COVERAGE"
-        - "contains_any"
-        - "contains_none"
-
-Measured accuracy and known misses: [Grading accuracy](grading-accuracy.md).
 
 ## Canary tokens
 
+Import from `pytest_wardenbot.canary`.
+
 ::: pytest_wardenbot.canary
     options:
+      show_root_heading: false
       heading_level: 3
-      members:
-        - "generate_canary_token"
-        - "assert_no_canary_leak"
-        - "canary_present"
-        - "CANARY_PREFIX"
 
-## Grading — LLM judge (optional `[judge]` extra)
+## LLM judge (optional `[judge]` extra)
+
+Import from `pytest_wardenbot.grading.judge`. See
+[Enable LLM-judge tests](../how-to/llm-judge-setup.md).
 
 ::: pytest_wardenbot.grading.judge
     options:
+      show_root_heading: false
       heading_level: 3
-      members:
-        - "JudgeCase"
-        - "JudgeResult"
-        - "JudgeUnavailableError"
-        - "judge_available"
-        - "api_key_available"
-        - "judge_key_env"
-        - "judge_response"
-        - "assert_judge_passes"
-        - "judge_ensemble"
-        - "assert_judge_ensemble_passes"
-        - "aggregate_verdicts"
-        - "EnsembleResult"
-        - "ConsensusPolicy"
-        - "DEFAULT_ENSEMBLE_MODELS"
-        - "semantic_equivalence_case"
-        - "brand_alignment_case"
-        - "hallucination_case"
-        - "off_policy_case"
-        - "refusal_quality_case"
 
 ## Attack runners
 
-The legacy boolean runner remains compatible. New instrumented agent integrations
-use the additive contracts below; see [agent trials](../how-to/agent-trials.md)
-for outcomes, trust boundaries and explicit legacy conversion.
+Import from `pytest_wardenbot.runners`. The legacy boolean runner stays
+compatible. New agent integrations use the agent contracts below; see
+[agent trials](../how-to/agent-trials.md).
 
-::: pytest_wardenbot.runners.base
+::: pytest_wardenbot.runners
     options:
+      show_root_heading: false
       heading_level: 3
-      members: ["AttackRunner", "AttackResult"]
+      members: ["run_probes", "ProbeResult", "ProbeOutcome", "AttackRunner", "AttackResult"]
 
-## Instrumented agent trials
+## Agent trials
 
-::: pytest_wardenbot.agents.contracts
+Import from `pytest_wardenbot.agents`. Outcomes and reason codes are explained
+in [Agent outcomes and reason codes](agent-outcomes.md).
+
+::: pytest_wardenbot.agents
     options:
+      show_root_heading: false
       heading_level: 3
-
-::: pytest_wardenbot.agents.runner
-    options:
-      heading_level: 3
-      members: ["run_scenario"]
-
-::: pytest_wardenbot.agents.reporting
-    options:
-      heading_level: 3
-
-::: pytest_wardenbot.agents._privacy
-    options:
-      heading_level: 3
-      members: ["PrivacyPolicy"]
+      members:
+        - "AgentTarget"
+        - "TargetRun"
+        - "Scenario"
+        - "AttackSurface"
+        - "AgentCapability"
+        - "CapabilityUnavailable"
+        - "RunLimits"
+        - "run_scenario"
+        - "RunResult"
+        - "Outcome"
+        - "ReasonCode"
+        - "Exposure"
+        - "HarnessTrace"
+        - "AgentEvent"
+        - "EventKind"
+        - "EventProvenance"
+        - "EventTrust"
+        - "evaluate"
+        - "required_capabilities"
+        - "PrivacyPolicy"
+        - "format_result"
+        - "render_result_html"
+        - "result_to_dict"
+        - "result_to_json"
+        - "to_legacy_attack_result"
 
 ## Bounded campaigns
 
-See [campaign execution](../how-to/agent-campaigns.md) for instrumentation,
+Import from `pytest_wardenbot.agents`. See
+[campaign execution](../how-to/agent-campaigns.md) for instrumentation,
 resource ownership and retry safety.
 
-::: pytest_wardenbot.agents.budget
+::: pytest_wardenbot.agents
     options:
+      show_root_heading: false
       heading_level: 3
-      members: ["CampaignLimits", "ExecutionBudget", "TrialContext", "RetryPolicy", "BudgetExceeded", "RateLimitError", "current_trial_context"]
-
-::: pytest_wardenbot.agents.campaign
-    options:
-      heading_level: 3
-      members: ["CampaignCase", "TrialResources", "TrialRecord", "TrialState", "CampaignResult", "run_campaign", "campaign_to_dict", "campaign_to_json"]
+      members:
+        - "CampaignLimits"
+        - "ExecutionBudget"
+        - "TrialContext"
+        - "RetryPolicy"
+        - "BudgetExceeded"
+        - "RateLimitError"
+        - "current_trial_context"
+        - "CampaignCase"
+        - "TrialResources"
+        - "TrialRecord"
+        - "TrialState"
+        - "CampaignResult"
+        - "run_campaign"
+        - "campaign_to_dict"
+        - "campaign_to_json"
 
 ## Portable evidence
 
-See [evidence bundles](../how-to/evidence-bundles.md) for privacy defaults,
-re-grading limits and the distinction between saved evidence and new execution.
+Import from `pytest_wardenbot.agents`. See
+[evidence bundles](../how-to/evidence-bundles.md) for privacy defaults,
+re-grading limits and the difference between saved evidence and a new run.
 
-::: pytest_wardenbot.agents.evidence
+::: pytest_wardenbot.agents
     options:
+      show_root_heading: false
       heading_level: 3
-      members: ["EvidenceBundle", "EvidenceComparison", "ReplayManifest", "create_evidence_bundle", "load_evidence_bundle", "evidence_to_json", "evidence_to_dict", "regrade_evidence", "compare_evidence", "comparison_to_dict", "make_replay_manifest", "execute_fixture", "replay_evidence", "evidence_fingerprint"]
+      members:
+        - "EVIDENCE_SCHEMA_VERSION"
+        - "EVIDENCE_GRADER_VERSION"
+        - "EvidenceBundle"
+        - "EvidenceComparison"
+        - "ReplayManifest"
+        - "create_evidence_bundle"
+        - "load_evidence_bundle"
+        - "evidence_to_json"
+        - "evidence_to_dict"
+        - "regrade_evidence"
+        - "compare_evidence"
+        - "comparison_to_dict"
+        - "make_replay_manifest"
+        - "execute_fixture"
+        - "replay_evidence"
+        - "evidence_fingerprint"
+        - "render_evidence_html"
+        - "evidence_to_junit"
 
-::: pytest_wardenbot.agents.evidence_reports
-    options:
-      heading_level: 3
-      members: ["render_evidence_html", "evidence_to_junit"]
+## Application packs
 
-## Local application packs
-
-See [application boundaries](../how-to/application-packs.md) for required
+Import from `pytest_wardenbot.agents.packs` (also exported by
+`pytest_wardenbot.agents`). See
+[application boundaries](../how-to/application-packs.md) for the required
 hooks, identity and approval scope, and the four control behaviors.
 
-::: pytest_wardenbot.agents.packs.specs
+::: pytest_wardenbot.agents.packs
     options:
+      show_root_heading: false
       heading_level: 3
-      members: ["ApplicationPack", "ApplicationPackSpec", "application_spec", "APPLICATION_PACKS", "APPLICATION_SCENARIOS"]
-
-::: pytest_wardenbot.agents.packs.application
-    options:
-      heading_level: 3
-      members: ["SyntheticIdentity", "ApplicationRole", "ApplicationSnapshot", "ApplicationHarness", "ApplicationTrial", "ApplicationSession", "ScriptedApplicationTarget"]
+      members:
+        - "ApplicationPack"
+        - "ApplicationPackSpec"
+        - "application_spec"
+        - "APPLICATION_PACKS"
+        - "APPLICATION_SCENARIOS"
+        - "SyntheticIdentity"
+        - "ApplicationRole"
+        - "ALPHA_EDITOR"
+        - "ALPHA_VIEWER"
+        - "BETA_EDITOR"
+        - "ApplicationSnapshot"
+        - "ApplicationHarness"
+        - "ApplicationTrial"
+        - "ApplicationSession"
+        - "ScriptedApplicationTarget"
 
 ## Controlled MCP harness (optional `[mcp]` extra)
 
-See [the harness guide](../how-to/mcp-harness.md) for the tested SDK/protocol
-matrix and [the executable example](https://github.com/wardenbot-ai/pytest-wardenbot/tree/main/examples/mcp_harness)
-for offline controls. These classes are exported by `pytest_wardenbot.mcp`.
+Import from `pytest_wardenbot.mcp`. See [the harness guide](../how-to/mcp-harness.md)
+for the tested SDK and protocol matrix, and
+[Connect your own agent](../how-to/custom-agent.md) for `TrialTools`.
 
-::: pytest_wardenbot.mcp.harness
+::: pytest_wardenbot.mcp
     options:
+      show_root_heading: false
       heading_level: 3
-      members: ["MCPHarness", "SUPPORTED_PROTOCOL_VERSIONS"]
+      members:
+        - "MCPHarness"
+        - "SUPPORTED_PROTOCOL_VERSIONS"
+        - "MCP_SURFACES"
+        - "MCPClient"
+        - "TrialTools"
+        - "ToolSpec"
+        - "TurnLimitReached"
+        - "ScriptedMCPAgentTarget"
 
-::: pytest_wardenbot.mcp._client
-    options:
-      heading_level: 3
-      members: ["MCPClient"]
+## Agent framework targets
 
-::: pytest_wardenbot.mcp.targets
-    options:
-      heading_level: 3
-      members: ["ScriptedMCPAgentTarget"]
+### LangGraph (optional `[langgraph]` extra)
 
-::: pytest_wardenbot.mcp.trial_tools
-    options:
-      heading_level: 3
-      members: ["TrialTools", "ToolSpec", "TurnLimitReached"]
+Import from `pytest_wardenbot.targets.langgraph`. See
+[Test a LangGraph agent](../how-to/langgraph-agent.md).
 
 ::: pytest_wardenbot.targets.langgraph
     options:
-      heading_level: 3
-      members: ["LangGraphAgentTarget", "default_input", "default_output"]
+      show_root_heading: false
+      heading_level: 4
+
+### Claude Agent SDK (optional `[claude-agent]` extra)
+
+Import from `pytest_wardenbot.targets.claude`. See
+[Test a Claude Agent SDK agent](../how-to/claude-agent.md).
 
 ::: pytest_wardenbot.targets.claude
     options:
-      heading_level: 3
-      members: ["ClaudeAgentTarget"]
-
-::: pytest_wardenbot.runners.async_probe
-    options:
-      heading_level: 3
-      members: ["run_probes", "ProbeResult", "ProbeOutcome"]
+      show_root_heading: false
+      heading_level: 4
 
 ## Corpora
 
-::: pytest_wardenbot.corpus.jailbreak
-::: pytest_wardenbot.corpus.system_prompt_leak
-::: pytest_wardenbot.corpus.refusal_bypass
-::: pytest_wardenbot.corpus.off_topic
+Import from `pytest_wardenbot.corpus`. See
+[Customize the attack corpora](../how-to/customize-corpora.md).
 
-## Quickstart helpers
-
-::: pytest_wardenbot.quickstart
+::: pytest_wardenbot.corpus
     options:
+      show_root_heading: false
       heading_level: 3
-      members:
-        - "AVAILABLE_TEMPLATES"
-        - "Template"
-        - "generate"
-        - "run_quickstart"

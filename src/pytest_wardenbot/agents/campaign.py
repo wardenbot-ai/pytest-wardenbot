@@ -36,6 +36,8 @@ from pytest_wardenbot.agents.runner import Observer, _error, run_scenario
 
 
 class TrialState(StrEnum):
+    """Whether a planned campaign trial completed, was cancelled or never ran."""
+
     COMPLETED = "completed"
     CANCELLED = "cancelled"
     NOT_RUN = "not_run"
@@ -54,6 +56,13 @@ TrialFactory = Callable[[TrialContext], AbstractAsyncContextManager[TrialResourc
 
 @dataclass(frozen=True)
 class CampaignCase:
+    """One planned trial: a case ID, its scenario and an async resource factory.
+
+    ``factory`` receives the ``TrialContext`` and returns an async context
+    manager that yields ``TrialResources`` (the target and observer) and
+    releases them on exit.
+    """
+
     id: str = field(repr=False)
     scenario: Scenario = field(repr=False)
     factory: TrialFactory = field(repr=False)
@@ -66,6 +75,8 @@ class CampaignCase:
 
 @dataclass(frozen=True)
 class TrialRecord:
+    """The record of one planned trial, including trials that never ran."""
+
     case_id: str = field(repr=False)
     state: TrialState
     result: RunResult | None = field(default=None, repr=False)
@@ -77,6 +88,8 @@ class TrialRecord:
 
 @dataclass(frozen=True)
 class CampaignResult:
+    """Every planned trial plus shared call, turn and usage totals."""
+
     trials: tuple[TrialRecord, ...]
     limits: CampaignLimits
     calls: int
@@ -170,6 +183,7 @@ def campaign_to_dict(
 
 
 def campaign_to_json(result: CampaignResult, *, policy: PrivacyPolicy | None = None) -> str:
+    """``campaign_to_dict`` serialized as indented JSON."""
     return json.dumps(campaign_to_dict(result, policy=policy), indent=2, allow_nan=False)
 
 

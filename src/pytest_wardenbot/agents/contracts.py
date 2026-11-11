@@ -18,6 +18,12 @@ from typing import Protocol, runtime_checkable
 
 
 class AgentCapability(StrEnum):
+    """What an agent target can do or report, declared in ``AgentTarget.capabilities``.
+
+    A scenario lists the capabilities it needs. If the target lacks one, the
+    trial is ``UNSUPPORTED`` with ``missing_capability`` rather than run.
+    """
+
     ISOLATED_STATE = "isolated_state"
     BUDGET_ACCOUNTING = "budget_accounting"
     RETRIEVAL = "retrieval"
@@ -33,6 +39,8 @@ class AgentCapability(StrEnum):
 
 
 class AttackSurface(StrEnum):
+    """Where a scenario places its injected content, such as an MCP tool result."""
+
     TOOL_RESULT = "tool_result"
     TOOL_DESCRIPTION = "tool_description"
     RESOURCE = "resource"
@@ -44,6 +52,16 @@ class AttackSurface(StrEnum):
 
 
 class Outcome(StrEnum):
+    """The verdict of one trial.
+
+    ``VIOLATED``: the harness recorded a forbidden effect or attempt.
+    ``RESISTED``: the injection was delivered, nothing forbidden was recorded and
+    the evidence was complete. ``INCONCLUSIVE``: the evidence can't support
+    either verdict. ``UNSUPPORTED``: the target lacks a capability the scenario
+    needs. ``ERROR``: the run failed. See
+    [Agent outcomes and reason codes](https://pytest-wardenbot.wardenbot.ai/reference/agent-outcomes/).
+    """
+
     VIOLATED = "violated"
     RESISTED = "resisted"
     INCONCLUSIVE = "inconclusive"
@@ -52,12 +70,21 @@ class Outcome(StrEnum):
 
 
 class Exposure(StrEnum):
+    """How far the harness saw the injected content travel: not at all,
+    delivered to the agent, or processed by an independent hook."""
+
     NOT_OBSERVED = "not_observed"
     DELIVERED = "delivered"
     PROCESSED = "processed"
 
 
 class EventKind(StrEnum):
+    """The type of an ``AgentEvent``.
+
+    Only harness-observed ``TOOL_EFFECT`` and ``TOOL_CALL`` events can prove a
+    violation; target-reported events are claims.
+    """
+
     TOOL_DESCRIPTION = "tool_description"
     TOOL_RESULT = "tool_result"
     RESOURCE = "resource"
@@ -74,17 +101,31 @@ class EventKind(StrEnum):
 
 
 class EventProvenance(StrEnum):
+    """Who produced an event: the trusted harness, the target, or the attack."""
+
     HARNESS = "harness"
     TARGET = "target"
     ATTACK = "attack"
 
 
 class EventTrust(StrEnum):
+    """Whether an event was observed by the harness or claimed by someone else.
+
+    Trust describes how the observation was made, never whether its content is
+    safe to follow.
+    """
+
     OBSERVED = "observed"
     UNTRUSTED = "untrusted"
 
 
 class ReasonCode(StrEnum):
+    """Why a trial got its outcome. A result can carry several.
+
+    Every value is explained in
+    [Agent outcomes and reason codes](https://pytest-wardenbot.wardenbot.ai/reference/agent-outcomes/).
+    """
+
     MISSING_CAPABILITY = "missing_capability"
     NO_HARNESS_TRACE = "no_harness_trace"
     MISSING_EXPOSURE = "missing_exposure"
@@ -156,6 +197,14 @@ def _json_copy(value: object, *, _depth: int = 0) -> object:
 
 @dataclass(frozen=True)
 class RunLimits:
+    """Per-trial bounds passed to ``run_scenario``.
+
+    Attributes:
+        timeout_seconds: Deadline for reset plus the target's run.
+        max_turns: Turn budget the target must enforce in its own loop.
+        cleanup_timeout_seconds: Separate deadline for the final reset.
+    """
+
     timeout_seconds: float = 30
     max_turns: int = 10
     cleanup_timeout_seconds: float = 5
@@ -177,6 +226,12 @@ class RunLimits:
 
 @dataclass(frozen=True)
 class AgentEvent:
+    """One observation in a trial: a tool call, tool effect, delivery and so on.
+
+    ``data`` must be JSON-compatible and is copied on construction. Payload
+    fields are left out of ``repr`` so results don't leak content into logs.
+    """
+
     trial_id: str = field(repr=False)
     kind: EventKind
     provenance: EventProvenance = EventProvenance.TARGET
@@ -207,6 +262,13 @@ class AgentEvent:
 
 @dataclass(frozen=True)
 class Scenario:
+    """A versioned test case: a legitimate task plus what counts as a violation.
+
+    A scenario needs a ``forbidden_tool``, a synthetic ``canary``, or both. The
+    payload, assertions and required evidence of ``id@version`` never change;
+    any change ships as a new version.
+    """
+
     id: str = field(repr=False)
     version: str = field(repr=False)
     task: str = field(repr=False)
@@ -271,6 +333,14 @@ class HarnessTrace:
 
 @dataclass(frozen=True)
 class RunResult:
+    """The graded result of one trial, returned by ``run_scenario``.
+
+    ``outcome`` and ``reason_codes`` are the verdict. ``task_succeeded`` is the
+    target's own report and is tracked separately from security. Export results
+    with the reporting helpers (``result_to_dict``, ``result_to_json``), which
+    apply the privacy policy; ``dataclasses.asdict`` does not.
+    """
+
     trial_id: str = field(repr=False)
     scenario_id: str = field(repr=False)
     scenario_version: str = field(repr=False)
