@@ -10,14 +10,15 @@ import sys
 import tempfile
 from pathlib import Path
 
-from pytest_wardenbot.agents._privacy import PrivacyPolicy
-from pytest_wardenbot.agents.evidence import (
+from pytest_wardenbot.agents import (
+    PrivacyPolicy,
     evidence_to_dict,
     evidence_to_json,
+    evidence_to_junit,
     execute_fixture,
     make_replay_manifest,
+    render_evidence_html,
 )
-from pytest_wardenbot.agents.evidence_reports import evidence_to_junit, render_evidence_html
 
 
 def check(directory: Path) -> None:

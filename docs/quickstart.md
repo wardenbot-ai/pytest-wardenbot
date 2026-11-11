@@ -1,3 +1,7 @@
+---
+description: Install the plugin, point it at your chatbot or agent and get a first red-or-green result.
+---
+
 # Quickstart
 
 The required `chatbot` fixture must be configured before running the probes.

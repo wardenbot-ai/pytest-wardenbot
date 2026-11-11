@@ -85,7 +85,9 @@ point the client at the local server, and check tool calling at the start of
 
 ```python
 from openai import AsyncOpenAI
+
 from pytest_wardenbot.local import local_base_url, require_tool_calling
+from pytest_wardenbot.mcp import TrialTools
 
 MODEL = "qwen2.5:7b"
 

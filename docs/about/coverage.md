@@ -1,3 +1,7 @@
+---
+description: Which attack classes the bundled tests and scenarios cover, and what they leave out.
+---
+
 # Versioned coverage and its limits
 
 Checked on **2026-10-11**. This is the maintainers' mapping of specific bundled

@@ -75,7 +75,7 @@ and after execution. The adapter must honor session IDs to isolate state.
 ## Bound the entire batch
 
 ```python
-from pytest_wardenbot.agents.budget import CampaignLimits, RetryPolicy
+from pytest_wardenbot.agents import CampaignLimits, RetryPolicy
 
 results = await run_probes(
     async_chatbot,

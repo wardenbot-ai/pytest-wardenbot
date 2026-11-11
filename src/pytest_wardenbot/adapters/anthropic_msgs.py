@@ -283,3 +283,9 @@ class AsyncAnthropicMessagesAdapter:
 
     def __repr__(self) -> str:
         return f"AsyncAnthropicMessagesAdapter(model={self._model!r})"
+
+
+__all__ = [
+    "AnthropicMessagesAdapter",
+    "AsyncAnthropicMessagesAdapter",
+]

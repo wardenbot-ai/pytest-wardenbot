@@ -1,7 +1,7 @@
 # Dependency support
 
 The package declares Python 3.11 or later and pytest 8.1.1 or later. CI checks
-Python 3.11, 3.12, and 3.13 with the newest stable pytest that pip resolves.
+Python 3.11, 3.12, 3.13 and 3.14 with the newest stable pytest that pip resolves.
 A separate Python 3.11 lane checks exactly pytest 8.1.1. Resolved versions are
 printed in each CI run; the current lane moves as new stable versions ship.
 
@@ -54,7 +54,7 @@ compatibility with current LangGraph. See [the state recipe](langgraph-state.md)
 
 The `langgraph` and `claude-agent` extras are tested in the MCP contract
 lanes: the floors on Python 3.11 with MCP SDK 2.2.0, and current releases on
-Python 3.12 and 3.13. Claude Agent SDK 0.2.140 is the first release that allows
+Python 3.12, 3.13 and 3.14. Claude Agent SDK 0.2.140 is the first release that allows
 MCP SDK 2.x. LangGraph 1.0.0 needs `langgraph-prebuilt==1.0.0`; newer prebuilt
 releases import names that LangGraph 1.0.0 lacks. The OpenAI Agents SDK recipe
 is tested with the current `openai-agents` release (0.24.0) and is not an
@@ -78,7 +78,7 @@ be tested separately from the core minimum lane.
 ## Packaging and tooling
 
 The optional [MCP harness](mcp-harness.md) has a separate Python 3.11 floor and
-Python 3.12/3.13 current matrix. Its real SDK tests cover in-memory, stdio and
+Python 3.12–3.14 current matrix. Its real SDK tests cover in-memory, stdio and
 loopback Streamable HTTP transports with 2025-11-25 and 2026-07-28 protocol modes.
 SDK 2.0.1 failed stdio construction; 2.2.0 is the verified floor. The `<3` bound
 keeps a future SDK major outside this tested integration. No MCP package is

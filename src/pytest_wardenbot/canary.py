@@ -117,3 +117,11 @@ def assert_no_canary_leak(response_text: str, canary: str, *, prompt: str = "") 
             remediation=CANARY_REMEDIATION,
         )
     )
+
+
+__all__ = [
+    "CANARY_PREFIX",
+    "assert_no_canary_leak",
+    "canary_present",
+    "generate_canary_token",
+]

@@ -1,3 +1,7 @@
+---
+description: Run the controlled local MCP server that serves the agent scenarios' tools, resources and prompts.
+---
+
 # Controlled MCP harness
 
 Install the optional integration:

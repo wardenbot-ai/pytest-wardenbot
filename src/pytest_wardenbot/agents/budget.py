@@ -38,6 +38,17 @@ def _duration(value: object, label: str, *, zero: bool = False) -> None:
 
 @dataclass(frozen=True)
 class CampaignLimits:
+    """Budgets shared by every trial in a campaign.
+
+    Attributes:
+        max_calls: Instrumented operations (model or tool calls, including
+            retries) across all trials.
+        max_turns: Turns across all trials.
+        timeout_seconds: Deadline for the whole campaign.
+        cleanup_timeout_seconds: Deadline for each trial's cleanup.
+        concurrency: Trials that may run at once.
+    """
+
     max_calls: int = 100
     max_turns: int = 100
     timeout_seconds: float = 300
@@ -169,6 +180,12 @@ class RateLimitError(Exception):
 
 @dataclass
 class TrialContext:
+    """Per-trial accounting handle that charges a shared ``ExecutionBudget``.
+
+    Call ``turn()`` before each turn and ``call()`` around each instrumented
+    operation. ``current_trial_context()`` returns the active one.
+    """
+
     trial_id: str
     budget: ExecutionBudget
     calls: int = field(default=0, init=False)

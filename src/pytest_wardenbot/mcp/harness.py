@@ -33,12 +33,14 @@ from pytest_wardenbot.mcp._wire import event_from_dict, scenario_to_dict
 
 Transport = Literal["memory", "stdio", "http"]
 SUPPORTED_PROTOCOL_VERSIONS = frozenset({"2025-11-25", "2026-07-28"})
+"""MCP protocol versions the harness negotiates and tests."""
 MCP_SURFACES = (
     AttackSurface.TOOL_RESULT,
     AttackSurface.TOOL_DESCRIPTION,
     AttackSurface.RESOURCE,
     AttackSurface.PROMPT,
 )
+"""The attack surfaces the MCP harness can inject into."""
 _PACKAGE_ROOT = str(Path(__file__).resolve().parents[2])
 
 

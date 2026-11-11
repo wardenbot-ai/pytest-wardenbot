@@ -1,3 +1,7 @@
+---
+description: How maintainers review new attack research and decide what becomes a test.
+---
+
 # Monthly manual research intake
 
 Reviewed **2026-10-11**. This maintainer process creates no schedule, background

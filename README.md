@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/wardenbot-ai/pytest-wardenbot/actions/workflows/ci.yml/badge.svg)](https://github.com/wardenbot-ai/pytest-wardenbot/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/wardenbot-ai/pytest-wardenbot/branch/main/graph/badge.svg)](https://codecov.io/gh/wardenbot-ai/pytest-wardenbot)
-[![Python versions](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue)](https://pypi.org/project/pytest-wardenbot/)
+[![Python versions](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue)](https://pypi.org/project/pytest-wardenbot/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://github.com/wardenbot-ai/pytest-wardenbot/blob/main/LICENSE.md)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit)
@@ -10,7 +10,7 @@
 Pytest security tests for chatbots and tool-using agents — prompt injection,
 MCP and application boundary checks, data leaks and semantic regressions.
 
-📖 **Documentation:** [pytest-wardenbot.wardenbot.ai](https://pytest-wardenbot.wardenbot.ai/)
+📖 **Documentation:** [pytest-wardenbot.wardenbot.ai](https://pytest-wardenbot.wardenbot.ai/) · For coding agents: [llms.txt](https://pytest-wardenbot.wardenbot.ai/llms.txt)
 
 > **Status: Beta (0.5).** The feature set for the first stable release is in place. Public APIs change only under the [versioning and stability policy](https://pytest-wardenbot.wardenbot.ai/reference/stability/). Questions and feedback: [GitHub Discussions](https://github.com/wardenbot-ai/pytest-wardenbot/discussions). Bugs: [GitHub Issues](https://github.com/wardenbot-ai/pytest-wardenbot/issues).
 

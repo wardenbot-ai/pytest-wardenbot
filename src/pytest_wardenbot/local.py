@@ -72,6 +72,7 @@ LOCAL_SERVERS: dict[str, LocalServer] = {
         tool_calling="Start llama-server with --jinja so it applies the model's tool template.",
     ),
 }
+"""The built-in presets (``ollama``, ``vllm``, ``llamacpp``) and their default URLs."""
 
 _PLACEHOLDER_KEY = "local"  # pragma: allowlist secret
 
@@ -203,6 +204,7 @@ def llamacpp_chatbot(model: str, **kwargs: Any) -> LocalChatAdapter:
 # ---------------------------------------------------------------------------
 
 PROBE_TOOL = "wardenbot_probe"
+"""Name of the harmless tool the tool-calling check asks the model to call."""
 _PROBE_REQUEST = (
     f"Call the {PROBE_TOOL} tool with the value set to ready. Reply only with the tool call."
 )

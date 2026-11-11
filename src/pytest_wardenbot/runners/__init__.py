@@ -7,6 +7,6 @@ against an `AsyncChatbotAdapter` concurrently.
 """
 
 from pytest_wardenbot.runners.async_probe import ProbeOutcome, ProbeResult, run_probes
-from pytest_wardenbot.runners.base import AttackRunner
+from pytest_wardenbot.runners.base import AttackResult, AttackRunner
 
-__all__ = ["AttackRunner", "ProbeOutcome", "ProbeResult", "run_probes"]
+__all__ = ["AttackResult", "AttackRunner", "ProbeOutcome", "ProbeResult", "run_probes"]

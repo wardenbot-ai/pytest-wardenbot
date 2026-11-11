@@ -57,7 +57,7 @@ missing-evidence row rather than an empty successful test suite.
 
 ```python
 from pathlib import Path
-from pytest_wardenbot.agents.evidence_reports import (
+from pytest_wardenbot.agents import (
     evidence_to_junit,
     render_evidence_html,
 )

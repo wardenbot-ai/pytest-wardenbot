@@ -10,6 +10,7 @@ on:
       - ".github/workflows/docs.yml"
       - "pyproject.toml"
       - "scripts/check_docs.py"
+      - "scripts/mkdocs_llms.py"
   workflow_dispatch: {}
 
 permissions:

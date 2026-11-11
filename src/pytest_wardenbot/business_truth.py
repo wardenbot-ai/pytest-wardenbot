@@ -28,6 +28,7 @@ from pytest_wardenbot._formatting import format_failure_message
 from pytest_wardenbot._util import slugify
 
 MatchType = Literal["exact", "substring", "numeric_range", "regex"]
+"""How a ``BusinessTruthFact`` compares the response with the expected answer."""
 
 
 @dataclass(frozen=True)
@@ -199,3 +200,10 @@ def _format_truth_failure(response_text: str, fact: BusinessTruthFact) -> str:
         ),
         remediation=_TRUTH_REMEDIATION,
     )
+
+
+__all__ = [
+    "BusinessTruthFact",
+    "MatchType",
+    "assert_truth_fact_match",
+]

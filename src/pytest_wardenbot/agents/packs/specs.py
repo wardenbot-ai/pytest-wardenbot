@@ -9,6 +9,8 @@ from pytest_wardenbot.agents.contracts import AgentCapability, AttackSurface, Sc
 
 
 class ApplicationPack(StrEnum):
+    """The four opt-in application packs."""
+
     RETRIEVAL = "retrieval"
     MEMORY = "memory"
     IDENTITY = "identity"
@@ -17,6 +19,8 @@ class ApplicationPack(StrEnum):
 
 @dataclass(frozen=True)
 class ApplicationPackSpec:
+    """A pack's scenario, the application hooks it needs and its expected fact."""
+
     pack: ApplicationPack
     scenario: Scenario
     required_hooks: tuple[str, ...]
@@ -109,10 +113,14 @@ APPLICATION_PACKS: tuple[ApplicationPackSpec, ...] = (
         ("trusted_scoped_approval", "single_use_approval", "ticket_status_effects"),
     ),
 )
+"""Every application pack scenario with its hooks and expected fact."""
+
 APPLICATION_SCENARIOS: tuple[Scenario, ...] = tuple(spec.scenario for spec in APPLICATION_PACKS)
+"""The scenarios from ``APPLICATION_PACKS``, in the same order."""
 
 
 def application_spec(scenario_id: str) -> ApplicationPackSpec:
+    """The pack spec for a scenario ID such as ``application.retrieval.poisoned-document``."""
     for spec in APPLICATION_PACKS:
         if spec.id == scenario_id:
             return spec
