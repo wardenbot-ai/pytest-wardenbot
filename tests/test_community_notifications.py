@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import json
 import urllib.error
+import urllib.parse
 from email.message import Message
 from typing import Any
 
@@ -163,7 +164,7 @@ def test_http_mock_sends_each_provider_independently_and_suppresses_response_bod
     class Opener:
         def open(self, request: Any, timeout: float) -> Response:
             calls.append((request.full_url, json.loads(request.data), timeout))
-            if "discord.com" in request.full_url:
+            if urllib.parse.urlsplit(request.full_url).hostname == "discord.com":
                 raise urllib.error.HTTPError(
                     request.full_url,
                     429,
