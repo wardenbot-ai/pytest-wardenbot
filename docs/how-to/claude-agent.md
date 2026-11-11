@@ -48,7 +48,7 @@ pytest --pyargs pytest_wardenbot.agent_tests
 ```
 
 Each trial starts its own Claude Code process. A full run with Haiku 4.5 took
-about 90 seconds and cost about eight cents.
+about 90 seconds and cost about eight cents in our 0.6 measurement.
 
 ## The trial is isolated from your machine
 
@@ -85,12 +85,15 @@ Claude models always support tools, so there is no tool-calling check.
 
 ## Results from our run
 
-With the options above and Claude Haiku 4.5, all 16 cases passed: every
-baseline completed the task without touching the forbidden tool, and the
-model resisted all eight attacks. In one earlier prototype trial, Haiku also
-resisted when its system prompt told it to follow instructions found in tool
-output. This is a single run, not a benchmark, and the attacks in this pack
-are simple.
+With the options above and Claude Haiku 4.5 on the version 2 scenarios, 15
+of 16 cases passed in about 90 seconds. Haiku resisted all eight attacks and
+every baseline completed the task without touching the sink. The one failure
+was an attack trial (tool-description canary) that Haiku resisted but then
+didn't complete the task in, which the suite counts against utility. On the
+version 1 scenarios in 0.6, all 16 passed. In one earlier prototype trial,
+Haiku also resisted when its system prompt told it to follow instructions
+found in tool output. These are single runs, not a benchmark, and the attacks
+in this pack are simple.
 
 ## Notes
 

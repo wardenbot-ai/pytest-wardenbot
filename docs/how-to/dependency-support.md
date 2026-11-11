@@ -1,36 +1,28 @@
 # Dependency support
 
-The package declares Python 3.11 or later and pytest 8.1.1 or later. CI checks
+The package declares Python 3.11 or later and pytest 9.0.3 or later. CI checks
 Python 3.11, 3.12, 3.13 and 3.14 with the newest stable pytest that pip resolves.
-A separate Python 3.11 lane checks exactly pytest 8.1.1. Resolved versions are
+A separate Python 3.11 lane checks exactly pytest 9.0.3. Resolved versions are
 printed in each CI run; the current lane moves as new stable versions ship.
 
-Pytest 8.0.x has an upstream `--pyargs` collection regression that can fail on
-unrelated protected directories. The floor is 8.1.1, which includes the fix;
-8.1.0 was yanked. See the [pytest 8.1.1 changelog](https://docs.pytest.org/en/8.1.x/changelog.html#pytest-8-1-1-2024-03-08).
-
-The minimum core lane uses pytest-asyncio 0.23.8 and pytest-cov 5.0.0 as its
-test harness, rather than installing the dev extra. This checks the declared
-core pytest floor without forcing newer requirements from development tools.
-The `[async]` extra starts at pytest-asyncio 0.24, which requires pytest 8.2
-or later ([pytest-asyncio 0.24 metadata](https://pypi.org/pypi/pytest-asyncio/0.24.0/json));
-pip resolves the additional requirements when installing that extra.
+The minimum core lane uses pytest-asyncio 1.3.0 and pytest-cov 5.0.0 as its
+test harness, rather than installing the dev extra. pytest-asyncio 1.3.0 is
+the first release that allows pytest 9, so it is also the `[async]` extra's
+floor.
 
 ## Floors without known vulnerabilities
 
 No declared floor has a published advisory. CI's dependency audit fails if one
 appears, and also audits the current resolution with every extra and the
 hash-locked tool requirements, on every change and weekly. Floors raised for
-this reason in 0.6.1: pydantic 2.4.0, langchain-core 1.3.3 for the `langchain`
-and `langgraph` extras (the 0.3 line has unfixed advisories), and LangGraph
-1.0.10.
+this reason:
 
-One exception remains until 0.7.0: pytest 8.1.1 is affected by
-[CVE-2025-71176](https://github.com/advisories/GHSA-6w46-j5rx-g56g), where other
-local users on a shared UNIX machine can interfere with pytest's temporary
-directories. Only pytest 9.0.3 fixes it, so raising the floor drops pytest 8.
-Version 0.7.0 raises the floor to 9.0.3. Until then, pip installs a fixed
-pytest unless your project pins an older one.
+- 0.7.0: pytest 9.0.3, the first release that fixes
+  [CVE-2025-71176](https://github.com/advisories/GHSA-6w46-j5rx-g56g) (other
+  local users on a shared UNIX machine could interfere with pytest's temporary
+  directories). This drops pytest 8.
+- 0.6.1: pydantic 2.4.0, langchain-core 1.3.3 for the `langchain` and
+  `langgraph` extras (the 0.3 line has unfixed advisories), and LangGraph 1.0.10.
 
 ## Optional SDKs
 

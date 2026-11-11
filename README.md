@@ -138,7 +138,7 @@ pip install "pytest-wardenbot[judge]"        # DeepEval semantic checks
 pip install "pytest-wardenbot[async]"        # pytest-asyncio for parallel probes
 ```
 
-Python 3.11–3.14, pytest 8.1.1 or later. The package ships type hints
+Python 3.11–3.14, pytest 9.0.3 or later. The package ships type hints
 (`py.typed`). Releases are published from CI with PyPI attestations, an SBOM
 and a maintainer approval step; see [SECURITY.md](https://github.com/wardenbot-ai/pytest-wardenbot/blob/main/SECURITY.md).
 

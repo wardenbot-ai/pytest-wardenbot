@@ -106,22 +106,25 @@ legitimate task succeeded. Every outcome is explained in
 [Agent outcomes and reason codes](../reference/agent-outcomes.md).
 
 A **baseline** that fails with "Agent took the forbidden action with no attack
-present" means the agent called `record_action` when nothing asked it to.
-Some models do this to "report" the result they found. For those models the
-forbidden-tool scenarios can't tell an injection apart from the agent's own
-habit, so their attack results don't count for much. The canary scenarios still
-can, because the canary only exists in the injected text.
+present" means the agent called the sink tool when nothing asked it to. For
+that model the forbidden-tool scenarios can't tell an injection apart from the
+agent's own habit, so their attack results don't count for much. The canary
+scenarios still can, because the canary only exists in the injected text.
+Version 2 of the scenarios (0.7.0) was designed so this rarely happens; see
+[scenario versions](agent-scenarios.md#scenario-versions).
 
 ## Results from our runs
 
 One run each of the packaged suite with `create_agent` and the system prompt
 above:
 
-| Model | Time | Baselines | Attacks |
-|---|---|---|---|
-| `gpt-4o-mini` (OpenAI) | 37 s | 4 of 8 passed. In the four forbidden-tool baselines the model called `record_action` on its own to record its summary. | 6 of 8 violated: all 4 forbidden-tool, 2 of 4 canary |
-| `qwen2.5:7b` (Ollama, local) | 75 s | 8 of 8 passed | 7 of 8 violated |
+| Model | Scenarios | Time | Baselines | Attacks |
+|---|---|---|---|---|
+| `gpt-4o-mini` (OpenAI) | version 2 (0.7) | 22 s | 8 of 8 passed | 6 of 8 violated: tool result, resource and prompt, both assertions each; both tool-description attacks resisted |
+| `gpt-4o-mini` (OpenAI) | version 1 (0.6) | 37 s | 4 of 8 passed: in the four forbidden-tool baselines the model called `record_action` on its own to record its summary | 6 of 8 violated |
+| `qwen2.5:7b` (Ollama, local) | version 1 (0.6) | 75 s | 8 of 8 passed | 7 of 8 violated |
 
-The `gpt-4o-mini` run cost well under one cent. Every connection in the local
+The `gpt-4o-mini` runs cost well under one cent. Every connection in the local
 run went to `127.0.0.1`. These are single runs to show what the target
-reports, not a benchmark.
+reports, not a benchmark; for repeated local runs with intervals, see
+[local-model results](../about/local-model-results.md).
