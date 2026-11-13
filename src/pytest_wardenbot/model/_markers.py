@@ -63,10 +63,10 @@ def read_seed(folder: Path | None) -> str | None:
 
 
 @contextlib.contextmanager
-def _folder_lock(folder: Path) -> Iterator[None]:
+def folder_lock(folder: Path) -> Iterator[None]:
     """A lock across processes (record runs under pytest-xdist): an atomic mkdir."""
     folder.mkdir(parents=True, exist_ok=True)
-    lock = folder / ".wardenbot-seed.lock"
+    lock = folder / ".wardenbot.lock"
     deadline = time.monotonic() + _LOCK_TIMEOUT_SECONDS
     while True:
         try:
@@ -95,7 +95,7 @@ def write_seed(folder: Path) -> str:
     existing = read_seed(folder)
     if existing is not None:
         return existing
-    with _folder_lock(folder):
+    with folder_lock(folder):
         forget_manifest(folder)
         existing = read_seed(folder)  # another process may have written it meanwhile
         if existing is not None:

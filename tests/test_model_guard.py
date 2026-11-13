@@ -25,7 +25,7 @@ from pytest_wardenbot.model import (
     uninstall,
 )
 from pytest_wardenbot.model._guard import guarded_hosts, parse_guarded
-from tests.model_support import clean_environment
+from tests.model_support import allow_upstream, clean_environment
 
 REAL_GETADDRINFO = socket.getaddrinfo
 REAL_CONNECT = socket.socket.connect
@@ -219,7 +219,10 @@ def test_uninstall_restores_the_socket_functions(no_network: None) -> None:
     assert guarded_hosts() == ()
 
 
-def test_no_guard_in_modes_that_call_the_real_api(no_network: None) -> None:
+def test_no_guard_in_modes_that_call_the_real_api(
+    no_network: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    allow_upstream(monkeypatch)
     install(mode="live")
     try:
         assert guarded_hosts() == ()

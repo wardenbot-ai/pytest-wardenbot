@@ -28,7 +28,7 @@ from pytest_wardenbot.model import (
     uninstall,
 )
 from pytest_wardenbot.model._markers import read_seed, write_seed
-from tests.model_support import clean_environment
+from tests.model_support import allow_upstream, clean_environment
 
 MARKER = re.compile(r"^WBMARK-[a-z2-7]{16}$")
 CANARY = re.compile(r"^WBCANARY-[A-Za-z0-9_-]{32}$")
@@ -104,7 +104,11 @@ def test_markers_follow_the_active_block_then_the_test_id(
 
 
 @pytest.mark.parametrize("mode", ["scripted", "live", None])
-def test_random_markers_are_stable_within_a_process(mode: str | None) -> None:
+def test_random_markers_are_stable_within_a_process(
+    mode: str | None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    if mode == "live":
+        allow_upstream(monkeypatch)
     if mode is not None:
         install(mode=mode)
     first = injection_marker("case")
@@ -238,7 +242,7 @@ def test_concurrent_record_processes_agree_on_one_seed(tmp_path: Path) -> None:
     text = (folder / "wardenbot-responses.toml").read_text()
     assert len(seeds) == 1 and text.count("marker_seed") == 1
     assert tomllib.loads(text)["marker_seed"] == seeds.pop()
-    assert not (folder / ".wardenbot-seed.lock").exists()
+    assert not (folder / ".wardenbot.lock").exists()
 
 
 def test_a_written_seed_is_seen_at_once(tmp_path: Path) -> None:
