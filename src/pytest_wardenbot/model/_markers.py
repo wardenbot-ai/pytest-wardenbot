@@ -14,6 +14,7 @@ import base64
 import contextlib
 import hashlib
 import hmac
+import json
 import os
 import secrets
 import tempfile
@@ -191,8 +192,13 @@ def _value(purpose: str, case: str | None) -> str:
 PLACEHOLDERS = ("{{wardenbot.marker}}", "{{wardenbot.canary}}")
 
 
-def fill_placeholders(text: str, case: str | None, source: str) -> str:
-    """Replace ``{{wardenbot.marker}}`` and ``{{wardenbot.canary}}`` with the case's values."""
+def fill_placeholders(
+    text: str, case: str | None, source: str, *, json_escape: bool = False
+) -> str:
+    """Replace ``{{wardenbot.marker}}`` and ``{{wardenbot.canary}}`` with the case's values.
+
+    With ``json_escape``, the values are escaped for use inside a JSON string.
+    """
     if not any(placeholder in text for placeholder in PLACEHOLDERS):
         return text
     if case is None:
@@ -200,9 +206,10 @@ def fill_placeholders(text: str, case: str | None, source: str) -> str:
             f"{source} uses a {{{{wardenbot.*}}}} placeholder, which needs a case, but the "
             "request was made outside any model_endpoint block."
         )
-    return text.replace("{{wardenbot.marker}}", injection_marker(case)).replace(
-        "{{wardenbot.canary}}", case_canary(case)
-    )
+    marker, canary = injection_marker(case), case_canary(case)
+    if json_escape:
+        marker, canary = json.dumps(marker)[1:-1], json.dumps(canary)[1:-1]
+    return text.replace("{{wardenbot.marker}}", marker).replace("{{wardenbot.canary}}", canary)
 
 
 def injection_marker(case: str | None = None) -> str:

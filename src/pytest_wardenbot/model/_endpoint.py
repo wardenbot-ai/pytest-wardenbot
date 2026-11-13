@@ -98,6 +98,7 @@ class Endpoint:
         self._outside_calls = 0
         self._outside_lookup = LookupState()
         self._folder: ResponseFolder | None = None
+        self._folder_lock = threading.Lock()
 
     def __repr__(self) -> str:
         return f"Endpoint(mode={self.mode!r}, url={self.url!r})"
@@ -302,7 +303,9 @@ class Endpoint:
         """The response folder, built on first use; its normalizers import then."""
         if self.responses_dir is None:
             return None
-        with self._state:
+        # Not under _state: importing a normalizer can make the application send a
+        # request, whose handler needs _state.
+        with self._folder_lock:
             if self._folder is None:
                 from pytest_wardenbot.model._hash import RequestHasher
 
@@ -334,7 +337,8 @@ class Endpoint:
                     "--wardenbot-responses-dir."
                 )
             if block is None:
-                return folder.find(request, None, self._outside_lookup)
+                # Stateless outside blocks, so results don't depend on test order.
+                return folder.find(request, None, LookupState())
             return folder.find(request, block.case, block._lookup, test_id=block.test_id)
         raise ModelEndpointError(
             f"The wardenbot model mode {self.mode!r} can't answer {where} yet "

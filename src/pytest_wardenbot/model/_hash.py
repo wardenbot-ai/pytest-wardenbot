@@ -15,6 +15,7 @@ import json
 import re
 from collections.abc import Callable, Iterable, Mapping
 from typing import Any
+from urllib.parse import urlsplit
 
 HASH_LENGTH = 16
 """Hex characters of the SHA-256 digest used in file names and miss reports."""
@@ -56,6 +57,16 @@ def _normalize(value: Any, normalizers: tuple[Normalizer, ...]) -> Any:
     return value
 
 
+def canonical_path(path: str) -> str:
+    """The route a path names, so a full URL, ``/responses`` or a trailing slash still match."""
+    route = urlsplit(path).path if "://" in path else path.split("?", 1)[0]
+    route = route.rstrip("/")
+    for known in ("/chat/completions", "/responses"):
+        if route.endswith(known):
+            return "/v1" + known
+    return route or "/"
+
+
 class RequestHasher:
     """Hashes requests the way a response folder is configured to."""
 
@@ -66,11 +77,19 @@ class RequestHasher:
         self.normalizers: tuple[Normalizer, ...] = (builtin_normalize, *normalizers)
 
     def normalized(self, body: Mapping[str, Any]) -> Any:
-        """The body with ignored fields dropped and every string normalized."""
+        """The body with ignored fields dropped and every string normalized.
+
+        The top-level ``model`` is kept as it is: a dated snapshot such as
+        ``gpt-4o-2024-08-06`` is a different model, not a date.
+        """
         prepared = copy.deepcopy(dict(body))
         for field in self.ignore_fields:
             _drop(prepared, field)
-        return _normalize(prepared, self.normalizers)
+        model = prepared.pop("model", None)
+        normalized = _normalize(prepared, self.normalizers)
+        if model is not None:
+            normalized["model"] = model
+        return normalized
 
     def canonical(
         self, method: str, path: str, body: Mapping[str, Any], *, indent: int | None = None
@@ -78,7 +97,7 @@ class RequestHasher:
         """The exact text that is hashed (``indent`` only for showing diffs)."""
         document = {
             "method": method.upper(),
-            "path": path.split("?", 1)[0],
+            "path": canonical_path(path),
             "body": self.normalized(body),
         }
         separators = (",", ":") if indent is None else (",", ": ")

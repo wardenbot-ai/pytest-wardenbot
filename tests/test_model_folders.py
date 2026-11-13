@@ -473,3 +473,73 @@ def test_terminate_stream() -> None:
     assert terminate_stream(b"data: x\n") == b"data: x\n\n"
     assert terminate_stream(b"data: x") == b"data: x\n\n"
     assert terminate_stream(b"") == b""
+
+
+def test_case_folders_sort_numbers_naturally(folder: Path, replay: Endpoint) -> None:
+    case = folder / "cases" / "natural"
+    for number in (1, 2, 10):
+        write(case / f"{number}.txt", f"reply {number}")
+    with model_endpoint("natural"):
+        texts = [post(replay, RESPONSES, {"input": str(n)}).json()["output_text"] for n in range(3)]
+    assert texts == ["reply 1", "reply 2", "reply 10"]
+
+
+def test_dated_model_snapshots_hash_differently() -> None:
+    older = {"model": "gpt-4o-2024-05-13", "input": "x"}
+    newer = {"model": "gpt-4o-2024-08-06", "input": "x"}
+    assert digest(RESPONSES, older) != digest(RESPONSES, newer)
+
+
+def test_paths_in_exports_name_the_same_route() -> None:
+    body = {"input": "x"}
+    for path in ("https://api.openai.com/v1/responses", "/responses", "/v1/responses/"):
+        assert digest(path, body) == digest(RESPONSES, body)
+    assert digest("/openai/deployments/x/chat/completions?api-version=1", body) == digest(
+        CHAT, body
+    )
+
+
+def test_placeholders_are_json_escaped(
+    folder: Path, replay: Endpoint, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("WARDENBOT_CANARY", 'canary-with-"quotes"\\and-backslash')
+    write(folder / "cases" / "escaped" / "1.json", '{"leak": "{{wardenbot.canary}}"}')
+    with model_endpoint("escaped"):
+        output = post(replay, RESPONSES, {"input": "x"}).json()["output_text"]
+    assert json.loads(output) == {"leak": 'canary-with-"quotes"\\and-backslash'}
+
+
+def test_script_files_read_like_folder_files(tmp_path: Path, replay: Endpoint) -> None:
+    from pytest_wardenbot.model import Script
+
+    write(tmp_path / "reply.txt", "Edited in an editor.\n")
+    write(tmp_path / "stream.sse", b'data: {"choices":[]}\n\ndata: [DONE]\n')
+    script = Script(Script.file(tmp_path / "reply.txt"), Script.file(tmp_path / "stream.sse"))
+    with model_endpoint("script_files", script=script):
+        assert (
+            post(replay, RESPONSES, {"input": "x"}).json()["output_text"] == "Edited in an editor."
+        )
+        assert post(replay, CHAT, {"messages": [], "stream": True}).content.endswith(b"[DONE]\n\n")
+
+
+def test_outside_blocks_lookups_are_stateless(folder: Path, replay: Endpoint) -> None:
+    lines = [{"request": {"input": "q"}, "response": f"entry {n}"} for n in (1, 2)]
+    write(folder / "shared.jsonl", "\n".join(json.dumps(line) for line in lines))
+    first = post(replay, RESPONSES, {"input": "q"}).json()["output_text"]
+    second = post(replay, RESPONSES, {"input": "q"}).json()["output_text"]
+    assert first == second == "entry 1"  # the same whatever ran before
+
+
+def test_concurrent_identical_requests_get_distinct_calls(folder: Path, replay: Endpoint) -> None:
+    from concurrent.futures import ThreadPoolExecutor
+
+    body = {"input": "same"}
+    for n in range(1, 9):
+        record(
+            folder, "concurrent", RESPONSES, body, {**RESPONSE_BODY, "output_text": f"call {n}"}, n
+        )
+    with model_endpoint("concurrent"), ThreadPoolExecutor(max_workers=8) as pool:
+        replies = list(
+            pool.map(lambda _: post(replay, RESPONSES, body).json()["output_text"], range(8))
+        )
+    assert sorted(replies) == [f"call {n}" for n in range(1, 9)]

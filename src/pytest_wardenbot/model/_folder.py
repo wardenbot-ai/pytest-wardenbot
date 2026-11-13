@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import difflib
 import json
+import re
 import shlex
 import threading
 from collections import Counter
@@ -47,11 +48,33 @@ class ReplayMissError(ModelEndpointError):
 
 @dataclass
 class LookupState:
-    """Per-block call counters, so each block starts at the first reply again."""
+    """Per-block call counters, so each block starts at the first reply again.
+
+    Requests in one block can arrive at the same time (an async application),
+    so counters are claimed under ``lock``.
+    """
 
     hash_calls: Counter[str] = field(default_factory=Counter)
     case_calls: int = 0
     rule_calls: Counter[int] = field(default_factory=Counter)
+    lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
+
+    def next_hash_call(self, digest: str) -> int:
+        with self.lock:
+            self.hash_calls[digest] += 1
+            return self.hash_calls[digest]
+
+    def next_case_call(self) -> int:
+        """The zero-based index of this call into the case folder."""
+        with self.lock:
+            index = self.case_calls
+            self.case_calls += 1
+            return index
+
+    def next_rule_call(self, rule: int) -> int:
+        with self.lock:
+            self.rule_calls[rule] += 1
+            return self.rule_calls[rule]
 
 
 @dataclass(frozen=True)
@@ -70,6 +93,19 @@ class JsonlEntry:
     @property
     def where(self) -> str:
         return f"{self.file.name}:{self.line}"
+
+
+_DIGITS = re.compile(r"(\d+)")
+
+
+def natural_key(path: Path) -> list[Any]:
+    """Sort ``2.json`` before ``10.json``: numbers in names compare as numbers."""
+    return [int(part) if part.isdigit() else part.lower() for part in _DIGITS.split(path.name)]
+
+
+def reply_files(folder: Path) -> list[Path]:
+    """A case folder's reply files, in natural filename order."""
+    return sorted((path for path in folder.iterdir() if _is_reply_file(path)), key=natural_key)
 
 
 def _is_reply_file(path: Path) -> bool:
@@ -125,24 +161,7 @@ class ResponseFolder:
         ``.txt`` reply drops one trailing newline, and an ``.sse`` stream gets its
         final blank line back, without which a client drops the last event.
         """
-        source = self.relative(path)
-        suffix = path.suffix.lower()
-        try:
-            if suffix == ".sse":
-                return Reply(sse=terminate_stream(path.read_bytes()), source=source)
-            text = path.read_text(encoding="utf-8")
-        except OSError as error:
-            raise ModelEndpointError(f"Cannot read the reply file {source}: {error}") from None
-        text = fill_placeholders(text, case, source)
-        if suffix == ".txt":
-            return Reply(text=_drop_final_newline(text), source=source)
-        if suffix != ".json":
-            raise ModelEndpointError(f"{source}: reply files are .json, .txt or .sse.")
-        try:
-            value = json.loads(text)
-        except json.JSONDecodeError as error:
-            raise ModelEndpointError(f"{source} is not valid JSON: {error}") from None
-        return reply_from_value(value, source)
+        return load_reply_file(path, case, self.relative(path))
 
     def jsonl_entries(self) -> tuple[JsonlEntry, ...]:
         """Every ``.jsonl`` entry in the folder, re-read when a file changes."""
@@ -217,20 +236,26 @@ class ResponseFolder:
         """The reply for ``request``, or raise ``ReplayMissError`` explaining the miss."""
         tried: list[str] = []
         digest = self.hasher.digest(request.method, request.path, request.body)
-        state.hash_calls[digest] += 1
-        call = state.hash_calls[digest]
+        call = state.next_hash_call(digest)
+        entries = self.jsonl_entries()  # walk the folder once per request
 
-        found = self._find_hashed(digest, call, case, tried)
+        found = self._find_hashed(digest, call, case, tried, entries)
         if found is not None:
             return found
         if case is not None:
             found = self._find_case_folder(case, state, tried)
             if found is not None:
                 return found
-        raise ReplayMissError(self.miss_report(request, case, digest, tried, test_id))
+        report = self.miss_report(request, case, digest, tried, test_id, entries)
+        raise ReplayMissError(report)
 
     def _find_hashed(
-        self, digest: str, call: int, case: str | None, tried: list[str]
+        self,
+        digest: str,
+        call: int,
+        case: str | None,
+        tried: list[str],
+        entries: tuple[JsonlEntry, ...],
     ) -> Reply | None:
         if case is not None:
             folder = self.root / "recorded" / claim_case_dirname(case)
@@ -242,12 +267,12 @@ class ResponseFolder:
                 chosen = next((p for p in files if _call_number(p.stem) == call), files[-1])
                 return self.load_reply(chosen, case)
             tried.append(f"recorded/{folder.name}/{digest}-{call}.json (or .sse): not found")
-            scoped = [e for e in self.jsonl_entries() if e.case == case and e.digest == digest]
+            scoped = [e for e in entries if e.case == case and e.digest == digest]
             if scoped:
                 entry = scoped[min(call, len(scoped)) - 1]
                 return reply_from_value(entry.response, entry.where)
             tried.append(f".jsonl entries for this case: none with hash {digest}")
-        unscoped = [e for e in self.jsonl_entries() if e.case is None and e.digest == digest]
+        unscoped = [e for e in entries if e.case is None and e.digest == digest]
         if unscoped:
             entry = unscoped[min(call, len(unscoped)) - 1]
             return reply_from_value(entry.response, entry.where)
@@ -259,9 +284,8 @@ class ResponseFolder:
         if not folder.is_dir():
             tried.append(f"cases/{folder.name}/: doesn't exist")
             return None
-        files = sorted(path for path in folder.iterdir() if _is_reply_file(path))
-        index = state.case_calls
-        state.case_calls += 1
+        files = reply_files(folder)
+        index = state.next_case_call()
         if index < len(files):
             return self.load_reply(files[index], case)
         tried.append(
@@ -273,7 +297,9 @@ class ResponseFolder:
 
     # Miss reports ---------------------------------------------------------
 
-    def _closest(self, request: CapturedRequest, case: str | None) -> tuple[str, str] | None:
+    def _closest(
+        self, request: CapturedRequest, case: str | None, entries: tuple[JsonlEntry, ...]
+    ) -> tuple[str, str] | None:
         if case is None:
             return None
         current = self.hasher.canonical(request.method, request.path, request.body, indent=2)
@@ -291,7 +317,7 @@ class ResponseFolder:
             except (OSError, KeyError, TypeError, json.JSONDecodeError):
                 continue
             candidates.append((f"recorded/{folder.name}/{sidecar.name}", text))
-        for entry in self.jsonl_entries():
+        for entry in entries:
             if entry.case == case:
                 text = self.hasher.canonical(entry.method, entry.path, entry.request, indent=2)
                 candidates.append((entry.where, text))
@@ -315,6 +341,7 @@ class ResponseFolder:
         digest: str,
         tried: Sequence[str],
         test_id: str | None,
+        entries: tuple[JsonlEntry, ...] = (),
     ) -> str:
         who = f"case {case!r}" if case is not None else "a request outside any model_endpoint block"
         lines = [
@@ -328,12 +355,38 @@ class ResponseFolder:
             lines.append(f"  {role}: {excerpt!r}")
         lines += ["", "Tried:"]
         lines += [f"  - {line}" for line in tried]
-        closest = self._closest(request, case)
+        closest = self._closest(request, case, entries)
         if closest is not None:
             where, diff = closest
             lines += ["", f"Closest recorded request for this case ({where}):", diff]
         lines += ["", f"To record it, call the real API once: {record_command(test_id)}"]
         return "\n".join(lines)
+
+
+def load_reply_file(path: Path, case: str | None, source: str) -> Reply:
+    """Read a reply file: ``.sse`` raw, ``.txt`` text, ``.json`` a body or structured output.
+
+    Placeholders are filled in text and JSON (JSON-escaped there), a ``.txt``
+    reply drops one trailing newline, and an ``.sse`` stream gets its final
+    blank line back. Response folders and ``Script.file`` both read this way.
+    """
+    suffix = path.suffix.lower()
+    try:
+        if suffix == ".sse":
+            return Reply(sse=terminate_stream(path.read_bytes()), source=source)
+        text = path.read_text(encoding="utf-8")
+    except OSError as error:
+        raise ModelEndpointError(f"Cannot read the reply file {source}: {error}") from None
+    if suffix == ".txt":
+        return Reply(text=_drop_final_newline(fill_placeholders(text, case, source)), source=source)
+    if suffix != ".json":
+        raise ModelEndpointError(f"{source}: reply files are .json, .txt or .sse.")
+    text = fill_placeholders(text, case, source, json_escape=True)
+    try:
+        value = json.loads(text)
+    except json.JSONDecodeError as error:
+        raise ModelEndpointError(f"{source} is not valid JSON: {error}") from None
+    return reply_from_value(value, source)
 
 
 def terminate_stream(raw: bytes) -> bytes:
