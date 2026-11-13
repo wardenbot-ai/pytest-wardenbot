@@ -30,7 +30,13 @@ from pytest_wardenbot.model import (
     uninstall,
 )
 from pytest_wardenbot.model._endpoint import current_endpoint
-from tests.model_support import clean_environment, post, scripted_endpoint, sse_events
+from tests.model_support import (
+    allow_upstream,
+    clean_environment,
+    post,
+    scripted_endpoint,
+    sse_events,
+)
 
 __all__ = ["scripted_endpoint"]  # the fixture, imported for pytest
 
@@ -145,6 +151,7 @@ def test_model_endpoint_refuses_ci_for_global_upstream_modes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     clean_environment(monkeypatch)
+    allow_upstream(monkeypatch)
     uninstall()
     endpoint = install(mode="live")
     try:

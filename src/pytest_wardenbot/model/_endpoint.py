@@ -12,9 +12,12 @@ from __future__ import annotations
 import atexit
 import json
 import os
+import sys
 import threading
 import warnings
 from collections import deque
+from collections.abc import Callable, Iterator, Mapping
+from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from types import TracebackType
@@ -24,6 +27,7 @@ from pytest_wardenbot._errors import WardenBotConfigError
 from pytest_wardenbot.model._capture import CapturedRequest
 from pytest_wardenbot.model._cases import current_case, running_test_id
 from pytest_wardenbot.model._config import (
+    UPSTREAM_MODES,
     Settings,
     load_callable,
     refuse_in_ci,
@@ -37,8 +41,10 @@ from pytest_wardenbot.model._guard import (
     install_guard,
     uninstall_guard,
 )
+from pytest_wardenbot.model._record import Recorder, Target
 from pytest_wardenbot.model._reply import Reply
 from pytest_wardenbot.model._script import Script, ScriptCursor
+from pytest_wardenbot.model._upstream import Upstream
 from pytest_wardenbot.model._wire import JSON_TYPE, Ids, error_body, render
 
 MOCK_API_KEY = "wardenbot-mock"  # pragma: allowlist secret
@@ -67,6 +73,20 @@ _EXIT_WAIT_SECONDS = 5.0
 _lock = threading.RLock()
 _endpoint: Endpoint | None = None
 _atexit_registered = False
+
+
+@dataclass
+class _Response:
+    """What the handler sends: a status, a content type and a body.
+
+    The body is bytes, or chunks relayed from the upstream as they arrive.
+    ``done`` runs once the body has been written (or the write failed).
+    """
+
+    status: int
+    content_type: str
+    body: bytes | Iterator[bytes]
+    done: Callable[[], None] | None = None
 
 
 class Endpoint:
@@ -98,6 +118,8 @@ class Endpoint:
         self._outside_calls = 0
         self._folder: ResponseFolder | None = None
         self._folder_lock = threading.Lock()
+        self._recorder: Recorder | None = None
+        self.upstream: Upstream | None = None
 
     def __repr__(self) -> str:
         return f"Endpoint(mode={self.mode!r}, url={self.url!r})"
@@ -150,27 +172,36 @@ class Endpoint:
                     data = endpoint._reject(400, "The request has no valid Content-Length.")
                     self._send(400, JSON_TYPE, data)
                     return
-                status, content_type, data = endpoint._handle_post(
-                    self.path, self.rfile.read(length)
+                response = endpoint._handle_post(
+                    self.path, self.rfile.read(length), dict(self.headers.items())
                 )
-                self._send(status, content_type, data)
+                try:
+                    self._send(response.status, response.content_type, response.body)
+                finally:
+                    if response.done is not None:
+                        response.done()
 
             def do_PUT(self) -> None:
                 self._send(405, JSON_TYPE, endpoint._reject(405, f"PUT {self.path}"))
 
             do_DELETE = do_PATCH = do_PUT
 
-            def _send(self, status: int, content_type: str, data: bytes) -> None:
+            def _send(self, status: int, content_type: str, data: bytes | Iterator[bytes]) -> None:
                 self.send_response(status)
                 self.send_header("Content-Type", content_type)
                 if status >= 400:
                     # The OpenAI SDK retries 5xx responses unless told not to; a
                     # retry would repeat a replay miss or skip a scripted reply.
                     self.send_header("x-should-retry", "false")
-                if not content_type.startswith("text/event-stream"):
+                if isinstance(data, bytes) and not content_type.startswith("text/event-stream"):
                     self.send_header("Content-Length", str(len(data)))
                 self.end_headers()
-                self.wfile.write(data)
+                if isinstance(data, bytes):
+                    self.wfile.write(data)
+                    return
+                for chunk in data:  # relayed as it arrives, without Content-Length
+                    self.wfile.write(chunk)
+                    self.wfile.flush()
 
             def log_message(self, format: str, *args: Any) -> None:  # noqa: A002
                 pass
@@ -187,6 +218,11 @@ class Endpoint:
             name="wardenbot-model-endpoint",
         )
         self._thread.start()
+
+    def _close_upstream(self) -> None:
+        if self.upstream is not None:
+            self.upstream.close()
+            self.upstream = None
 
     def _stop(self) -> None:
         if self._server is not None:
@@ -234,18 +270,21 @@ class Endpoint:
             return 200, json.dumps({**model, "id": name}).encode()
         return 404, self._reject(404, f"The model endpoint does not serve GET {route}.")
 
-    def _handle_post(self, path: str, raw: bytes) -> tuple[int, str, bytes]:
+    def _handle_post(self, path: str, raw: bytes, headers: Mapping[str, str]) -> _Response:
         try:
             body = json.loads(raw or b"{}")
         except (UnicodeDecodeError, json.JSONDecodeError) as error:
-            return 400, JSON_TYPE, self._reject(400, f"The request body is not valid JSON: {error}")
+            message = f"The request body is not valid JSON: {error}"
+            return _Response(400, JSON_TYPE, self._reject(400, message))
         if not isinstance(body, dict):
-            return 400, JSON_TYPE, self._reject(400, "The request body must be a JSON object.")
+            return _Response(
+                400, JSON_TYPE, self._reject(400, "The request body must be a JSON object.")
+            )
 
         request = CapturedRequest.from_body("POST", path, body)
         if request.api == "other":
             message = f"The model endpoint does not serve POST {request.path}."
-            return 404, JSON_TYPE, self._reject(404, message)
+            return _Response(404, JSON_TYPE, self._reject(404, message))
         with self._state:
             block = self._blocks[-1] if self._blocks else None
             self.request_count += 1
@@ -257,27 +296,94 @@ class Endpoint:
                 self._requests.append(request)
                 self._outside_calls += 1
                 number = self._outside_calls
+
+        def done() -> None:
+            if block is not None:
+                with self._state:
+                    block._inflight -= 1
+                    self._state.notify_all()
+
         try:
-            reply = self._reply_for(block, request)
+            result = self._reply_for(block, request, raw, headers, path)
+            if isinstance(result, _Response):
+                result.done = _chain(result.done, done)
+                return result
             content_type, data = render(
-                reply, request, ids=Ids.for_call(block.case if block else None, number)
+                result, request, ids=Ids.for_call(block.case if block else None, number)
             )
-            return 200, content_type, data
+            return _Response(200, content_type, data, done)
         except ModelEndpointError as error:
             self._record(block, error)
-            return 500, JSON_TYPE, error_body(str(error))
+            return _Response(500, JSON_TYPE, error_body(str(error)), done)
         except Exception as error:  # a bug here must still fail the test, not hang it
             wrapped = ModelEndpointError(
                 f"The model endpoint failed on a request to {request.path}: "
                 f"{type(error).__name__}: {error}"
             )
             self._record(block, wrapped)
-            return 500, JSON_TYPE, error_body(str(wrapped))
-        finally:
-            if block is not None:
-                with self._state:
-                    block._inflight -= 1
-                    self._state.notify_all()
+            return _Response(500, JSON_TYPE, error_body(str(wrapped)), done)
+
+    def _forward(
+        self,
+        block: EndpointCase | None,
+        request: CapturedRequest,
+        raw: bytes,
+        headers: Mapping[str, str],
+        target: Target | None = None,
+        *,
+        raw_path: str | None = None,
+    ) -> _Response:
+        """Relay the request to the upstream; save a successful reply to ``target``.
+
+        The upstream gets the path with its query string (such as an API version);
+        recordings never store it.
+        """
+        assert self.upstream is not None
+        reply = self.upstream.forward(raw_path or request.path, raw, headers)
+        received: list[bytes] = []
+        complete = False
+
+        def relay() -> Iterator[bytes]:
+            nonlocal complete
+            for chunk in reply.chunks:
+                received.append(chunk)
+                yield chunk
+            complete = True
+
+        def finish() -> None:
+            close = getattr(reply.chunks, "close", None)
+            if close is not None:
+                close()  # release the upstream connection even if the client went away
+            if not 200 <= reply.status < 300:
+                if self.mode == "record":
+                    # The error body can echo part of the key: report the status only.
+                    self._record(
+                        block,
+                        ModelEndpointError(
+                            f"The upstream {self.upstream.host if self.upstream else ''} "
+                            f"returned HTTP {reply.status} for {request.path}; nothing was saved."
+                        ),
+                    )
+                return
+            if target is None or block is None:
+                return
+            if not complete:
+                self._record(
+                    block,
+                    ModelEndpointError(
+                        f"The reply to {request.path} was cut off, so nothing was saved."
+                    ),
+                )
+                return
+            assert self._recorder is not None
+            try:
+                self._recorder.save(target, request, block.case, b"".join(received), reply.status)
+            except ModelEndpointError as error:
+                self._record(block, error)
+            except OSError as error:
+                self._record(block, ModelEndpointError(f"Can't save {target.path}: {error}"))
+
+        return _Response(reply.status, reply.content_type, relay(), finish)
 
     def _record_egress(self, error: EgressBlockedError) -> None:
         """Called by the egress guard, on the application's thread."""
@@ -317,7 +423,14 @@ class Endpoint:
                 self._folder = ResponseFolder(self.responses_dir, hasher)
             return self._folder
 
-    def _reply_for(self, block: EndpointCase | None, request: CapturedRequest) -> Reply:
+    def _reply_for(
+        self,
+        block: EndpointCase | None,
+        request: CapturedRequest,
+        raw: bytes = b"",
+        headers: Mapping[str, str] | None = None,
+        raw_path: str | None = None,
+    ) -> Reply | _Response:
         if block is not None and block._cursor is not None:
             return block._cursor.next(request)
         where = f"case {block.case!r}" if block is not None else "a request outside any block"
@@ -339,10 +452,26 @@ class Endpoint:
                 # Stateless outside blocks, so results don't depend on test order.
                 return folder.find(request, None, LookupState())
             return folder.find(request, block.case, block._lookup, test_id=block.test_id)
-        raise ModelEndpointError(
-            f"The wardenbot model mode {self.mode!r} can't answer {where} yet "
-            f"(request to {request.path}): pass script=."
-        )
+        if self.mode == "live":
+            return self._forward(block, request, raw, headers or {}, raw_path=raw_path)
+        if self.mode == "override":
+            folder = self.response_folder()
+            if folder is not None:
+                state = block._lookup if block is not None else LookupState()
+                try:
+                    return folder.find(request, block.case if block else None, state)
+                except ReplayMissError:
+                    pass  # not in the folder: the real API answers, and nothing is saved
+            return self._forward(block, request, raw, headers or {}, raw_path=raw_path)
+        if self.mode == "record":
+            recorder = self._recorder
+            assert recorder is not None
+            state = block._lookup if block is not None else LookupState()
+            plan = recorder.plan(request, block.case if block else None, state)
+            if isinstance(plan, Reply):
+                return plan  # record = false, or a .jsonl rule: served from the folder
+            return self._forward(block, request, raw, headers or {}, plan, raw_path=raw_path)
+        raise ModelEndpointError(f"The wardenbot model mode {self.mode!r} can't answer {where}.")
 
 
 class EndpointCase:
@@ -422,6 +551,15 @@ class EndpointCase:
         raise kind(summary) from errors[0]
 
 
+def _chain(*callbacks: Callable[[], None] | None) -> Callable[[], None]:
+    def run() -> None:
+        for callback in callbacks:
+            if callback is not None:
+                callback()
+
+    return run
+
+
 def _summarize(case: str, errors: list[ModelEndpointError]) -> str:
     if len(errors) == 1:
         return f"Model endpoint error in case {case!r}: {errors[0]}"
@@ -488,6 +626,36 @@ def _shutdown_at_exit() -> None:
     if endpoint is not None and endpoint.enabled and endpoint.pid == os.getpid():
         uninstall_guard()
         endpoint._stop()
+
+
+def _connect_upstream(endpoint: Endpoint) -> None:
+    """Set up the real API for override, record and live, and say so: it costs money."""
+    endpoint.upstream = Upstream.from_environment(endpoint_url=endpoint.url)
+    if endpoint.mode in {"record", "override"}:
+        folder = endpoint.response_folder()
+        if folder is None:
+            raise ModelEndpointError(
+                f"The wardenbot model mode {endpoint.mode!r} needs a response folder: set "
+                "responses_dir in [tool.wardenbot.model], WARDENBOT_RESPONSES_DIR or "
+                "--wardenbot-responses-dir."
+            )
+        if endpoint.mode == "record":
+            from pytest_wardenbot.model._markers import write_seed
+
+            write_seed(folder.root)  # before the first call, so markers are stable
+            endpoint._recorder = Recorder(folder)
+    saving = {
+        "record": f"saving replies to {endpoint.responses_dir}",
+        "override": f"serving {endpoint.responses_dir} first",
+        "live": "saving nothing",
+    }[endpoint.mode]
+    # Straight to the real stderr: test runners capture sys.stderr.
+    print(
+        f"wardenbot model endpoint: mode={endpoint.mode} sends requests to the real API at "
+        f"{endpoint.upstream.host}, {saving}. This costs money.",
+        file=sys.__stderr__,
+        flush=True,
+    )
 
 
 def _install_guard(endpoint: Endpoint) -> None:
@@ -565,9 +733,12 @@ def install(
                 _handoff_environment(endpoint)
                 if settings.mode in _GUARDED_MODES:
                     _install_guard(endpoint)
+                if settings.mode in UPSTREAM_MODES:
+                    _connect_upstream(endpoint)
             except BaseException:
                 # Leave nothing half-installed: no server, guard or rewritten environment.
                 uninstall_guard()
+                endpoint._close_upstream()
                 endpoint._stop()
                 _restore_environment(endpoint._saved_env)
                 raise
@@ -622,6 +793,7 @@ def uninstall() -> None:
     uninstall_guard()  # also in a forked child, which inherited the guard
     if endpoint.pid != os.getpid():
         return
+    endpoint._close_upstream()
     endpoint._stop()
     _restore_environment(endpoint._saved_env)
 

@@ -72,3 +72,9 @@ def sse_events(data: bytes) -> list[tuple[str | None, Any]]:
                 payload += line[len("data: ") :]
         events.append((name, payload if payload == "[DONE]" else json.loads(payload)))
     return events
+
+
+def allow_upstream(monkeypatch: pytest.MonkeyPatch, url: str = "http://127.0.0.1:9/v1") -> None:
+    """Give upstream modes a dummy key and a local URL; no test calls a real provider."""
+    monkeypatch.setenv("OPENAI_API_KEY", "test-only-key")  # pragma: allowlist secret
+    monkeypatch.setenv("WARDENBOT_UPSTREAM_BASE_URL", url)
