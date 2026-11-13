@@ -118,18 +118,24 @@ class ResponseFolder:
             return str(path)
 
     def load_reply(self, path: Path, case: str | None) -> Reply:
-        """Read a reply file; fill placeholders in ``.txt`` and ``.json`` files."""
+        """Read a reply file; fill placeholders in ``.txt`` and ``.json`` files.
+
+        Response folders get committed, and editors and whitespace hooks (such as
+        pre-commit's end-of-file-fixer) end files with exactly one newline. So a
+        ``.txt`` reply drops one trailing newline, and an ``.sse`` stream gets its
+        final blank line back, without which a client drops the last event.
+        """
         source = self.relative(path)
         suffix = path.suffix.lower()
         try:
             if suffix == ".sse":
-                return Reply(sse=path.read_bytes(), source=source)
+                return Reply(sse=terminate_stream(path.read_bytes()), source=source)
             text = path.read_text(encoding="utf-8")
         except OSError as error:
             raise ModelEndpointError(f"Cannot read the reply file {source}: {error}") from None
         text = fill_placeholders(text, case, source)
         if suffix == ".txt":
-            return Reply(text=text, source=source)
+            return Reply(text=_drop_final_newline(text), source=source)
         if suffix != ".json":
             raise ModelEndpointError(f"{source}: reply files are .json, .txt or .sse.")
         try:
@@ -328,6 +334,19 @@ class ResponseFolder:
             lines += ["", f"Closest recorded request for this case ({where}):", diff]
         lines += ["", f"To record it, call the real API once: {record_command(test_id)}"]
         return "\n".join(lines)
+
+
+def terminate_stream(raw: bytes) -> bytes:
+    """Make sure an event stream ends with the blank line that dispatches its last event."""
+    if not raw.strip() or raw.endswith((b"\n\n", b"\r\n\r\n")):
+        return raw
+    return raw + (b"\n" if raw.endswith(b"\n") else b"\n\n")
+
+
+def _drop_final_newline(text: str) -> str:
+    if text.endswith("\r\n"):
+        return text[:-2]
+    return text[:-1] if text.endswith("\n") else text
 
 
 def _call_number(stem: str) -> int:

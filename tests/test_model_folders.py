@@ -449,3 +449,27 @@ def test_replay_miss_makes_no_outbound_connection(tmp_path: Path) -> None:
     destinations = [json.loads(line) for line in output.read_text().splitlines()]
     hosts = {str(destination[1][0]) for destination in destinations if destination[1]}
     assert hosts <= {"127.0.0.1", "localhost", "None"}, destinations
+
+
+def test_files_touched_by_whitespace_hooks_still_replay(folder: Path, replay: Endpoint) -> None:
+    case = folder / "cases" / "hooked"
+    write(case / "1.txt", "Reply text.\n")  # an editor or end-of-file-fixer added the newline
+    write(
+        case / "2.sse", b'data: {"choices":[{"index":0,"delta":{"content":"x"}}]}\n\ndata: [DONE]\n'
+    )
+    write(case / "3.txt", "Two lines.\n\n")
+    with model_endpoint("hooked"):
+        assert post(replay, RESPONSES, {"input": "a"}).json()["output_text"] == "Reply text."
+        streamed = post(replay, CHAT, {"messages": [], "stream": True}).content
+        assert post(replay, RESPONSES, {"input": "c"}).json()["output_text"] == "Two lines.\n"
+    assert streamed.endswith(b"data: [DONE]\n\n")
+    assert sse_events(streamed)[-1] == (None, "[DONE]")
+
+
+def test_terminate_stream() -> None:
+    from pytest_wardenbot.model._folder import terminate_stream
+
+    assert terminate_stream(b"data: x\n\n") == b"data: x\n\n"
+    assert terminate_stream(b"data: x\n") == b"data: x\n\n"
+    assert terminate_stream(b"data: x") == b"data: x\n\n"
+    assert terminate_stream(b"") == b""
