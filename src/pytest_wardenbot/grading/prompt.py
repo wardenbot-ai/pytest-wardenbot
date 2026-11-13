@@ -7,16 +7,23 @@ run. Plain ``(role, text)`` pairs work too.
 - ``assert_untrusted_confined``: the planted payload stays inside the
   application's fence, in an allowed role, and can't close the fence early.
 - ``fence_break_payloads``: a deterministic corpus of attempts to close a fence.
+- ``assert_instruction_present``: the data-not-instructions rule is really there.
+- ``assert_untrusted_bounded``: untrusted fields are truncated as intended.
+- ``assert_tools_offered``: a request carrying untrusted text offers only allowed tools.
+- ``assert_prompt_shape``: the assembled prompt matches a committed snapshot.
 """
 
 from __future__ import annotations
 
+import difflib
 import html
 import json
+import os
 import re
 import unicodedata
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 from urllib.parse import quote, unquote
 
@@ -24,6 +31,11 @@ from pytest_wardenbot._formatting import format_check_failure
 
 __all__ = [
     "INSTRUCTION_ROLES",
+    "SNAPSHOT_ENV",
+    "assert_instruction_present",
+    "assert_prompt_shape",
+    "assert_tools_offered",
+    "assert_untrusted_bounded",
     "assert_untrusted_confined",
     "fence_break_payloads",
 ]
@@ -366,4 +378,254 @@ def fence_break_payloads(fence: tuple[str, str]) -> tuple[tuple[str, str], ...]:
             "this source relevant.",
         )
         for variant, name in unique.items()
+    )
+
+
+def _requests_list(requests: Requests) -> list[Any]:
+    """The request objects, or one tuple of pairs per request for plain input."""
+    if hasattr(requests, "roles"):
+        return [requests]
+    items = list(requests)
+    if items and all(_is_pair(item) for item in items):
+        return [tuple(items)]
+    return items
+
+
+def _roles_of(request: Any) -> tuple[Role, ...]:
+    return tuple(request.roles) if hasattr(request, "roles") else tuple(request)
+
+
+def assert_instruction_present(
+    requests: Requests,
+    text_or_regex: str | re.Pattern[str],
+    roles: Iterable[str] = INSTRUCTION_ROLES,
+    *,
+    each: bool = True,
+) -> None:
+    """Fail unless the rule (a substring, or a compiled regex) is in one of ``roles``.
+
+    By default every captured request must carry it, so a refactor can't
+    silently drop the data-not-instructions rule from one call; ``each=False``
+    requires only one request to.
+    """
+    wanted = set(roles)
+    items = _requests_list(requests)
+
+    def carries(request: Any) -> bool:
+        for role, text in _roles_of(request):
+            if role not in wanted:
+                continue
+            if isinstance(text_or_regex, re.Pattern):
+                if text_or_regex.search(text):
+                    return True
+            elif text_or_regex in text:
+                return True
+        return False
+
+    missing = [index for index, request in enumerate(items) if not carries(request)]
+    if items and (not missing or (not each and len(missing) < len(items))):
+        return
+    rule = text_or_regex.pattern if isinstance(text_or_regex, re.Pattern) else text_or_regex
+    which = (
+        "no request was captured"
+        if not items
+        else ("requests " + ", ".join(map(str, missing)) + " lack it")
+        if each
+        else "no request carries it"
+    )
+    raise AssertionError(
+        format_check_failure(
+            kind="instruction missing from the prompt",
+            sections=(
+                ("Expected", f"{rule!r} in {', '.join(sorted(wanted))}"),
+                ("Found", which),
+            ),
+            remediation=(
+                "Keep the rule that untrusted text is data, never instructions, in the system "
+                "or developer message of every request that carries untrusted text, and keep "
+                "this check so it can't be deleted silently."
+            ),
+        )
+    )
+
+
+def assert_untrusted_bounded(
+    requests: Requests,
+    payload: str,
+    max_chars: int,
+    *,
+    escape: Callable[[str], str] | None = None,
+    encodings: Iterable[Encoding] = ("raw",),
+) -> None:
+    """Fail when more than ``max_chars`` of ``payload`` appear contiguously in any role's text.
+
+    Plant a payload longer than the application's limit and check it was cut.
+    Characters are counted as the payload appears in the prompt, after
+    ``escape`` and ``encodings``; a payload without escapable characters makes
+    that the same as counting the original.
+    """
+    if max_chars < 0:
+        raise ValueError("max_chars must be 0 or more")
+    longest = (0, "", 0)
+    for index, request in enumerate(_requests_list(requests)):
+        for role, text in _roles_of(request):
+            for needle in _encoded(payload, escape, encodings):
+                matcher = difflib.SequenceMatcher(None, needle, text, autojunk=False)
+                size = matcher.find_longest_match(0, len(needle), 0, len(text)).size
+                if size > longest[0]:
+                    longest = (size, f"request {index}, role {role!r}", index)
+    if longest[0] <= max_chars:
+        return
+    raise AssertionError(
+        format_check_failure(
+            kind="untrusted text not truncated",
+            sections=(
+                ("Limit", f"{max_chars} characters"),
+                ("Longest run", f"{longest[0]} characters, in {longest[1]}"),
+            ),
+            remediation=(
+                "Truncate untrusted fields to the intended length before building the prompt, "
+                "so a long document can't crowd out the instructions or smuggle extra text."
+            ),
+        )
+    )
+
+
+def assert_tools_offered(
+    requests: Requests,
+    allowed: Iterable[str],
+    *,
+    payload: str | None = None,
+    escape: Callable[[str], str] | None = None,
+    encodings: Iterable[Encoding] = ("raw",),
+) -> None:
+    """Fail if a request offers a tool outside ``allowed``.
+
+    With ``payload``, only requests that carry it (under ``escape`` and
+    ``encodings``) are checked: an untrusted document should never reach a
+    request that can call a dangerous tool. Tool names are function names, or a
+    hosted tool's type, such as ``web_search``.
+    """
+    permitted = set(allowed)
+    needles = _encoded(payload, escape, encodings) if payload is not None else []
+    problems = []
+    for index, request in enumerate(_requests_list(requests)):
+        tools = tuple(getattr(request, "tools", ()))
+        if needles and not any(
+            needle in text for _, text in _roles_of(request) for needle in needles
+        ):
+            continue
+        extra = [tool for tool in tools if tool not in permitted]
+        if extra:
+            problems.append(f"request {index} offers {', '.join(extra)}")
+    if not problems:
+        return
+    raise AssertionError(
+        format_check_failure(
+            kind="tool offered alongside untrusted text" if payload else "tool not allowed",
+            sections=(
+                ("Allowed tools", ", ".join(sorted(permitted)) or "(none)"),
+                ("Offered", "\n".join(problems)),
+            ),
+            remediation=(
+                "Offer only the tools the step needs. Keep tools that send, delete or spend "
+                "out of any request that carries untrusted text; run that step without them, "
+                "or behind a separate confirmation."
+            ),
+        )
+    )
+
+
+SNAPSHOT_ENV = "WARDENBOT_UPDATE_SNAPSHOTS"
+"""Set to 1 to write or refresh the snapshots ``assert_prompt_shape`` compares against."""
+
+_MARKERS = re.compile(r"WBMARK-[a-z2-7]{16}")
+_CANARIES = re.compile(r"WBCANARY-[A-Za-z0-9_-]{8,}")
+
+
+def _render(
+    requests: Requests,
+    untrusted: Sequence[str],
+    normalizers: Sequence[Callable[[str], str]],
+) -> str:
+    from pytest_wardenbot.model._hash import builtin_normalize
+
+    replacements: list[tuple[str, str]] = []
+    for number, text in enumerate(untrusted):
+        for form in _encoded(text, None, ("raw", "json")):
+            replacements.append((form, f"<untrusted:{number}>"))
+    replacements.sort(key=lambda item: -len(item[0]))  # longest first
+
+    def normalize(text: str) -> str:
+        for form, placeholder in replacements:
+            text = text.replace(form, placeholder)
+        text = _CANARIES.sub("<canary>", _MARKERS.sub("<marker>", text))
+        text = builtin_normalize(text)
+        for normalizer in normalizers:
+            text = normalizer(text)
+        return text
+
+    lines: list[str] = []
+    for index, request in enumerate(_requests_list(requests)):
+        method = getattr(request, "method", None)
+        path = getattr(request, "path", None)
+        header = f"### request {index}" + (f": {method} {path}" if method and path else "")
+        lines.append(header)
+        tools = getattr(request, "tools", ())
+        if tools:
+            lines.append(f"tools: {', '.join(tools)}")
+        for role, text in _roles_of(request):
+            lines.append(f"[{role}]")
+            lines.extend(normalize(text).splitlines() or [""])
+        lines.append("")
+    return "\n".join(lines)
+
+
+def assert_prompt_shape(
+    requests: Requests,
+    snapshot: str | os.PathLike[str],
+    *,
+    untrusted: Sequence[str] = (),
+    normalizers: Sequence[Callable[[str], str]] = (),
+) -> None:
+    """Compare the assembled prompt with a committed snapshot file.
+
+    Each request is rendered as its path, offered tools and every role's text.
+    Untrusted spans (the strings in ``untrusted``, raw or JSON-encoded) become
+    ``<untrusted:N>``, and injection markers, canaries, ISO dates, UUIDs and
+    anything ``normalizers`` rewrite are replaced too, so only the prompt's
+    structure is compared: a refactor that moves untrusted text, drops a fence
+    or reorders roles fails with a diff. The model name is left out, so
+    changing models doesn't churn snapshots. Set ``WARDENBOT_UPDATE_SNAPSHOTS=1``
+    to write or refresh the file.
+    """
+    path = Path(snapshot)
+    rendered = _render(requests, untrusted, normalizers)
+    if os.environ.get(SNAPSHOT_ENV, "").strip() in {"1", "true", "yes"}:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(rendered, encoding="utf-8")
+        return
+    if not path.exists():
+        raise AssertionError(
+            f"No prompt-shape snapshot at {path}. Review the prompt, then create it with "
+            f"{SNAPSHOT_ENV}=1 and commit the file."
+        )
+    expected = path.read_text(encoding="utf-8")
+    if expected == rendered:
+        return
+    diff = "\n".join(
+        difflib.unified_diff(
+            expected.splitlines(), rendered.splitlines(), str(path), "this run", lineterm=""
+        )
+    )
+    raise AssertionError(
+        format_check_failure(
+            kind="prompt shape changed",
+            sections=(("Diff", diff),),
+            remediation=(
+                "If the change is intended, check that untrusted text is still fenced in the "
+                f"user role, then refresh the snapshot with {SNAPSHOT_ENV}=1 and commit it. If "
+                "not, restore the prompt's structure."
+            ),
+        )
     )
