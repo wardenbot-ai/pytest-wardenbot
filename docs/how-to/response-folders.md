@@ -181,8 +181,13 @@ Response folders get committed, so they must never hold credentials:
 - a non-2xx reply is never saved, because an error body can echo the key;
 - the recorder and the loader scan every file for credential patterns (OpenAI,
   Anthropic, Google and AWS keys, GitHub tokens, Bearer tokens, `api_key=` and
-  `key=` parameters) and refuse a match, naming the file and line. Add a
-  regular expression to `allow_patterns` in the manifest for a false positive.
+  `key=` parameters) and refuse a match, naming the file and line. Event
+  streams are also scanned with their deltas joined, since a model echoes a
+  key a few characters at a time. Values made only of words, such as
+  `your-api-key-here`, aren't flagged. Add a regular expression to
+  `allow_patterns` in the manifest for a false positive, and plant secrets on
+  purpose with `case_canary()`, whose tokens never look like keys;
+- files under hidden folders (`.scratch/`) are neither served nor checked.
 
 Response folders hold full prompts and model output: review them like source
 code before committing. Check one without a test run:
