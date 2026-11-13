@@ -81,12 +81,14 @@ class _Response:
 
     The body is bytes, or chunks relayed from the upstream as they arrive.
     ``done`` runs once the body has been written (or the write failed).
+    ``headers`` are the upstream's, for a relayed reply; None for the endpoint's own.
     """
 
     status: int
     content_type: str
     body: bytes | Iterator[bytes]
     done: Callable[[], None] | None = None
+    headers: Mapping[str, str] | None = None
 
 
 class Endpoint:
@@ -176,7 +178,9 @@ class Endpoint:
                     self.path, self.rfile.read(length), dict(self.headers.items())
                 )
                 try:
-                    self._send(response.status, response.content_type, response.body)
+                    self._send(
+                        response.status, response.content_type, response.body, response.headers
+                    )
                 finally:
                     if response.done is not None:
                         response.done()
@@ -186,10 +190,19 @@ class Endpoint:
 
             do_DELETE = do_PATCH = do_PUT
 
-            def _send(self, status: int, content_type: str, data: bytes | Iterator[bytes]) -> None:
+            def _send(
+                self,
+                status: int,
+                content_type: str,
+                data: bytes | Iterator[bytes],
+                headers: Mapping[str, str] | None = None,
+            ) -> None:
                 self.send_response(status)
                 self.send_header("Content-Type", content_type)
-                if status >= 400:
+                if headers is not None:
+                    for name, value in headers.items():  # a relayed upstream reply
+                        self.send_header(name, value)
+                elif status >= 400:
                     # The OpenAI SDK retries 5xx responses unless told not to; a
                     # retry would repeat a replay miss or skip a scripted reply.
                     self.send_header("x-should-retry", "false")
@@ -340,20 +353,32 @@ class Endpoint:
         """
         assert self.upstream is not None
         reply = self.upstream.forward(raw_path or request.path, raw, headers)
+        saving = target is not None and block is not None
         received: list[bytes] = []
         complete = False
 
         def relay() -> Iterator[bytes]:
             nonlocal complete
             for chunk in reply.chunks:
-                received.append(chunk)
+                if saving:
+                    received.append(chunk)
                 yield chunk
             complete = True
 
         def finish() -> None:
-            close = getattr(reply.chunks, "close", None)
-            if close is not None:
-                close()  # release the upstream connection even if the client went away
+            try:
+                save()
+            except Exception as error:  # a failed save must fail the block, not vanish
+                self._record(
+                    block,
+                    ModelEndpointError(
+                        f"Saving the reply to {request.path} failed: "
+                        f"{type(error).__name__}: {error}"
+                    ),
+                )
+
+        def save() -> None:
+            reply.close()  # release the upstream connection even if the client went away
             if not 200 <= reply.status < 300:
                 if self.mode == "record":
                     # The error body can echo part of the key: report the status only.
@@ -365,8 +390,9 @@ class Endpoint:
                         ),
                     )
                 return
-            if target is None or block is None:
+            if not saving:
                 return
+            assert target is not None and block is not None
             if not complete:
                 self._record(
                     block,
@@ -383,7 +409,11 @@ class Endpoint:
             except OSError as error:
                 self._record(block, ModelEndpointError(f"Can't save {target.path}: {error}"))
 
-        return _Response(reply.status, reply.content_type, relay(), finish)
+        relayed = dict(reply.headers)
+        if self.mode == "record" and reply.status >= 400:
+            # A retry would be planned as the next call and saved out of order.
+            relayed["x-should-retry"] = "false"
+        return _Response(reply.status, reply.content_type, relay(), finish, relayed)
 
     def _record_egress(self, error: EgressBlockedError) -> None:
         """Called by the egress guard, on the application's thread."""
@@ -458,10 +488,10 @@ class Endpoint:
             folder = self.response_folder()
             if folder is not None:
                 state = block._lookup if block is not None else LookupState()
-                try:
-                    return folder.find(request, block.case if block else None, state)
-                except ReplayMissError:
-                    pass  # not in the folder: the real API answers, and nothing is saved
+                found = folder.find_or_none(request, block.case if block else None, state)
+                if found is not None:
+                    return found
+                # Not in the folder: the real API answers, and nothing is saved.
             return self._forward(block, request, raw, headers or {}, raw_path=raw_path)
         if self.mode == "record":
             recorder = self._recorder
@@ -552,10 +582,15 @@ class EndpointCase:
 
 
 def _chain(*callbacks: Callable[[], None] | None) -> Callable[[], None]:
-    def run() -> None:
-        for callback in callbacks:
-            if callback is not None:
-                callback()
+    """Run every callback, even when an earlier one raises (the block's count must drop)."""
+    present = [callback for callback in callbacks if callback is not None]
+
+    def run(index: int = 0) -> None:
+        if index < len(present):
+            try:
+                present[index]()
+            finally:
+                run(index + 1)
 
     return run
 

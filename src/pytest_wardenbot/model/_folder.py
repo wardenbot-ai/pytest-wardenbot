@@ -328,22 +328,31 @@ class ResponseFolder:
     ) -> Reply:
         """The reply for ``request``, or raise ``ReplayMissError`` explaining the miss."""
         tried: list[str] = []
+        found, digest, entries = self._lookup(request, case, state, tried)
+        if found is not None:
+            return found
+        report = self.miss_report(request, case, digest, tried, test_id, entries)
+        raise ReplayMissError(report)
+
+    def find_or_none(
+        self, request: CapturedRequest, case: str | None, state: LookupState
+    ) -> Reply | None:
+        """Like ``find``, but None on a miss, without building the report (override)."""
+        return self._lookup(request, case, state, [])[0]
+
+    def _lookup(
+        self, request: CapturedRequest, case: str | None, state: LookupState, tried: list[str]
+    ) -> tuple[Reply | None, str, tuple[JsonlEntry, ...]]:
         digest = self.hasher.digest(request.method, request.path, request.body)
         rule = self.match_rule(request, case, digest, tried)
         if rule is not None:
-            return self.serve_rule(rule, case, state)
+            return self.serve_rule(rule, case, state), digest, ()
         call = state.next_hash_call(digest)
         entries = self.jsonl_entries()  # walk the folder once per request
-
         found = self._find_hashed(digest, call, case, tried, entries)
-        if found is not None:
-            return found
-        if case is not None:
+        if found is None and case is not None:
             found = self._find_case_folder(case, state, tried)
-            if found is not None:
-                return found
-        report = self.miss_report(request, case, digest, tried, test_id, entries)
-        raise ReplayMissError(report)
+        return found, digest, entries
 
     def _find_hashed(
         self,
@@ -363,6 +372,18 @@ class ResponseFolder:
                 chosen = next((p for p in files if _call_number(p.stem) == call), files[-1])
                 return self.load_reply(chosen, case)
             tried.append(f"recorded/{folder.name}/{digest}-{call}.json (or .sse): not found")
+        return self.find_jsonl(digest, call, case, tried, entries)
+
+    def find_jsonl(
+        self,
+        digest: str,
+        call: int,
+        case: str | None,
+        tried: list[str],
+        entries: tuple[JsonlEntry, ...],
+    ) -> Reply | None:
+        """The ``.jsonl`` entry for this hash and call: the case's own first, then unscoped."""
+        if case is not None:
             scoped = [e for e in entries if e.case == case and e.digest == digest]
             if scoped:
                 entry = scoped[min(call, len(scoped)) - 1]

@@ -242,7 +242,7 @@ def test_concurrent_record_processes_agree_on_one_seed(tmp_path: Path) -> None:
     text = (folder / "wardenbot-responses.toml").read_text()
     assert len(seeds) == 1 and text.count("marker_seed") == 1
     assert tomllib.loads(text)["marker_seed"] == seeds.pop()
-    assert not (folder / ".wardenbot-seed.lock").exists()
+    assert not (folder / ".wardenbot.lock").exists()
 
 
 def test_a_written_seed_is_seen_at_once(tmp_path: Path) -> None:

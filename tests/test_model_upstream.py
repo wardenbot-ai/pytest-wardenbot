@@ -44,6 +44,8 @@ class FakeUpstream:
     def __init__(self) -> None:
         self.requests: list[dict[str, Any]] = []
         self.status = 200
+        self.raw_reply: tuple[str, bytes] | None = None  # (content type, body) to send as is
+        self.counter = 0
         outer = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -56,7 +58,11 @@ class FakeUpstream:
                     data = json.dumps({"error": {"message": f"bad key {REAL_KEY[:8]}..."}})
                     self._send(outer.status, "application/json", data.encode())
                     return
-                text = outer.reply_text(body)
+                if outer.raw_reply is not None:
+                    self._send(200, *outer.raw_reply)
+                    return
+                outer.counter += 1
+                text = outer.reply_text(body, outer.counter)
                 if body.get("stream"):
                     self._send(200, "text/event-stream", outer.stream(self.path, text))
                 elif self.path.split("?")[0].endswith("/responses"):
@@ -100,6 +106,9 @@ class FakeUpstream:
                 self.send_response(status)
                 self.send_header("Content-Type", content_type)
                 self.send_header("Set-Cookie", "session=upstream-cookie")
+                self.send_header("x-request-id", "req_upstream")
+                if status == 429:
+                    self.send_header("retry-after", "7")
                 self.end_headers()
                 self.wfile.write(data)
 
@@ -111,10 +120,12 @@ class FakeUpstream:
         self.url = f"http://127.0.0.1:{self.server.server_address[1]}/v1"
 
     @staticmethod
-    def reply_text(body: dict[str, Any]) -> str:
+    def reply_text(body: dict[str, Any], number: int = 0) -> str:
         """Echo the planted marker, as a model that followed the injection would."""
         found = MARKER.search(json.dumps(body))
-        return f"Relevant. {found[0]}" if found else "Upstream reply."
+        if found:
+            return f"Relevant. {found[0]}"
+        return f"Upstream reply {number}." if body.get("numbered") else "Upstream reply."
 
     @staticmethod
     def stream(path: str, text: str) -> bytes:
@@ -331,8 +342,9 @@ def test_record_writes_where_replay_reads(folder: Path, upstream: FakeUpstream) 
     assert files["rules/hostile.json"] == '{"crafted": true}'  # never overwritten
     assert files["cases/folder_case/1.txt"] == "Upstream reply.\n"
     assert json.loads(files["cases/folder_case/2.json"])["object"] == "response"
-    third = [name for name in files if name.startswith("recorded/folder_case/")]
-    assert len(third) == 2  # the third call goes to recorded/, with its sidecar
+    # The third call adds a file to the case folder, where replay will look for it.
+    assert json.loads(files["cases/folder_case/3.json"])["object"] == "response"
+    assert not any(name.startswith("recorded/folder_case/") for name in files)
     assert json.loads(files["rules/stream.json"])["object"] == "response"  # stream → body
 
 
@@ -612,3 +624,269 @@ def test_replay_miss_is_not_forwarded_in_replay(folder: Path, upstream: FakeUpst
     finally:
         uninstall()
     assert upstream.requests == []
+
+
+def test_replay_serves_recorded_calls_in_order_past_the_case_folder(
+    folder: Path, upstream: FakeUpstream
+) -> None:
+    (folder / "cases" / "order").mkdir(parents=True)
+    for name in ("1.json", "2.json"):
+        (folder / "cases" / "order" / name).write_text("{}")
+    body = {"input": "same question", "numbered": True}
+    endpoint = start("record", folder)
+    try:
+        with model_endpoint("order"):
+            recorded = [assistant_text(post(endpoint, RESPONSES, body).json()) for _ in range(3)]
+    finally:
+        uninstall()
+    assert recorded == ["Upstream reply 1.", "Upstream reply 2.", "Upstream reply 3."]
+    replay = start("replay", folder)
+    try:
+        with model_endpoint("order"):
+            replayed = [assistant_text(post(replay, RESPONSES, body).json()) for _ in range(3)]
+    finally:
+        uninstall()
+    assert replayed == recorded
+
+
+def test_new_case_files_sort_after_named_ones(folder: Path, upstream: FakeUpstream) -> None:
+    (folder / "cases" / "named").mkdir(parents=True)
+    (folder / "cases" / "named" / "attack.json").write_text("{}")
+    endpoint = start("record", folder)
+    try:
+        with model_endpoint("named"):
+            for _ in range(2):
+                post(endpoint, RESPONSES, {"input": "q"})
+    finally:
+        uninstall()
+    assert sorted(path.name for path in (folder / "cases" / "named").iterdir()) == [
+        "attack.json",
+        "attack~2.json",
+    ]
+
+
+def test_a_logged_entry_answers_in_record_as_it_will_in_replay(
+    folder: Path, upstream: FakeUpstream
+) -> None:
+    body = {"input": "logged question"}
+    (folder / "cases" / "logged").mkdir(parents=True)
+    (folder / "cases" / "logged" / "1.json").write_text("{}")
+    line = {"request": body, "response": "from the log", "case": "logged"}
+    (folder / "exports.jsonl").write_text(json.dumps(line))
+    endpoint = start("record", folder)
+    try:
+        with model_endpoint("logged"):
+            assert post(endpoint, RESPONSES, body).json()["output_text"] == "from the log"
+    finally:
+        uninstall()
+    assert upstream.requests == []
+    assert (folder / "cases" / "logged" / "1.json").read_text() == "{}"
+
+
+def test_format_mismatches_are_refused_before_the_upstream_is_called(
+    folder: Path, upstream: FakeUpstream
+) -> None:
+    (folder / "cases" / "streamed").mkdir(parents=True)
+    (folder / "cases" / "streamed" / "1.sse").write_text("")
+    endpoint = start("record", folder)
+    try:
+        with pytest.raises(ModelEndpointError, match="didn't stream"), model_endpoint("streamed"):
+            post(endpoint, RESPONSES, {"input": "x"})
+    finally:
+        uninstall()
+    assert upstream.requests == []
+
+
+def test_a_tool_call_cant_be_recorded_into_a_txt_file(folder: Path, upstream: FakeUpstream) -> None:
+    (folder / "cases" / "tools").mkdir(parents=True)
+    (folder / "cases" / "tools" / "1.txt").write_text("old\n")
+    reply = {
+        "id": "chatcmpl-up",
+        "object": "chat.completion",
+        "choices": [
+            {
+                "index": 0,
+                "finish_reason": "tool_calls",
+                "message": {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": "c1",
+                            "type": "function",
+                            "function": {"name": "f", "arguments": "{}"},
+                        }
+                    ],
+                },
+            }
+        ],
+    }
+    upstream.raw_reply = ("application/json", json.dumps(reply).encode())
+    endpoint = start("record", folder)
+    try:
+        with pytest.raises(ModelEndpointError, match="tool_calls"), model_endpoint("tools"):
+            post(endpoint, CHAT, {"messages": [{"role": "user", "content": "x"}]})
+    finally:
+        uninstall()
+    assert (folder / "cases" / "tools" / "1.txt").read_text() == "old\n"
+
+
+def test_any_failed_save_fails_the_block_without_waiting(
+    folder: Path, upstream: FakeUpstream
+) -> None:
+    import time
+
+    upstream.raw_reply = ("application/json", b"\xff\xfe not utf-8")
+    endpoint = start("record", folder)
+    try:
+        started = time.monotonic()
+        with pytest.raises(ModelEndpointError, match="not JSON"), model_endpoint("broken"):
+            post(endpoint, RESPONSES, {"input": "x"})
+        assert time.monotonic() - started < 3  # the in-flight count dropped
+    finally:
+        uninstall()
+
+
+def test_recordings_from_other_workers_of_the_run_are_kept(
+    folder: Path, upstream: FakeUpstream, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import time
+
+    recorded = folder / "recorded" / "shared"
+    recorded.mkdir(parents=True)
+    stale = recorded / "0000000000000000-1.json"
+    stale.write_text("{}")
+    old = time.time_ns() - 10**10
+    os.utime(stale, ns=(old, old))
+    started = time.time_ns() - 10**9
+    other_worker = recorded / "1111111111111111-1.json"
+    other_worker.write_text("{}")  # written after the run started, by another worker
+    monkeypatch.setenv("WARDENBOT_RECORD_STARTED_NS", str(started))
+    endpoint = start("record", folder)
+    try:
+        with model_endpoint("shared"):
+            post(endpoint, RESPONSES, {"input": "mine"})
+    finally:
+        uninstall()
+    assert not stale.exists()
+    assert other_worker.exists()
+
+
+@pytest.mark.parametrize(
+    ("mode", "retry"), [("live", None), ("override", None), ("record", "false")]
+)
+def test_upstream_errors_keep_their_retry_headers(
+    folder: Path, upstream: FakeUpstream, mode: str, retry: str | None
+) -> None:
+    upstream.status = 429
+    endpoint = start(mode, folder)
+    try:
+        expected = pytest.raises(ModelEndpointError) if mode == "record" else _no_error()
+        with expected, model_endpoint(f"retry_{mode}"):
+            response = post(endpoint, RESPONSES, {"input": "x"})
+    finally:
+        uninstall()
+    assert response.status_code == 429
+    assert response.headers["retry-after"] == "7"
+    assert response.headers["x-request-id"] == "req_upstream"
+    assert response.headers.get("x-should-retry") == retry
+    assert "set-cookie" not in response.headers
+
+
+def test_override_misses_skip_the_miss_report(
+    folder: Path, upstream: FakeUpstream, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from pytest_wardenbot.model._folder import ResponseFolder
+
+    def refuse(*args: Any, **kwargs: Any) -> str:
+        raise AssertionError("an override miss built a miss report")
+
+    monkeypatch.setattr(ResponseFolder, "miss_report", refuse)
+    endpoint = start("override", folder)
+    try:
+        with model_endpoint("miss"):
+            assert post(endpoint, RESPONSES, {"input": "x"}).status_code == 200
+    finally:
+        uninstall()
+
+
+def test_body_from_stream_keeps_choices_apart_and_skips_empty_envelopes() -> None:
+    chunks = [
+        {"id": "", "model": "", "created": 0, "choices": [], "prompt_filter_results": []},
+        {
+            "id": "chatcmpl-1",
+            "model": "gpt-x",
+            "created": 5,
+            "choices": [
+                {"index": 0, "delta": {"content": "A1"}},
+                {"index": 1, "delta": {"content": "B1"}},
+            ],
+        },
+        {
+            "id": "chatcmpl-1",
+            "choices": [
+                {"index": 1, "delta": {"content": "B2"}, "finish_reason": "length"},
+                {"index": 0, "delta": {"content": "A2"}, "finish_reason": "stop"},
+                "not a choice",
+                {
+                    "index": 0,
+                    "delta": {"tool_calls": [{"index": None, "id": "t", "function": "x"}]},
+                },
+            ],
+        },
+    ]
+    raw = b"".join(b"data: " + json.dumps(c).encode() + b"\n\n" for c in chunks)
+    body = body_from_stream(raw, "chat")
+    assert (body["id"], body["model"], body["created"]) == ("chatcmpl-1", "gpt-x", 5)
+    first, second = body["choices"]
+    assert (first["index"], first["message"]["content"], first["finish_reason"]) == (
+        0,
+        "A1A2",
+        "stop",
+    )
+    assert first["message"]["tool_calls"][0]["id"] == "t"
+    assert (second["index"], second["message"]["content"], second["finish_reason"]) == (
+        1,
+        "B1B2",
+        "length",
+    )
+
+
+def test_an_unread_upstream_reply_is_still_closed(folder: Path) -> None:
+    from pytest_wardenbot.model._capture import CapturedRequest
+    from pytest_wardenbot.model._upstream import UpstreamReply
+
+    closed: list[bool] = []
+
+    def chunks() -> Iterator[bytes]:
+        yield b"never read"
+
+    reply = UpstreamReply(200, "application/json", chunks(), close=lambda: closed.append(True))
+
+    class Fake:
+        host = "upstream.invalid"
+
+        def forward(self, *args: Any) -> UpstreamReply:
+            return reply
+
+        def close(self) -> None:
+            pass
+
+    endpoint = start("live", folder)
+    try:
+        endpoint.upstream = Fake()  # type: ignore[assignment]
+        request = CapturedRequest.from_body("POST", RESPONSES, {"input": "x"})
+        response = endpoint._forward(None, request, b"{}", {})
+        assert response.done is not None
+        response.done()  # the client went away before the body was sent
+    finally:
+        uninstall()
+    assert closed == [True]
+
+
+class _no_error:
+    def __enter__(self) -> None:
+        return None
+
+    def __exit__(self, *args: Any) -> None:
+        return None

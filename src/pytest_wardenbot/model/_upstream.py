@@ -11,8 +11,8 @@ from __future__ import annotations
 
 import json
 import os
-from collections.abc import Iterator, Mapping
-from dataclasses import dataclass
+from collections.abc import Callable, Iterator, Mapping
+from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -31,16 +31,32 @@ _FORWARDED_HEADERS = (
     "openai-organization",
     "openai-project",
 )
+# Reply headers passed back to the client in live and override, so the SDK's
+# retry logic and request ids behave as they would against the real API.
+_RELAYED_HEADERS = (
+    "retry-after",
+    "retry-after-ms",
+    "x-should-retry",
+    "x-request-id",
+    "openai-processing-ms",
+    "openai-version",
+)
 _TIMEOUT = httpx.Timeout(600.0, connect=30.0)
 
 
 @dataclass
 class UpstreamReply:
-    """A reply from the upstream: status, content type, and the body as it arrives."""
+    """A reply from the upstream: status, content type, and the body as it arrives.
+
+    ``close`` releases the connection whether or not ``chunks`` was ever started
+    (closing a generator that never ran doesn't run its ``finally``).
+    """
 
     status: int
     content_type: str
     chunks: Iterator[bytes]
+    headers: dict[str, str] = field(default_factory=dict)
+    close: Callable[[], None] = lambda: None
 
 
 class Upstream:
@@ -115,6 +131,12 @@ class Upstream:
             status=response.status_code,
             content_type=response.headers.get("content-type", "application/json"),
             chunks=chunks(),
+            headers={
+                name: value
+                for name, value in response.headers.items()
+                if name.lower() in _RELAYED_HEADERS or name.lower().startswith("x-ratelimit-")
+            },
+            close=response.close,
         )
 
     def close(self) -> None:
@@ -146,44 +168,71 @@ def body_from_stream(raw: bytes, api: str) -> dict[str, Any]:
                 if isinstance(response, Mapping):
                     return dict(response)
         raise ModelEndpointError("The upstream stream ended without a response.completed event.")
-    content: list[str] = []
-    refusal: list[str] = []
-    calls: dict[int, dict[str, Any]] = {}
-    envelope: dict[str, Any] = {}
-    finish_reason = "stop"
+    choices: dict[int, _Choice] = {}
+    envelope: dict[str, Any] = {"id": None, "created": None, "model": None}
     usage = None
     for chunk in sse_data(raw):
         if not isinstance(chunk, Mapping):
             continue
-        envelope = envelope or {key: chunk.get(key) for key in ("id", "created", "model")}
+        for key in envelope:  # Azure's first chunk can carry an empty id and model
+            envelope[key] = envelope[key] or chunk.get(key) or None
         usage = chunk.get("usage") or usage
         for choice in chunk.get("choices") or ():
-            delta = choice.get("delta") or {}
-            content.append(delta.get("content") or "")
-            refusal.append(delta.get("refusal") or "")
-            for call in delta.get("tool_calls") or ():
-                slot = calls.setdefault(
-                    call.get("index", 0),
-                    {"id": None, "type": "function", "function": {"name": "", "arguments": ""}},
-                )
-                slot["id"] = call.get("id") or slot["id"]
-                function = call.get("function") or {}
-                slot["function"]["name"] += function.get("name") or ""
-                slot["function"]["arguments"] += function.get("arguments") or ""
-            finish_reason = choice.get("finish_reason") or finish_reason
-    message: dict[str, Any] = {
-        "role": "assistant",
-        "content": "".join(content) or None,
-        "refusal": "".join(refusal) or None,
-    }
-    if calls:
-        message["tool_calls"] = [calls[index] for index in sorted(calls)]
+            if isinstance(choice, Mapping):
+                choices.setdefault(_index(choice.get("index")), _Choice()).add(choice)
     return {
         **envelope,
         "object": "chat.completion",
-        "choices": [{"index": 0, "finish_reason": finish_reason, "message": message}],
+        "choices": [choices[index].body(index) for index in sorted(choices)] or [_Choice().body(0)],
         "usage": usage,
     }
+
+
+def _index(value: Any) -> int:
+    return value if isinstance(value, int) and not isinstance(value, bool) else 0
+
+
+def _text(value: Any) -> str:
+    return value if isinstance(value, str) else ""
+
+
+@dataclass
+class _Choice:
+    """One streamed Chat choice, assembled from its deltas."""
+
+    content: list[str] = field(default_factory=list)
+    refusal: list[str] = field(default_factory=list)
+    calls: dict[int, dict[str, Any]] = field(default_factory=dict)
+    finish_reason: str = "stop"
+
+    def add(self, choice: Mapping[str, Any]) -> None:
+        delta = choice.get("delta")
+        delta = delta if isinstance(delta, Mapping) else {}
+        self.content.append(_text(delta.get("content")))
+        self.refusal.append(_text(delta.get("refusal")))
+        for call in delta.get("tool_calls") or ():
+            if not isinstance(call, Mapping):
+                continue
+            slot = self.calls.setdefault(
+                _index(call.get("index")),
+                {"id": None, "type": "function", "function": {"name": "", "arguments": ""}},
+            )
+            slot["id"] = call.get("id") or slot["id"]
+            function = call.get("function")
+            function = function if isinstance(function, Mapping) else {}
+            slot["function"]["name"] += _text(function.get("name"))
+            slot["function"]["arguments"] += _text(function.get("arguments"))
+        self.finish_reason = _text(choice.get("finish_reason")) or self.finish_reason
+
+    def body(self, index: int) -> dict[str, Any]:
+        message: dict[str, Any] = {
+            "role": "assistant",
+            "content": "".join(self.content) or None,
+            "refusal": "".join(self.refusal) or None,
+        }
+        if self.calls:
+            message["tool_calls"] = [self.calls[number] for number in sorted(self.calls)]
+        return {"index": index, "finish_reason": self.finish_reason, "message": message}
 
 
 def assistant_text(body: Mapping[str, Any]) -> str:
