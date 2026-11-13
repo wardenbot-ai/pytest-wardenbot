@@ -132,7 +132,9 @@ def test_the_recorder_refuses_a_reply_that_echoes_a_key(
 ) -> None:
     upstream = FakeUpstream()
     leaked = CREDENTIALS["an OpenAI API key"]
-    monkeypatch.setattr(FakeUpstream, "reply_text", staticmethod(lambda body: f"Key: {leaked}"))
+    monkeypatch.setattr(
+        FakeUpstream, "reply_text", staticmethod(lambda body, number=0: f"Key: {leaked}")
+    )
     monkeypatch.setenv("OPENAI_BASE_URL", upstream.url)
     monkeypatch.setenv("OPENAI_API_KEY", "zq9k-testvalue-1234567890")  # pragma: allowlist secret
     try:
