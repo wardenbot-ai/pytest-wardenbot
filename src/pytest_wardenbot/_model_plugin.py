@@ -9,12 +9,13 @@ at import time already see ``OPENAI_BASE_URL``. It uses only public pytest API.
 from __future__ import annotations
 
 from collections.abc import Iterator
+from dataclasses import dataclass, field
 from typing import Any
 
 import pytest
 
-from pytest_wardenbot._errors import WardenBotConfigError
-from pytest_wardenbot.model import EndpointCase, ModelEndpointError, install, model_endpoint
+from pytest_wardenbot._errors import WardenBotError
+from pytest_wardenbot.model import Endpoint, EndpointCase, install, model_endpoint, uninstall
 from pytest_wardenbot.model._config import MODES, resolve_settings
 from pytest_wardenbot.model._endpoint import current_endpoint
 
@@ -22,6 +23,29 @@ MARKER = (
     "wardenbot_model(script=None, case=None): run the test inside a model_endpoint block "
     "through the `wardenbot_model` fixture, with these arguments"
 )
+WORKER_OUTPUT_KEY = "wardenbot_model"
+
+
+@dataclass
+class _Session:
+    """What this pytest session knows about the model endpoint."""
+
+    installed: Endpoint | None = None
+    """The endpoint this session's hook installed, which it uninstalls at the end."""
+    baseline_errors: int = 0
+    baseline_requests: int = 0
+    worker_requests: int = 0
+    worker_errors: list[str] = field(default_factory=list)
+
+
+_SESSION = pytest.StashKey[_Session]()
+
+
+def _session(config: pytest.Config) -> _Session:
+    state = config.stash.get(_SESSION, None)
+    if state is None:
+        state = config.stash[_SESSION] = _Session()
+    return state
 
 
 def add_options(group: pytest.OptionGroup) -> None:
@@ -50,39 +74,101 @@ def add_options(group: pytest.OptionGroup) -> None:
 def load_initial_conftests(early_config: pytest.Config) -> None:
     """Install the endpoint before conftest.py files and pytest-django's setup run."""
     namespace = early_config.known_args_namespace
+    if getattr(namespace, "help", False) or getattr(namespace, "version", False):
+        return  # keep --help and --version working with a broken config
     cli_mode = getattr(namespace, "wardenbot_model_mode", None)
     cli_responses_dir = getattr(namespace, "wardenbot_responses_dir", None)
     try:
         settings = resolve_settings(
             cli_mode=cli_mode, cli_responses_dir=cli_responses_dir, start=early_config.rootpath
         )
-        if settings.mode != "off":
-            install(
-                _cli_mode=cli_mode,
-                _cli_responses_dir=cli_responses_dir,
-                _start=early_config.rootpath,
-                _explicit=False,
-            )
-    except WardenBotConfigError as error:
+        if settings.mode == "off":
+            return
+        before = current_endpoint()
+        endpoint = install(
+            _cli_mode=cli_mode,
+            _cli_responses_dir=cli_responses_dir,
+            _start=early_config.rootpath,
+            _explicit=False,
+            _settings=settings,
+        )
+    except WardenBotError as error:
         raise pytest.UsageError(str(error)) from None
+    if endpoint is not before:
+        _session(early_config).installed = endpoint
 
 
 def configure(config: pytest.Config) -> None:
     config.addinivalue_line("markers", MARKER)
 
 
-def terminal_summary(terminalreporter: Any) -> None:
+def session_start(session: pytest.Session) -> None:
+    endpoint = current_endpoint()
+    if endpoint is not None and endpoint.enabled:
+        state = _session(session.config)
+        state.baseline_errors = endpoint.error_count
+        state.baseline_requests = endpoint.request_count
+
+
+def _new_errors(config: pytest.Config) -> list[str]:
     endpoint = current_endpoint()
     if endpoint is None or not endpoint.enabled:
+        return []
+    count = endpoint.error_count - _session(config).baseline_errors
+    return [str(error) for error in endpoint.errors[-count:]] if count > 0 else []
+
+
+def _new_requests(config: pytest.Config) -> int:
+    endpoint = current_endpoint()
+    if endpoint is None or not endpoint.enabled:
+        return 0
+    return endpoint.request_count - _session(config).baseline_requests
+
+
+def session_finish(session: pytest.Session) -> None:
+    """Fail the run on endpoint errors no test could raise, and report them from workers."""
+    config = session.config
+    errors = _new_errors(config)
+    worker_output = getattr(config, "workeroutput", None)
+    if worker_output is not None:  # a pytest-xdist worker reports to the controller
+        worker_output[WORKER_OUTPUT_KEY] = {"requests": _new_requests(config), "errors": errors}
+    errors += _session(config).worker_errors
+    if errors and session.exitstatus == pytest.ExitCode.OK:
+        session.exitstatus = pytest.ExitCode.TESTS_FAILED
+
+
+def testnode_down(node: Any) -> None:
+    """Collect a pytest-xdist worker's request count and errors on the controller."""
+    report = getattr(node, "workeroutput", {}).get(WORKER_OUTPUT_KEY)
+    if not report:
         return
-    folder = endpoint.responses_dir
-    parts = [f"mode={endpoint.mode}", f"{endpoint.request_count} requests"]
-    if folder is not None:
-        parts.insert(1, f"folder={folder}")
+    state = _session(node.config)
+    state.worker_requests += int(report.get("requests", 0))
+    state.worker_errors += [str(error) for error in report.get("errors", ())]
+
+
+def terminal_summary(terminalreporter: Any) -> None:
+    config = terminalreporter.config
+    endpoint = current_endpoint()
+    state = _session(config)
+    if (endpoint is None or not endpoint.enabled) and not state.worker_requests:
+        return
+    parts = [f"{_new_requests(config) + state.worker_requests} requests"]
+    if endpoint is not None and endpoint.enabled:
+        parts.insert(0, f"mode={endpoint.mode}")
+        if endpoint.responses_dir is not None:
+            parts.insert(1, f"folder={endpoint.responses_dir}")
     terminalreporter.write_sep("-", "wardenbot model endpoint")
     terminalreporter.write_line(", ".join(parts))
-    for error in endpoint.errors:
-        terminalreporter.write_line(f"outside any model_endpoint block: {error}", red=True)
+    for error in _new_errors(config) + state.worker_errors:
+        terminalreporter.write_line(f"model endpoint error: {error}", red=True)
+
+
+def unconfigure(config: pytest.Config) -> None:
+    """Uninstall the endpoint this session installed, so a later run starts clean."""
+    installed = _session(config).installed
+    if installed is not None and current_endpoint() is installed:
+        uninstall()
 
 
 @pytest.fixture
@@ -97,13 +183,13 @@ def wardenbot_model(request: pytest.FixtureRequest) -> Iterator[EndpointCase]:
     fail the test at teardown even if the application swallowed them.
     """
     marker = request.node.get_closest_marker("wardenbot_model")
-    arguments: dict[str, Any] = dict(marker.kwargs) if marker is not None else {}
     if marker is not None and marker.args:
-        raise pytest.UsageError("@pytest.mark.wardenbot_model takes keyword arguments only.")
-    case = arguments.pop("case", None) or request.node.nodeid
+        pytest.fail("@pytest.mark.wardenbot_model takes keyword arguments only.", pytrace=False)
+    arguments: dict[str, Any] = dict(marker.kwargs) if marker is not None else {}
+    case = arguments.pop("case", request.node.nodeid)
     try:
         block = model_endpoint(case, **arguments)
-    except ModelEndpointError as error:
-        pytest.fail(str(error), pytrace=False)
+    except (WardenBotError, TypeError, ValueError) as error:
+        pytest.fail(f"wardenbot_model: {error}", pytrace=False)
     with block:
         yield block

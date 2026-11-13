@@ -9,6 +9,7 @@ from __future__ import annotations
 import ast
 import importlib.util
 import os
+import sys
 import textwrap
 from pathlib import Path
 
@@ -165,11 +166,26 @@ def test_marker_and_fixture(pytester: pytest.Pytester) -> None:
         @pytest.mark.wardenbot_model("positional")
         def test_positional_marker_arguments(wardenbot_model):
             pass
+
+        @pytest.mark.wardenbot_model(scirpt="typo")
+        def test_misspelled_argument(wardenbot_model):
+            pass
+
+        @pytest.mark.wardenbot_model(case="", script="x")
+        def test_empty_case(wardenbot_model):
+            pass
         """
     )
     result = pytester.runpytest_subprocess(*SCRIPTED, "--strict-markers")
-    result.assert_outcomes(passed=2, errors=1)
-    result.stdout.fnmatch_lines(["*takes keyword arguments only*"])
+    result.assert_outcomes(passed=2, errors=3)
+    result.stdout.fnmatch_lines_random(
+        [
+            "*takes keyword arguments only*",
+            "*wardenbot_model: *unexpected keyword argument 'scirpt'*",
+            "*wardenbot_model: A wardenbot model case name cannot be empty*",
+        ]
+    )
+    assert "Traceback" not in result.stdout.str()
 
 
 def test_endpoint_errors_fail_at_teardown(pytester: pytest.Pytester) -> None:
@@ -212,9 +228,9 @@ def test_requests_outside_blocks_are_reported(pytester: pytest.Pytester) -> None
     )
     result = pytester.runpytest_subprocess(*SCRIPTED)
     result.assert_outcomes(passed=1)
-    result.stdout.fnmatch_lines(
-        ["outside any model_endpoint block: *every case must pass script=*"]
-    )
+    # No test could raise it, so the run itself fails.
+    assert result.ret == pytest.ExitCode.TESTS_FAILED
+    result.stdout.fnmatch_lines(["model endpoint error: *every case must pass script=*"])
 
 
 def test_config_errors_are_usage_errors(pytester: pytest.Pytester) -> None:
@@ -239,27 +255,47 @@ def test_upstream_modes_refuse_ci(
 
 @pytest.mark.skipif(not HAS_XDIST, reason="needs pytest-xdist")
 def test_each_xdist_worker_gets_its_own_endpoint(pytester: pytest.Pytester) -> None:
-    pytester.makepyfile(
+    out = Path(pytester.path)
+    pytester.makeconftest(
+        f"""
+        import os
+        from pathlib import Path
+
+        def pytest_configure(config):
+            if not hasattr(config, "workerinput"):  # the controller
+                Path({str(out)!r}, "controller").write_text(os.environ["WARDENBOT_ENDPOINT"])
         """
-        import os, pytest
+    )
+    pytester.makepyfile(
+        f"""
+        import os, httpx, pytest
+        from pathlib import Path
+        from pytest_wardenbot.model import model_endpoint
 
         @pytest.mark.parametrize("n", range(4))
-        def test_report(n, tmp_path_factory):
-            out = tmp_path_factory.getbasetemp().parent.parent / f"endpoint-{os.getpid()}"
-            out.write_text(os.environ["WARDENBOT_ENDPOINT"])
+        def test_report(n):
+            endpoint = os.environ["WARDENBOT_ENDPOINT"]
+            Path({str(out)!r}, f"worker-{{os.getpid()}}").write_text(endpoint)
+            with model_endpoint(script="x"):
+                httpx.post(os.environ["OPENAI_BASE_URL"] + "/responses", json={{"input": "x"}})
+
+        def test_stray():
+            httpx.post(os.environ["OPENAI_BASE_URL"] + "/responses", json={{"input": "x"}})
         """
     )
     result = pytester.runpytest_subprocess(*SCRIPTED, "-n", "2")
-    result.assert_outcomes(passed=4)
-    reports = {}
-    for path in Path(pytester.path).rglob("endpoint-*"):
-        reports[path.name] = path.read_text()
-    if len(reports) < 2:
+    result.assert_outcomes(passed=5)
+    # The workers' requests and stray errors reach the controller's summary and exit code.
+    result.stdout.fnmatch_lines(["mode=scripted, 5 requests", "model endpoint error: *"])
+    assert result.ret == pytest.ExitCode.TESTS_FAILED
+    controller = (out / "controller").read_text().split()
+    workers = {path.read_text() for path in out.glob("worker-*")}
+    if len(workers) < 2:
         pytest.skip("xdist ran every test on one worker")
-    pids = {value.split()[0] for value in reports.values()}
-    urls = {value.split()[1] for value in reports.values()}
-    assert len(pids) == len(reports) and len(urls) == len(reports)
-    assert str(os.getpid()) not in pids
+    pids = {value.split()[0] for value in workers}
+    urls = {value.split()[1] for value in workers}
+    assert len(pids) == len(workers) and len(urls) == len(workers)
+    assert controller[0] not in pids and controller[1] not in urls
 
 
 def test_model_plugin_uses_no_private_pytest_api() -> None:
@@ -272,6 +308,42 @@ def test_model_plugin_uses_no_private_pytest_api() -> None:
         and not node.attr.startswith("__")
     ]
     assert private == []
+
+
+def test_help_works_with_a_broken_config(pytester: pytest.Pytester) -> None:
+    pytester.makepyprojecttoml('[tool.wardenbot.model]\nmode = "sometimes"\n')
+    result = pytester.runpytest_subprocess("--help")
+    assert result.ret == pytest.ExitCode.OK
+    assert "--wardenbot-model-mode" in result.stdout.str()
+
+
+def test_in_process_runs_uninstall_their_endpoint(pytester: pytest.Pytester) -> None:
+    from pytest_wardenbot.model._endpoint import current_endpoint
+
+    pytester.makepyfile("def test_x():\n    pass\n")
+    before = os.environ.get("OPENAI_BASE_URL")
+    assert current_endpoint() is None
+    pytester.runpytest_inprocess(*SCRIPTED).assert_outcomes(passed=1)
+    assert current_endpoint() is None
+    assert os.environ.get("OPENAI_BASE_URL") == before
+    pytester.runpytest_inprocess("-p", "no:cacheprovider", "--wardenbot-model-mode=replay")
+    assert current_endpoint() is None
+
+
+def test_a_conflicting_cli_mode_is_a_usage_error(pytester: pytest.Pytester) -> None:
+    pytester.makepyfile(test_runner_target="def test_x():\n    pass\n")
+    script = pytester.makepyfile(
+        runner="""
+        import sys, pytest
+        from pytest_wardenbot.model import install
+        install(mode="scripted")
+        arguments = ["-p", "no:cacheprovider", "--wardenbot-model-mode=replay"]
+        sys.exit(int(pytest.main([*arguments, "test_runner_target.py"])))
+        """
+    )
+    result = pytester.run(sys.executable, str(script))
+    assert result.ret == pytest.ExitCode.USAGE_ERROR
+    result.stderr.fnmatch_lines(["*already installed in this process with mode='scripted'*"])
 
 
 def test_options_are_documented_in_help(pytester: pytest.Pytester) -> None:

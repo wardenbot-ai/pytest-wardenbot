@@ -329,6 +329,7 @@ def pytest_sessionstart(session: pytest.Session) -> None:
     Nested conftests retain their normal directory scope.
     Remove this shim when the minimum supported pytest includes that fix.
     """
+    _model_plugin.session_start(session)
     config = session.config
     if not config.getoption("pyargs") or not any(
         arg.split("::", 1)[0] == package or arg.split("::", 1)[0].startswith(package + ".")
@@ -434,10 +435,18 @@ def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo[Any]):
 
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     _agent_plugin.session_finish(session)
+    _model_plugin.session_finish(session)
+
+
+@pytest.hookimpl(optionalhook=True)
+def pytest_testnodedown(node: Any, error: Any) -> None:
+    """pytest-xdist: collect a worker's model endpoint report on the controller."""
+    _model_plugin.testnode_down(node)
 
 
 def pytest_unconfigure(config: pytest.Config) -> None:
     _agent_plugin.close_runner(config)
+    _model_plugin.unconfigure(config)
     _model_cases.pytest_unconfigured(config)
 
 
