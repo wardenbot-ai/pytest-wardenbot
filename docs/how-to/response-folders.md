@@ -73,6 +73,10 @@ pre-commit's `end-of-file-fixer`.
 Repeated identical requests replay in call order, and the last file repeats.
 Each `model_endpoint` block starts counting again, so a naive and a fixed
 implementation that share a case both get the first reply.
+Requests made outside any block (module-level code, `runserver` under
+`override`) are looked up afresh each time, so the result never depends on
+which tests ran first: they get the first matching file, and a `files` rule
+serves its first file.
 
 ### Manifest rules
 
