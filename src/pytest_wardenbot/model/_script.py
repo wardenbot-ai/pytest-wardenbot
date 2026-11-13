@@ -47,6 +47,10 @@ ReplyLike = Union[str, Mapping[str, Any], Reply, "Script", Callable[[CapturedReq
 def _from_value(value: Any, source: str) -> Reply:
     if isinstance(value, Reply):
         return value
+    if value is None:
+        raise ModelEndpointError(
+            f"{source} is None. A script callable must return the reply; did it forget to return?"
+        )
     if isinstance(value, str):
         return Reply(text=value, source=source)
     if isinstance(value, Mapping) and value.get("object") in _BODY_OBJECTS:
@@ -66,24 +70,32 @@ class Script:
     Each request the application sends gets the next reply, in order:
 
     - text (``str``) is the assistant's text;
-    - a JSON value (``dict``, ``list``) is structured output, unless it is a
-      complete Responses (``"object": "response"``) or Chat Completions
-      (``"object": "chat.completion"``) body, which is served as is;
-    - a callable receives the ``CapturedRequest`` and returns any of the above.
+    - a ``dict`` is structured output, unless it is a complete Responses
+      (``"object": "response"``) or Chat Completions (``"object": "chat.completion"``)
+      body, which is served as is;
+    - a callable receives the ``CapturedRequest`` and returns one reply.
 
-    Once the replies run out, the next request fails, unless ``then`` is
-    ``"repeat_last"``. A single callable answers every request. The same
-    ``Script`` can be reused: each block starts again from the first reply.
+    Passed to ``script=``, a list means several replies in order; serve a JSON
+    array with ``Script.json([...])``. Once the replies run out, the next request
+    fails, unless ``then`` is ``"repeat_last"``. A script made of a single
+    callable answers every request. The same ``Script`` can be reused: each
+    block starts again from the first reply.
     """
 
-    def __init__(self, *replies: ReplyLike, then: str = "fail") -> None:
-        if then not in _THEN:
-            raise ValueError(f"then must be one of {_THEN}, not {then!r}")
+    def __init__(self, *replies: ReplyLike, then: str | None = None) -> None:
         items: list[Any] = []
         for reply in replies:
             items.extend(reply._items if isinstance(reply, Script) else [reply])
         if not items:
-            raise ValueError("A Script needs at least one reply.")
+            raise ValueError(
+                "A Script needs at least one reply. To serve an empty JSON array, use "
+                "Script.json([])."
+            )
+        if then is None:
+            only_callable = len(items) == 1 and _is_callable(items[0])
+            then = "repeat_last" if only_callable else "fail"
+        if then not in _THEN:
+            raise ValueError(f"then must be one of {_THEN}, not {then!r}")
         self._items: tuple[Any, ...] = tuple(items)
         self.then = then
 
@@ -111,6 +123,7 @@ class Script:
             raise FileNotFoundError(f"No reply file at {resolved}")
         if resolved.suffix.lower() not in {".txt", ".json", ".sse"}:
             raise ValueError(f"{resolved}: reply files are .txt, .json or .sse")
+        # _File is private, so it doesn't belong in the public constructor's signature.
         script = cls.__new__(cls)
         script._items = (_File(resolved),)
         script.then = "fail"
@@ -128,8 +141,6 @@ class Script:
             return value
         if isinstance(value, Sequence) and not isinstance(value, str | bytes | bytearray):
             return cls(*value)
-        if callable(value) and not isinstance(value, Reply):
-            return cls(value, then="repeat_last")
         return cls(cast("ReplyLike", value))
 
     def cursor(self, case: str) -> ScriptCursor:
@@ -164,7 +175,7 @@ class ScriptCursor:
         source = f"reply {index + 1} of the script for case {self._case!r}"
         if isinstance(item, _File):
             return item.load()
-        if callable(item) and not isinstance(item, Reply):
+        if _is_callable(item):
             try:
                 value = item(request)
             except ModelEndpointError:
@@ -175,8 +186,18 @@ class ScriptCursor:
                     f"{type(error).__name__}: {error}"
                 ) from error
             if isinstance(value, Script):
+                if len(value._items) != 1 or _is_callable(value._items[0]):
+                    raise ModelEndpointError(
+                        f"The script callable for case {self._case!r} returned a Script with "
+                        f"{len(value._items)} replies. A callable answers one request, so "
+                        "return one reply (text, a dict, Script.text/json/file)."
+                    )
                 value = value._items[0]
                 if isinstance(value, _File):
                     return value.load()
-            return _from_value(value, source)
+            return _from_value(value, f"The value the script callable returned for {source}")
         return _from_value(item, source)
+
+
+def _is_callable(item: Any) -> bool:
+    return callable(item) and not isinstance(item, Reply | Script | _File)

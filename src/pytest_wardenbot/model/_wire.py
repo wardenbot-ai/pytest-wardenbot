@@ -235,6 +235,8 @@ def chat_events(body: Mapping[str, Any], *, include_usage: bool) -> bytes:
         chunk(index, {"role": "assistant", "content": ""})
         for delta in _chunks(message.get("content") or ""):
             chunk(index, {"content": delta})
+        for delta in _chunks(message.get("refusal") or ""):
+            chunk(index, {"refusal": delta})
         for number, call in enumerate(message.get("tool_calls") or ()):
             function = call.get("function") or {}
             head = {

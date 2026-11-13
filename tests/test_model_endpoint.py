@@ -61,7 +61,12 @@ def test_install_points_the_sdk_at_the_endpoint(monkeypatch: pytest.MonkeyPatch)
         assert os.environ["NO_PROXY"] == "internal.example,127.0.0.1,localhost"
         assert os.environ["no_proxy"] == "127.0.0.1,localhost"
         assert os.environ["WARDENBOT_ENDPOINT"] == f"{os.getpid()} {endpoint.url}"
-        assert install(mode="replay") is endpoint
+        assert install() is endpoint
+        assert install(mode="scripted") is endpoint
+        with pytest.raises(ModelEndpointError, match="already installed in this process"):
+            install(mode="replay")
+        with pytest.raises(ModelEndpointError, match="already installed in this process"):
+            install(responses_dir="elsewhere")
         assert current_endpoint() is endpoint
     finally:
         uninstall()
@@ -361,6 +366,24 @@ def test_replies_that_dont_fit_the_request(
         assert response.headers["x-should-retry"] == "false"
 
 
+def test_chat_refusal_streams(scripted_endpoint: Endpoint) -> None:
+    body = {
+        "object": "chat.completion",
+        "choices": [
+            {
+                "index": 0,
+                "finish_reason": "stop",
+                "message": {"role": "assistant", "content": None, "refusal": "I can't help."},
+            }
+        ],
+    }
+    with model_endpoint("refusal", script=body):
+        streamed = post(scripted_endpoint, CHAT, {"messages": [], "stream": True})
+    chunks = [data for _, data in sse_events(streamed.content)[:-1]]
+    refusal = "".join(c["choices"][0]["delta"].get("refusal", "") for c in chunks)
+    assert refusal == "I can't help."
+
+
 def test_raw_sse_is_served_byte_for_byte(scripted_endpoint: Endpoint) -> None:
     raw = b'event: response.created\ndata: {"type": "response.created"}\n\n'
     with model_endpoint("raw", script=Reply(sse=raw)):
@@ -412,7 +435,9 @@ def test_capture_role_view_for_responses(scripted_endpoint: Endpoint) -> None:
     assert first.model == "gpt-x" and first.stream is False
     assert second.roles == (("user", "plain string input"),)
     assert second.model is None
-    assert scripted_endpoint.requests[-2:] == [first, second]
+    # Requests inside a block belong to the block, not the endpoint-wide log.
+    assert scripted_endpoint.requests == []
+    assert scripted_endpoint.request_count == 2
 
 
 def test_capture_role_view_for_chat(scripted_endpoint: Endpoint) -> None:
@@ -477,6 +502,12 @@ def test_script_callable_sees_the_request(scripted_endpoint: Endpoint) -> None:
     assert json.loads(second.json()["choices"][0]["message"]["content"]) == {"echo": "B"}
 
 
+def test_a_script_of_one_callable_answers_every_request(scripted_endpoint: Endpoint) -> None:
+    with model_endpoint("router", script=Script(lambda request: request.text())):
+        texts = [post(scripted_endpoint, RESPONSES, {"input": t}).json() for t in "abc"]
+    assert [t["output_text"] for t in texts] == ["a", "b", "c"]
+
+
 def test_script_callable_errors_are_reported(scripted_endpoint: Endpoint) -> None:
     def broken(request: CapturedRequest) -> Any:
         raise KeyError("missing")
@@ -489,6 +520,16 @@ def test_script_callable_errors_are_reported(scripted_endpoint: Endpoint) -> Non
     with (
         pytest.raises(ModelEndpointError, match="returned object, which is not a reply"),
         model_endpoint("broken", script=lambda request: object()),
+    ):
+        post(scripted_endpoint, RESPONSES, {"input": "x"})
+    with (
+        pytest.raises(ModelEndpointError, match="did it forget to return"),
+        model_endpoint("broken", script=lambda request: None),
+    ):
+        post(scripted_endpoint, RESPONSES, {"input": "x"})
+    with (
+        pytest.raises(ModelEndpointError, match="returned a Script with 2 replies"),
+        model_endpoint("broken", script=lambda request: Script("a", "b")),
     ):
         post(scripted_endpoint, RESPONSES, {"input": "x"})
 
@@ -526,6 +567,8 @@ def test_script_validation(tmp_path: Path) -> None:
         Script.file(tmp_path / "reply.md")
     with pytest.raises(ValueError, match="at least one reply"):
         Script()
+    with pytest.raises(ValueError, match=r"Script\.json\(\[\]\)"):
+        Script.coerce([])
     with pytest.raises(ValueError, match="then must be one of"):
         Script("x", then="loop")
     with pytest.raises(ValueError, match="exactly one of"):
@@ -607,6 +650,106 @@ def test_scripted_mode_requires_a_script(scripted_endpoint: Endpoint) -> None:
     ):
         assert block.mode == "scripted"
         post(scripted_endpoint, RESPONSES, {"input": "x"})
+
+
+def test_unservable_requests_fail_the_block(scripted_endpoint: Endpoint) -> None:
+    assert scripted_endpoint.url is not None
+    base = scripted_endpoint.url.removesuffix("/v1")
+    with (
+        pytest.raises(ModelEndpointError, match="5 model endpoint errors") as error,
+        model_endpoint("unservable", script="x"),
+    ):
+        assert post(scripted_endpoint, "/v1/embeddings", {"input": "x"}).status_code == 404
+        assert httpx.post(base + RESPONSES, content=b"{bad", timeout=10).status_code == 400
+        assert httpx.post(base + RESPONSES, json=[1], timeout=10).status_code == 400
+        assert httpx.get(base + "/v1/files", timeout=10).status_code == 404
+        assert httpx.delete(base + RESPONSES + "/resp_1", timeout=10).status_code == 405
+    message = str(error.value)
+    for expected in ("POST /v1/embeddings", "not valid JSON", "JSON object", "GET /v1/files"):
+        assert expected in message
+    assert "DELETE" in message or "PUT /v1/responses/resp_1" in message
+
+
+def test_model_retrieval_route(scripted_endpoint: Endpoint) -> None:
+    assert scripted_endpoint.url is not None
+    model = httpx.get(scripted_endpoint.url + "/models/gpt-x", timeout=10)
+    assert model.status_code == 200 and model.json()["id"] == "gpt-x"
+
+
+def test_invalid_content_length(scripted_endpoint: Endpoint) -> None:
+    import socket
+
+    assert scripted_endpoint.url is not None
+    host, port = scripted_endpoint.url.removeprefix("http://").removesuffix("/v1").split(":")
+    with socket.create_connection((host, int(port)), timeout=10) as connection:
+        connection.sendall(
+            b"POST /v1/responses HTTP/1.1\r\nHost: x\r\nContent-Length: nope\r\n\r\n"
+        )
+        reply = b""
+        while chunk := connection.recv(4096):  # HTTP/1.0: the server closes when done
+            reply += chunk
+    assert reply.startswith(b"HTTP/1.0 400")
+    assert b"valid Content-Length" in reply
+
+
+def test_exit_waits_for_requests_still_being_served(scripted_endpoint: Endpoint) -> None:
+    import threading
+    import time
+
+    started = threading.Event()
+
+    def slow_failure(request: CapturedRequest) -> Any:
+        started.set()
+        time.sleep(0.3)
+        raise ModelEndpointError("slow reply failed")
+
+    worker = threading.Thread(target=post, args=(scripted_endpoint, RESPONSES, {"input": "x"}))
+    with (
+        pytest.raises(ModelEndpointError, match="slow reply failed"),
+        model_endpoint("slow", script=slow_failure),
+    ):
+        worker.start()
+        assert started.wait(10)  # the request is in flight when the block exits
+    worker.join()
+
+
+def test_errors_after_a_block_exits_are_kept(
+    scripted_endpoint: Endpoint, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import threading
+    import time
+
+    from pytest_wardenbot.model import _endpoint
+
+    monkeypatch.setattr(_endpoint, "_EXIT_WAIT_SECONDS", 0.05)
+
+    started = threading.Event()
+
+    def slower_failure(request: CapturedRequest) -> Any:
+        started.set()
+        time.sleep(0.5)
+        raise ModelEndpointError("finished too late")
+
+    with model_endpoint("late", script=slower_failure):
+        worker = threading.Thread(target=post, args=(scripted_endpoint, RESPONSES, {"input": "x"}))
+        worker.start()
+        assert started.wait(10)
+    worker.join()
+    assert "After case 'late' exited: finished too late" in str(scripted_endpoint.errors[-1])
+
+
+def test_proxy_warning_as_error_leaves_nothing_behind(monkeypatch: pytest.MonkeyPatch) -> None:
+    import warnings
+
+    clean_environment(monkeypatch)
+    monkeypatch.setenv("HTTPS_PROXY", "http://proxy.example:3128")
+    uninstall()
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        with pytest.raises(UserWarning):
+            install(mode="scripted")
+    assert current_endpoint() is None
+    assert "OPENAI_BASE_URL" not in os.environ
 
 
 def test_requests_outside_any_block(scripted_endpoint: Endpoint) -> None:

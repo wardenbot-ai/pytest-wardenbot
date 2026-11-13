@@ -14,6 +14,7 @@ import json
 import os
 import threading
 import warnings
+from collections import deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from types import TracebackType
@@ -44,6 +45,10 @@ _TOUCHED = (
     ORIGINAL_API_KEY_ENV,
 )
 _LOOPBACK_HOSTS = ("127.0.0.1", "localhost")
+_KEEP_OUTSIDE = 1000
+"""How many requests and errors from outside any block an endpoint keeps."""
+_EXIT_WAIT_SECONDS = 5.0
+"""How long a block's exit waits for its requests still being served."""
 
 _lock = threading.RLock()
 _endpoint: Endpoint | None = None
@@ -54,22 +59,27 @@ class Endpoint:
     """The process's model endpoint, returned by ``install()``.
 
     ``url`` is the base URL to give clients that don't read ``OPENAI_BASE_URL``
-    (it ends in ``/v1``); it is None when the mode is ``off``. ``requests``
-    holds every request captured since ``install()``, and ``errors`` the errors
-    from requests that arrived outside any ``model_endpoint`` block.
+    (it ends in ``/v1``); it is None when the mode is ``off``. Requests made
+    inside a ``model_endpoint`` block belong to that block. ``request_count``
+    counts every request since ``install()``; ``requests`` and ``errors`` hold
+    the most recent requests and errors from outside any block (up to 1,000
+    each), including errors from a block's requests that finished after the
+    block exited.
     """
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, *, cli: tuple[Any, Any, Path | None]) -> None:
         self.settings = settings
         self.pid = os.getpid()
         self.url: str | None = None
+        self.request_count = 0
+        self._cli = cli
         self._server: ThreadingHTTPServer | None = None
         self._thread: threading.Thread | None = None
         self._saved_env: dict[str, str | None] = {}
-        self._state = threading.Lock()
+        self._state = threading.Condition()
         self._blocks: list[EndpointCase] = []
-        self._requests: list[CapturedRequest] = []
-        self._errors: list[ModelEndpointError] = []
+        self._requests: deque[CapturedRequest] = deque(maxlen=_KEEP_OUTSIDE)
+        self._errors: deque[ModelEndpointError] = deque(maxlen=_KEEP_OUTSIDE)
         self._outside_calls = 0
 
     def __repr__(self) -> str:
@@ -92,13 +102,13 @@ class Endpoint:
 
     @property
     def requests(self) -> list[CapturedRequest]:
-        """Every request captured since ``install()``, in arrival order."""
+        """Recent requests made outside any ``model_endpoint`` block, in arrival order."""
         with self._state:
             return list(self._requests)
 
     @property
     def errors(self) -> list[ModelEndpointError]:
-        """Errors from requests made outside any ``model_endpoint`` block."""
+        """Recent errors from outside any block, or from a block that had already exited."""
         with self._state:
             return list(self._errors)
 
@@ -111,29 +121,27 @@ class Endpoint:
             server_version = "wardenbot-model-endpoint"
 
             def do_GET(self) -> None:
-                path = self.path.split("?", 1)[0].rstrip("/")
-                if path.endswith("/models"):
-                    models = {
-                        "object": "list",
-                        "data": [
-                            {
-                                "id": "wardenbot-mock",
-                                "object": "model",
-                                "created": 0,
-                                "owned_by": "wardenbot",
-                            }
-                        ],
-                    }
-                    self._send(200, JSON_TYPE, json.dumps(models).encode())
-                else:
-                    self._send(404, JSON_TYPE, error_body(f"No route for GET {self.path}"))
+                status, data = endpoint._handle_get(self.path)
+                self._send(status, JSON_TYPE, data)
 
             def do_POST(self) -> None:
-                length = int(self.headers.get("Content-Length") or 0)
+                try:
+                    length = int(self.headers.get("Content-Length") or 0)
+                except ValueError:
+                    length = -1
+                if length < 0:
+                    data = endpoint._reject(400, "The request has no valid Content-Length.")
+                    self._send(400, JSON_TYPE, data)
+                    return
                 status, content_type, data = endpoint._handle_post(
                     self.path, self.rfile.read(length)
                 )
                 self._send(status, content_type, data)
+
+            def do_PUT(self) -> None:
+                self._send(405, JSON_TYPE, endpoint._reject(405, f"PUT {self.path}"))
+
+            do_DELETE = do_PATCH = do_PUT
 
             def _send(self, status: int, content_type: str, data: bytes) -> None:
                 self.send_response(status)
@@ -179,34 +187,57 @@ class Endpoint:
             self._blocks.append(block)
 
     def _pop(self, block: EndpointCase) -> None:
+        """Deactivate ``block``, waiting briefly for its requests still being served."""
         with self._state:
             if block in self._blocks:
                 self._blocks.remove(block)
+            self._state.wait_for(lambda: block._inflight == 0, timeout=_EXIT_WAIT_SECONDS)
+            block._closed = True
 
     # Requests -------------------------------------------------------------
+
+    def _active_block(self) -> EndpointCase | None:
+        with self._state:
+            return self._blocks[-1] if self._blocks else None
+
+    def _reject(self, status: int, message: str) -> bytes:
+        """Record a request the endpoint can't serve, so its block fails, and build the error."""
+        if status == 405:
+            message = f"The model endpoint does not serve {message}."
+        self._record(self._active_block(), ModelEndpointError(message))
+        return error_body(message)
+
+    def _handle_get(self, path: str) -> tuple[int, bytes]:
+        route = path.split("?", 1)[0].rstrip("/")
+        model = {"id": "wardenbot-mock", "object": "model", "created": 0, "owned_by": "wardenbot"}
+        if route.endswith("/v1/models"):
+            return 200, json.dumps({"object": "list", "data": [model]}).encode()
+        prefix, _, name = route.rpartition("/")
+        if prefix.endswith("/v1/models") and name:
+            return 200, json.dumps({**model, "id": name}).encode()
+        return 404, self._reject(404, f"The model endpoint does not serve GET {route}.")
 
     def _handle_post(self, path: str, raw: bytes) -> tuple[int, str, bytes]:
         try:
             body = json.loads(raw or b"{}")
         except (UnicodeDecodeError, json.JSONDecodeError) as error:
-            return 400, JSON_TYPE, error_body(f"The request body is not valid JSON: {error}")
+            return 400, JSON_TYPE, self._reject(400, f"The request body is not valid JSON: {error}")
         if not isinstance(body, dict):
-            return 400, JSON_TYPE, error_body("The request body must be a JSON object.")
+            return 400, JSON_TYPE, self._reject(400, "The request body must be a JSON object.")
 
         request = CapturedRequest.from_body("POST", path, body)
         if request.api == "other":
-            return (
-                404,
-                JSON_TYPE,
-                error_body(f"The model endpoint does not serve POST {request.path}."),
-            )
+            message = f"The model endpoint does not serve POST {request.path}."
+            return 404, JSON_TYPE, self._reject(404, message)
         with self._state:
             block = self._blocks[-1] if self._blocks else None
-            self._requests.append(request)
+            self.request_count += 1
             if block is not None:
                 block._requests.append(request)
+                block._inflight += 1
                 number = len(block._requests)
             else:
+                self._requests.append(request)
                 self._outside_calls += 1
                 number = self._outside_calls
         try:
@@ -225,10 +256,22 @@ class Endpoint:
             )
             self._record(block, wrapped)
             return 500, JSON_TYPE, error_body(str(wrapped))
+        finally:
+            if block is not None:
+                with self._state:
+                    block._inflight -= 1
+                    self._state.notify_all()
 
     def _record(self, block: EndpointCase | None, error: ModelEndpointError) -> None:
         with self._state:
-            (block._errors if block is not None else self._errors).append(error)
+            if block is None:
+                self._errors.append(error)
+            elif block._closed:
+                # The block already exited and can no longer raise; keep the error visible.
+                late = ModelEndpointError(f"After case {block.case!r} exited: {error}")
+                self._errors.append(late)
+            else:
+                block._errors.append(error)
 
     def _reply_for(self, block: EndpointCase | None, request: CapturedRequest) -> Reply:
         if block is not None and block._cursor is not None:
@@ -262,6 +305,8 @@ class EndpointCase:
         self._requests: list[CapturedRequest] = []
         self._errors: list[ModelEndpointError] = []
         self._entered = False
+        self._inflight = 0
+        self._closed = False
 
     def __repr__(self) -> str:
         return f"EndpointCase(case={self.case!r}, mode={self.mode!r})"
@@ -410,8 +455,10 @@ def install(
     """
     global _endpoint, _atexit_registered
     with _lock:
-        if _endpoint is not None and _endpoint.pid == os.getpid():
-            return _endpoint
+        existing = _endpoint
+        if existing is not None and existing.pid == os.getpid():
+            _check_compatible(existing, mode, responses_dir)
+            return existing
         settings = resolve_settings(
             cli_mode=_cli_mode,
             cli_responses_dir=_cli_responses_dir,
@@ -420,17 +467,44 @@ def install(
             start=_start,
             installing=_explicit,
         )
-        endpoint = Endpoint(settings)
+        endpoint = Endpoint(settings, cli=(_cli_mode, _cli_responses_dir, _start))
         if endpoint.enabled:
             refuse_in_ci(settings.mode)
+            _warn_about_proxies()  # before any change, in case warnings are errors
             endpoint._start()
             _handoff_environment(endpoint)
             if not _atexit_registered:
                 atexit.register(_shutdown_at_exit)
                 _atexit_registered = True
-            _warn_about_proxies()
         _endpoint = endpoint
         return endpoint
+
+
+def _check_compatible(
+    endpoint: Endpoint, mode: str | None, responses_dir: str | os.PathLike[str] | None
+) -> None:
+    """Refuse a second ``install()`` whose arguments would resolve to different settings."""
+    if mode is None and responses_dir is None:
+        return
+    cli_mode, cli_responses_dir, start = endpoint._cli
+    wanted = resolve_settings(
+        cli_mode=cli_mode,
+        cli_responses_dir=cli_responses_dir,
+        code_mode=mode,
+        code_responses_dir=responses_dir,
+        start=start,
+        installing=True,
+        config=endpoint.settings.config,
+    )
+    if (wanted.mode, wanted.responses_dir) != (endpoint.mode, endpoint.responses_dir):
+        raise ModelEndpointError(
+            "The wardenbot model endpoint is already installed in this process with "
+            f"mode={endpoint.mode!r} and responses_dir={endpoint.responses_dir}, so "
+            f"install(mode={mode!r}, responses_dir={responses_dir!r}) can't take effect. "
+            "The endpoint starts once per process, before the application is imported: "
+            "choose the mode and folder there, or with WARDENBOT_MODEL_MODE and "
+            "WARDENBOT_RESPONSES_DIR."
+        )
 
 
 def uninstall() -> None:
