@@ -25,7 +25,7 @@ from pytest_wardenbot.model._endpoint import (
     uninstall,
 )
 from pytest_wardenbot.model._errors import ModelEndpointError
-from pytest_wardenbot.model._reply import Reply
+from pytest_wardenbot.model._reply import Reply, ToolCall, WebSearch
 from pytest_wardenbot.model._script import Script
 
 __all__ = [
@@ -35,6 +35,8 @@ __all__ = [
     "ModelEndpointError",
     "Reply",
     "Script",
+    "ToolCall",
+    "WebSearch",
     "install",
     "model_endpoint",
     "uninstall",

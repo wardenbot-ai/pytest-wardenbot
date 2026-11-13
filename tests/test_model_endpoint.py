@@ -571,7 +571,7 @@ def test_script_validation(tmp_path: Path) -> None:
         Script.coerce([])
     with pytest.raises(ValueError, match="then must be one of"):
         Script("x", then="loop")
-    with pytest.raises(ValueError, match="exactly one of"):
+    with pytest.raises(ValueError, match="exactly one form"):
         Reply(text="x", sse=b"y")
     assert Script.coerce(("a", "b"))._items == ("a", "b")
 
