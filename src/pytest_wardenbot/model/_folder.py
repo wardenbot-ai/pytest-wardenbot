@@ -31,7 +31,7 @@ from pytest_wardenbot.model._hash import RequestHasher
 from pytest_wardenbot.model._manifest import MANIFEST_NAME, Manifest, Rule, load_manifest
 from pytest_wardenbot.model._markers import fill_placeholders
 from pytest_wardenbot.model._reply import Reply
-from pytest_wardenbot.model._scan import refuse, scan_text
+from pytest_wardenbot.model._scan import refuse, scan_file
 
 REPLY_SUFFIXES = frozenset({".json", ".txt", ".sse"})
 SIDECAR_SUFFIX = ".request.json"
@@ -163,7 +163,7 @@ class ResponseFolder:
 
     def scan(self, text: str, source: str) -> None:
         """Refuse a file that holds what looks like a credential."""
-        refuse(scan_text(text, source, self.allow_patterns()), action=f"serve {source}")
+        refuse(scan_file(text, source, self.allow_patterns()), action=f"serve {source}")
 
     def load_reply(self, path: Path, case: str | None) -> Reply:
         """Read a reply file; fill placeholders in ``.txt`` and ``.json`` files.
@@ -177,12 +177,17 @@ class ResponseFolder:
         return load_reply_file(path, case, source, check=lambda text: self.scan(text, source))
 
     def jsonl_entries(self) -> tuple[JsonlEntry, ...]:
-        """Every ``.jsonl`` entry in the folder, re-read when a file changes."""
+        """Every ``.jsonl`` entry in the folder, re-read when a file changes.
+
+        Files under hidden folders (``.scratch/``) are skipped, as ``check`` skips them.
+        """
         files = (
             sorted(
                 path
                 for path in self.root.rglob("*")
-                if path.suffix.lower() == ".jsonl" and path.is_file()
+                if path.suffix.lower() == ".jsonl"
+                and not any(part.startswith(".") for part in path.relative_to(self.root).parts)
+                and path.is_file()
             )
             if self.root.exists()
             else []
@@ -203,15 +208,18 @@ class ResponseFolder:
         return entries
 
     def _read_jsonl(self, path: Path) -> list[JsonlEntry]:
-        entries: list[JsonlEntry] = []
         source = self.relative(path)
         try:
             text = path.read_text(encoding="utf-8")
         except OSError as error:
             raise ModelEndpointError(f"Cannot read {source}: {error}") from None
         self.scan(text, source)
-        lines = text.splitlines()
-        for number, line in enumerate(lines, 1):
+        return self.parse_jsonl(path, text, source)
+
+    def parse_jsonl(self, path: Path, text: str, source: str) -> list[JsonlEntry]:
+        """A ``.jsonl`` file's entries, validated; no credential scan (``check`` scans first)."""
+        entries: list[JsonlEntry] = []
+        for number, line in enumerate(text.splitlines(), 1):
             if not line.strip():
                 continue
             try:

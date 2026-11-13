@@ -16,7 +16,7 @@ from pytest_wardenbot.model._errors import ModelEndpointError
 from pytest_wardenbot.model._folder import ResponseFolder
 from pytest_wardenbot.model._hash import RequestHasher
 from pytest_wardenbot.model._manifest import MANIFEST_NAME, Manifest, parse_manifest, shadowed_rules
-from pytest_wardenbot.model._scan import scan_text
+from pytest_wardenbot.model._scan import scan_file
 
 _MAX_BYTES = 20 * 1024 * 1024
 
@@ -40,18 +40,22 @@ def check_folder(root: Path) -> tuple[list[str], int]:
         relative = path.relative_to(root)
         if not path.is_file() or any(part.startswith(".") for part in relative.parts):
             continue
-        if path.stat().st_size > _MAX_BYTES:
-            problems.append(f"{relative}: larger than 20 MB; not scanned. Is it a reply file?")
+        try:
+            if path.stat().st_size > _MAX_BYTES:
+                problems.append(f"{relative}: larger than 20 MB; not scanned. Is it a reply file?")
+                continue
+            data = path.read_bytes()
+        except OSError as error:
+            problems.append(f"{relative}: can't be read: {error.strerror or error}")
             continue
         scanned += 1
-        text = path.read_bytes().decode("utf-8", errors="replace")
-        problems += [str(finding) for finding in scan_text(text, str(relative), allow)]
+        text = data.decode("utf-8", errors="replace")
+        problems += [str(finding) for finding in scan_file(text, str(relative), allow)]
         if path.suffix.lower() == ".jsonl":
             try:
-                folder._read_jsonl(path)
+                folder.parse_jsonl(path, text, str(relative))  # parse errors, even with a finding
             except ModelEndpointError as error:
-                if "looks like" not in str(error):  # already reported by the scan above
-                    problems.append(str(error))
+                problems.append(str(error))
 
     if manifest is not None:
         for rule in manifest.rules:

@@ -46,7 +46,7 @@ from pytest_wardenbot.model._folder import (
 )
 from pytest_wardenbot.model._markers import folder_lock
 from pytest_wardenbot.model._reply import Reply
-from pytest_wardenbot.model._scan import refuse, scan_text
+from pytest_wardenbot.model._scan import refuse, scan_file, scan_text
 from pytest_wardenbot.model._upstream import assistant_text, body_from_stream
 
 STARTED_ENV = "WARDENBOT_RECORD_STARTED_NS"
@@ -139,7 +139,7 @@ class Recorder:
             sidecar_text = json.dumps(sidecar, indent=2, ensure_ascii=False) + "\n"
         allow = self.folder.allow_patterns()
         name = self.folder.relative(target.path)
-        findings = scan_text(content.decode("utf-8", errors="replace"), name, allow)
+        findings = scan_file(content.decode("utf-8", errors="replace"), name, allow)
         if sidecar_text is not None and target.sidecar is not None:
             findings += scan_text(sidecar_text, self.folder.relative(target.sidecar), allow)
         refuse(findings, action=f"record {name}")

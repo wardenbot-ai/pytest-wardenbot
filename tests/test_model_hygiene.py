@@ -7,6 +7,7 @@ this file looks like a key to GitHub push protection or detect-secrets.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from collections.abc import Iterator
@@ -23,7 +24,7 @@ from pytest_wardenbot.model import (
     uninstall,
 )
 from pytest_wardenbot.model._check import check_folder, main
-from pytest_wardenbot.model._scan import scan_text
+from pytest_wardenbot.model._scan import joined_deltas, scan_file, scan_text
 from tests.model_support import clean_environment, post
 from tests.test_model_upstream import FakeUpstream
 
@@ -63,6 +64,12 @@ def test_the_scan_finds_each_kind_without_printing_it(kind: str, value: str) -> 
         "This is a risk-free task with a Bearer token in the header.",
         "def connect(api_key: str):\n    return Client(api_key=os.environ['KEY'])",
         '{"ratings": [{"id": "0", "relevant": true, "reason": "sk-learn tutorial"}]}',
+        'client = OpenAI(api_key="your-openai-api-key")',
+        "api_key = 'YOUR_API_KEY_HERE_PLEASE'",  # pragma: allowlist secret
+        "See https://blog.example/sk-learn-classification-guide for details.",
+        "Then send a Bearer authorization-header-value with each call.",
+        "OPENAI_API_KEY=sk-proj-" + "FAKE-0000-0000-0000-0000",
+        "api_key=" + "xxxxxxxxxxxxxxxxxxxxxxxx",
     ],
 )
 def test_ordinary_text_is_not_flagged(text: str) -> None:
@@ -189,3 +196,113 @@ def test_check_on_a_clean_folder_and_bad_input(folder: Path, tmp_path: Path) -> 
     (folder / "wardenbot-responses.toml").write_text("[[response]]\nfiel = 1\n")
     problems, _ = check_folder(folder)
     assert any("unknown key(s) 'fiel'" in problem for problem in problems)
+
+
+def chat_stream(*parts: str) -> str:
+    chunks = [{"choices": [{"index": 0, "delta": {"content": part}}]} for part in parts]
+    return "".join(f"data: {json.dumps(chunk)}\n\n" for chunk in chunks) + "data: [DONE]\n\n"
+
+
+def test_a_key_split_across_stream_events_is_found() -> None:
+    secret = CREDENTIALS["an OpenAI API key"]
+    stream = chat_stream("Your key is ", secret[:6], secret[6:15], secret[15:])
+    assert scan_text(stream, "cases/c/1.sse") == []  # no single event holds it
+    assert joined_deltas(stream) == f"Your key is {secret}"
+    (finding,) = scan_file(stream, "cases/c/1.sse")
+    assert finding.source == "cases/c/1.sse (stream deltas joined)"
+    assert finding.kind == "an OpenAI API key"
+    responses = "".join(
+        "data: "
+        + json.dumps(
+            {
+                "type": "response.output_text.delta",
+                "item_id": "m",
+                "output_index": 0,
+                "content_index": 0,
+                "delta": part,
+            }
+        )
+        + "\n\n"
+        for part in (secret[:10], secret[10:])
+    )
+    assert scan_file(responses, "x.sse") != []
+
+
+def test_the_loader_refuses_a_stream_that_spells_out_a_key(folder: Path) -> None:
+    secret = CREDENTIALS["an OpenAI API key"]
+    reply = folder / "cases" / "split" / "1.sse"
+    reply.parent.mkdir(parents=True)
+    reply.write_text(chat_stream(secret[:9], secret[9:]))
+    endpoint = install(mode="replay", responses_dir=folder)
+    with pytest.raises(CredentialFoundError, match="deltas joined"), model_endpoint("split"):
+        post(endpoint, "/v1/chat/completions", {"messages": [], "stream": True})
+
+
+def test_the_recorder_refuses_a_streamed_echo(
+    folder: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    upstream = FakeUpstream()  # splits chat streams after 12 characters
+    leaked = CREDENTIALS["an OpenAI API key"]
+    monkeypatch.setattr(
+        FakeUpstream, "reply_text", staticmethod(lambda body, number=0: f"Key: {leaked}")
+    )
+    monkeypatch.setenv("OPENAI_BASE_URL", upstream.url)
+    monkeypatch.setenv("OPENAI_API_KEY", "zq9k-testvalue-1234567890")  # pragma: allowlist secret
+    try:
+        endpoint = install(mode="record", responses_dir=folder)
+        with pytest.raises(CredentialFoundError), model_endpoint("streamed_echo"):
+            post(endpoint, "/v1/chat/completions", {"messages": [], "stream": True})
+    finally:
+        uninstall()
+        upstream.close()
+    assert not (folder / "recorded").exists()
+
+
+def test_check_reports_parse_errors_beside_findings_and_a_bad_manifest_once(
+    folder: Path,
+) -> None:
+    secret = CREDENTIALS["a Bearer token"]
+    line = json.dumps({"request": {"input": "x"}, "response": "ok", "note": secret})
+    (folder / "a.jsonl").write_text(f"{line}\n{{broken\n")
+    (folder / "b.jsonl").write_text(f"{line}\n")
+    (folder / "wardenbot-responses.toml").write_text("not = [valid\n")
+    problems, _ = check_folder(folder)
+    assert "a.jsonl:1: looks like a Bearer token" in problems
+    assert any("a.jsonl:2 is not valid JSON" in problem for problem in problems)
+    assert sum("wardenbot-responses.toml" in problem for problem in problems) == 1
+
+
+@pytest.mark.skipif(sys.platform == "win32" or os.geteuid() == 0, reason="needs POSIX permissions")
+def test_check_reports_unreadable_files(folder: Path) -> None:
+    locked = folder / "locked.txt"
+    locked.write_text("x")
+    locked.chmod(0)
+    try:
+        problems, _ = check_folder(folder)
+    finally:
+        locked.chmod(0o644)
+    assert any(problem.startswith("locked.txt: can't be read") for problem in problems)
+
+
+def test_hidden_folders_are_skipped_by_the_loader_as_by_check(folder: Path) -> None:
+    secret = CREDENTIALS["a Bearer token"]
+    (folder / ".scratch").mkdir()
+    line = {"request": {"input": "x"}, "response": "raw", "note": secret}
+    (folder / ".scratch" / "raw.jsonl").write_text(json.dumps(line) + "\n")
+    (folder / "cases" / "clean").mkdir(parents=True)
+    (folder / "cases" / "clean" / "1.txt").write_text("Clean reply.")
+    assert check_folder(folder)[0] == []
+    endpoint = install(mode="replay", responses_dir=folder)
+    with model_endpoint("clean"):
+        assert post(endpoint, RESPONSES, {"input": "x"}).json()["output_text"] == "Clean reply."
+
+
+def test_the_scan_stays_fast_with_many_matches() -> None:
+    import time
+
+    value = CREDENTIALS["an api_key parameter"]
+    text = "\n".join(f"line {number} {value}" for number in range(20000))
+    started = time.monotonic()
+    assert len(scan_text(text, "big.jsonl", allow=["k3yk3y"])) == 0
+    assert len(scan_text(text, "big.jsonl")) == 20000
+    assert time.monotonic() - started < 5
