@@ -130,6 +130,19 @@ class CapturedRequest:
         """Names of the tools the request offered: function names, or the hosted tool's type."""
         return _tool_names(self.body)
 
+    @property
+    def tool_results(self) -> frozenset[str]:
+        """Call ids of the tool results the request carries back to the model."""
+        ids: set[str] = set()
+        items = self.body.get("input")
+        for item in items if isinstance(items, Sequence) and not isinstance(items, str) else ():
+            if isinstance(item, Mapping) and item.get("type") == "function_call_output":
+                ids.add(str(item.get("call_id")))
+        for message in self.body.get("messages") or ():
+            if isinstance(message, Mapping) and message.get("role") == "tool":
+                ids.add(str(message.get("tool_call_id")))
+        return frozenset(ids)
+
     def text(self, role: str | None = None) -> str:
         """All of the request's text, or one role's, joined with newlines."""
         return "\n".join(text for name, text in self.roles if role is None or name == role)

@@ -17,7 +17,7 @@ from typing import Any
 
 from pytest_wardenbot.model._capture import CapturedRequest
 from pytest_wardenbot.model._errors import ModelEndpointError
-from pytest_wardenbot.model._reply import Reply
+from pytest_wardenbot.model._reply import Reply, ToolCall, WebSearch
 
 DEFAULT_MODEL = "wardenbot-mock"
 DELTA_CHARS = 16
@@ -85,6 +85,30 @@ def message_item(text: str, item_id: str) -> dict[str, Any]:
         "status": "completed",
         "role": "assistant",
         "content": [{"type": "output_text", "text": text, "annotations": [], "logprobs": []}],
+    }
+
+
+def function_call_item(call: ToolCall, item_id: str) -> dict[str, Any]:
+    return {
+        "type": "function_call",
+        "id": item_id,
+        "call_id": call.call_id,
+        "name": call.name,
+        "arguments": call.arguments,
+        "status": "completed",
+    }
+
+
+def web_search_item(search: WebSearch, item_id: str) -> dict[str, Any]:
+    return {
+        "type": "web_search_call",
+        "id": item_id,
+        "status": "completed",
+        "action": {
+            "type": "search",
+            "query": search.query,
+            "sources": [{"type": "url", "url": url} for url in search.sources],
+        },
     }
 
 
@@ -281,14 +305,36 @@ def render(reply: Reply, request: CapturedRequest, *, ids: Ids) -> tuple[str, by
             return SSE_TYPE, responses_events(reply.body)
         return SSE_TYPE, chat_events(reply.body, include_usage=_include_usage(request))
 
-    text = reply.text or ""
     if api == "responses":
-        body = responses_body([message_item(text, ids.message)], request=request, ids=ids)
+        output: list[dict[str, Any]] = []
+        if reply.web_search is not None:
+            output.append(web_search_item(reply.web_search, f"ws_{ids.seed}"))
+        if reply.text is not None:
+            output.append(message_item(reply.text, ids.message))
+        for number, call in enumerate(reply.tool_calls):
+            output.append(function_call_item(call, f"fc_{ids.seed}_{number}"))
+        body = responses_body(output, request=request, ids=ids)
         if request.stream:
             return SSE_TYPE, responses_events(body)
         return JSON_TYPE, _dumps(body)
-    message = {"role": "assistant", "content": text, "refusal": None}
-    chat = chat_body(message, request=request, ids=ids)
+    if reply.web_search is not None:
+        raise ModelEndpointError(
+            f"{reply.source} is a hosted web search, which only the Responses API has, but the "
+            f"request went to {request.path}."
+        )
+    message: dict[str, Any] = {"role": "assistant", "content": reply.text, "refusal": None}
+    finish_reason = "stop"
+    if reply.tool_calls:
+        finish_reason = "tool_calls"
+        message["tool_calls"] = [
+            {
+                "id": call.call_id,
+                "type": "function",
+                "function": {"name": call.name, "arguments": call.arguments},
+            }
+            for call in reply.tool_calls
+        ]
+    chat = chat_body(message, request=request, ids=ids, finish_reason=finish_reason)
     if request.stream:
         return SSE_TYPE, chat_events(chat, include_usage=_include_usage(request))
     return JSON_TYPE, _dumps(chat)

@@ -174,3 +174,96 @@ def test_errors_are_not_retried(endpoint: Endpoint) -> None:
         with pytest.raises(openai.InternalServerError, match="has 1 reply"):
             client.responses.create(model="gpt-x", input="b")
     assert len(block.requests) == 2
+
+
+LOOKUP_TOOL = {
+    "type": "function",
+    "name": "lookup",
+    "description": "Look up a status.",
+    "parameters": {
+        "type": "object",
+        "properties": {"query": {"type": "string"}},
+        "required": ["query"],
+        "additionalProperties": False,
+    },
+    "strict": True,
+}
+
+
+def test_responses_tool_loop(endpoint: Endpoint) -> None:
+    client = _client()
+    script = Script(Script.tool_call("lookup", {"query": "status"}), "Status is green.")
+    with model_endpoint("sdk-tools", script=script):
+        first = client.responses.create(model="gpt-x", input="status?", tools=[LOOKUP_TOOL])
+        (call,) = [item for item in first.output if item.type == "function_call"]
+        assert call.name == "lookup" and json.loads(call.arguments) == {"query": "status"}
+        follow_up = [
+            {
+                "type": "function_call",
+                "call_id": call.call_id,
+                "name": call.name,
+                "arguments": call.arguments,
+            },
+            {"type": "function_call_output", "call_id": call.call_id, "output": "green"},
+        ]
+        final = client.responses.create(model="gpt-x", input=follow_up, tools=[LOOKUP_TOOL])
+    assert final.output_text == "Status is green."
+
+
+def test_responses_stream_helper_with_a_function_call(endpoint: Endpoint) -> None:
+    script = Script.tool_call("lookup", {"query": "a status long enough to span deltas"})
+    with (
+        model_endpoint("sdk-tools", script=script),
+        _client().responses.stream(model="gpt-x", input="status?", tools=[LOOKUP_TOOL]) as stream,
+    ):
+        for _ in stream:
+            pass
+        final = stream.get_final_response()
+    (call,) = final.output
+    assert call.type == "function_call"
+    assert json.loads(call.arguments) == {"query": "a status long enough to span deltas"}
+
+
+def test_chat_tool_loop(endpoint: Endpoint) -> None:
+    client = _client()
+    tool = {
+        "type": "function",
+        "function": {"name": "lookup", "parameters": LOOKUP_TOOL["parameters"]},
+    }
+    messages: list[dict[str, Any]] = [{"role": "user", "content": "status?"}]
+    with model_endpoint(
+        "sdk-tools", script=Script(Script.tool_call("lookup", {"query": "s"}), "ok")
+    ):
+        first = client.chat.completions.create(model="gpt-x", messages=messages, tools=[tool])
+        message = first.choices[0].message
+        (call,) = message.tool_calls or []
+        messages += [
+            message.model_dump(exclude_none=True),
+            {"role": "tool", "tool_call_id": call.id, "content": "green"},
+        ]
+        final = client.chat.completions.create(model="gpt-x", messages=messages, tools=[tool])
+    assert first.choices[0].finish_reason == "tool_calls"
+    assert final.choices[0].message.content == "ok"
+
+
+def test_web_search_call_parses(endpoint: Endpoint) -> None:
+    script = Script.web_search("pricing", ["https://docs.example/pricing"], text="Prices rose.")
+    with model_endpoint("sdk-search", script=script):
+        response = _client().responses.create(
+            model="gpt-x", input="pricing news", tools=[{"type": "web_search"}]
+        )
+    search = response.output[0]
+    assert search.type == "web_search_call"
+    action = search.action
+    sources = action.sources if hasattr(action, "sources") else action["sources"]
+    first = sources[0]
+    assert (first.url if hasattr(first, "url") else first["url"]) == "https://docs.example/pricing"
+    assert response.output_text == "Prices rose."
+
+
+def test_responses_parse_with_tools_present(endpoint: Endpoint) -> None:
+    with model_endpoint("sdk-parse-tools", script=SUMMARY):
+        parsed = _client().responses.parse(
+            model="gpt-x", input="summarize", text_format=PostSummary, tools=[LOOKUP_TOOL]
+        )
+    assert parsed.output_parsed == PostSummary(**SUMMARY)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import threading
 from collections.abc import Callable, Mapping, Sequence
@@ -10,7 +11,7 @@ from typing import Any, Union, cast
 
 from pytest_wardenbot.model._capture import CapturedRequest
 from pytest_wardenbot.model._errors import ModelEndpointError
-from pytest_wardenbot.model._reply import Reply
+from pytest_wardenbot.model._reply import Reply, ToolCall, WebSearch
 
 _BODY_OBJECTS = frozenset({"response", "chat.completion"})
 _THEN = ("fail", "repeat_last")
@@ -113,6 +114,36 @@ class Script:
         return cls(Reply(text=json.dumps(value)))
 
     @classmethod
+    def tool_call(
+        cls,
+        name: str,
+        args: Mapping[str, Any] | str | None = None,
+        *,
+        call_id: str | None = None,
+    ) -> Script:
+        """One reply: the model calls the function tool ``name`` with ``args``.
+
+        The next reply in the script is served only to a request that carries the
+        call's result (a ``function_call_output`` item, or a Chat ``tool`` message),
+        so a pipeline that drops the result fails. ``call_id`` defaults to a
+        stable id. For several calls in one reply, pass
+        ``Reply(tool_calls=(ToolCall(...), ...))``.
+        """
+        arguments = args if isinstance(args, str) else json.dumps(dict(args or {}))
+        return cls(Reply(tool_calls=(ToolCall(name, arguments, call_id),)))
+
+    @classmethod
+    def web_search(
+        cls, query: str, sources: Sequence[str] = (), *, text: str | None = None
+    ) -> Script:
+        """One reply: a hosted web search (Responses only), then ``text`` if given.
+
+        The search appears as a ``web_search_call`` item whose ``action.sources``
+        lists ``sources``.
+        """
+        return cls(Reply(web_search=WebSearch(query, tuple(sources)), text=text))
+
+    @classmethod
     def file(cls, path: str | Path) -> Script:
         """One reply from a file: ``.txt``, ``.json`` (a body or structured output) or ``.sse``.
 
@@ -155,13 +186,43 @@ class ScriptCursor:
         self._script = script
         self._case = case
         self._served = 0
+        self._pending: tuple[ToolCall, ...] = ()
         self._lock = threading.Lock()
 
     def next(self, request: CapturedRequest) -> Reply:
-        items = self._script._items
         with self._lock:
             index = self._served
             self._served += 1
+            pending, self._pending = self._pending, ()
+        missing = [call for call in pending if call.call_id not in request.tool_results]
+        if missing:
+            names = ", ".join(f"{call.name!r} (call_id {call.call_id})" for call in missing)
+            raise ModelEndpointError(
+                f"The script for case {self._case!r} called {names}, so the next request must "
+                "carry the result (a function_call_output item, or a Chat 'tool' message with "
+                f"that tool_call_id), but request {index + 1} to {request.path} doesn't."
+            )
+        reply = self._reply_at(index, request)
+        if reply.tool_calls:
+            calls = tuple(
+                call
+                if call.call_id is not None
+                else ToolCall(call.name, call.arguments, self._call_id(index, number))
+                for number, call in enumerate(reply.tool_calls)
+            )
+            reply = Reply(
+                text=reply.text, tool_calls=calls, web_search=reply.web_search, source=reply.source
+            )
+            with self._lock:
+                self._pending = calls
+        return reply
+
+    def _call_id(self, index: int, number: int) -> str:
+        digest = hashlib.sha256(f"{self._case}\0{index}\0{number}".encode()).hexdigest()[:24]
+        return f"call_{digest}"
+
+    def _reply_at(self, index: int, request: CapturedRequest) -> Reply:
+        items = self._script._items
         if index >= len(items):
             if self._script.then != "repeat_last":
                 raise ModelEndpointError(
