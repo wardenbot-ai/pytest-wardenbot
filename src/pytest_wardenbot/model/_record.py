@@ -81,9 +81,13 @@ class Recorder:
         self._lock = threading.Lock()
 
     def plan(
-        self, request: CapturedRequest, case: str | None, state: LookupState
-    ) -> Reply | Target:
-        """A reply to serve locally (``record = false`` and ``.jsonl`` rules), or a target."""
+        self, request: CapturedRequest, case: str | None, state: LookupState, *, saving: bool = True
+    ) -> Reply | Target | None:
+        """A reply to serve locally (``record = false`` and ``.jsonl``), or a target.
+
+        With ``saving=False`` (a mutated case, never recorded) there is no
+        target: None means the upstream answers.
+        """
         if case is None:
             raise ModelEndpointError(
                 "Record mode can only save requests made inside a model_endpoint block, which "
@@ -95,12 +99,16 @@ class Recorder:
         if rule is not None:
             if not rule.record or rule.jsonl:
                 return folder.serve_rule(rule, case, state)
+            if not saving:
+                return None
             return _checked(Target(folder.rule_target(rule, state), kind=rule.describe()), request)
         # The steps replay takes, in its order (recorded/ is about to be rewritten).
         call = state.next_hash_call(digest)
         logged = folder.find_jsonl(digest, call, case, [], folder.jsonl_entries())
         if logged is not None:
             return logged
+        if not saving:
+            return None
         dirname = claim_case_dirname(case)
         extension = ".sse" if request.stream else ".json"
         case_folder = folder.root / "cases" / dirname

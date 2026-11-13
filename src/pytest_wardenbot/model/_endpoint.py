@@ -342,8 +342,12 @@ class Endpoint:
 
     def _fetch(
         self, request: CapturedRequest, raw: bytes, headers: Mapping[str, str], raw_path: str | None
-    ) -> Reply:
-        """The whole upstream reply, for mutation; it is never saved."""
+    ) -> Reply | _Response:
+        """The whole upstream reply, for mutation; it is never saved.
+
+        An error reply is relayed as it came, with its retry headers, exactly as
+        without mutators.
+        """
         assert self.upstream is not None
         reply = self.upstream.forward(raw_path or request.path, raw, headers)
         try:
@@ -351,10 +355,7 @@ class Endpoint:
         finally:
             reply.close()
         if not 200 <= reply.status < 300:
-            raise ModelEndpointError(
-                f"The upstream {self.upstream.host} returned HTTP {reply.status} for "
-                f"{request.path}."
-            )
+            return _Response(reply.status, reply.content_type, data, None, dict(reply.headers))
         source = f"the upstream reply to {request.path}"
         if request.stream:
             return Reply(sse=data, source=source)
@@ -510,8 +511,8 @@ class Endpoint:
                 return folder.find(request, None, LookupState())
             return folder.find(request, block.case, block._lookup, test_id=block.test_id)
         mutating = block is not None and bool(block.mutate)
-        if self.mode == "live" or (mutating and self.mode == "record"):
-            if mutating:  # a mutated reply is never recorded
+        if self.mode == "live":
+            if mutating:
                 return self._fetch(request, raw, headers or {}, raw_path)
             return self._forward(block, request, raw, headers or {}, raw_path=raw_path)
         if self.mode == "override":
@@ -529,9 +530,11 @@ class Endpoint:
             recorder = self._recorder
             assert recorder is not None
             state = block._lookup if block is not None else LookupState()
-            plan = recorder.plan(request, block.case if block else None, state)
+            plan = recorder.plan(request, block.case if block else None, state, saving=not mutating)
             if isinstance(plan, Reply):
-                return plan  # record = false, or a .jsonl rule: served from the folder
+                return plan  # record = false, or a .jsonl rule or entry: served from the folder
+            if plan is None:  # mutated: fetched whole and never recorded
+                return self._fetch(request, raw, headers or {}, raw_path)
             return self._forward(block, request, raw, headers or {}, plan, raw_path=raw_path)
         raise ModelEndpointError(f"The wardenbot model mode {self.mode!r} can't answer {where}.")
 
@@ -909,7 +912,7 @@ def model_endpoint(
     case: str | None = None,
     *,
     script: Any = None,
-    mutate: Iterable[Callable[..., Any]] | None = None,
+    mutate: Iterable[Callable[..., Any]] | Callable[..., Any] | None = None,
     canary: str | None = None,
 ) -> EndpointCase:
     """Open a block that serves one case's model requests.
@@ -936,5 +939,18 @@ def model_endpoint(
         current_case(case),
         Script.coerce(script) if script is not None else None,
         canary=canary.strip() or None if canary is not None else None,
-        mutate=tuple(mutate or ()),
+        mutate=_mutators(mutate),
     )
+
+
+def _mutators(mutate: Any) -> tuple[Callable[..., Any], ...]:
+    """One mutator or a list of them, each checked to be callable now, not mid-request."""
+    if mutate is None:
+        return ()
+    items = (mutate,) if callable(mutate) else tuple(mutate)
+    for item in items:
+        if not callable(item):
+            raise TypeError(
+                f"mutate takes mutators (callables such as mutate.pad(1000)), not {item!r}."
+            )
+    return items

@@ -73,6 +73,8 @@ def test_paths() -> None:
         ("missing", r"has no 'missing'"),
         ("ratings[0]", "is dict, not a list"),
         ("ratings..x", "Can't read the path"),
+        (".ratings", "Can't read the path"),
+        ("data[0]tags", "Can't read the path"),
     ]:
         with pytest.raises(ModelEndpointError, match=message):
             run([mutate.add_item(path, 1)])
@@ -90,6 +92,10 @@ def test_inject_marker() -> None:
     assert run([mutate.inject_marker()], "A summary.").text == f"A summary. {marker}"
     with pytest.raises(ModelEndpointError, match="is not a string field"):
         run([mutate.inject_marker(["ratings[0].relevant"])])
+    with pytest.raises(ModelEndpointError, match=r"inject_marker: the reply has no 'summary'"):
+        run([mutate.inject_marker(["summary"])])
+    with pytest.raises(ModelEndpointError, match=r"has no 'ratings\[5\].reason'"):
+        run([mutate.inject_marker(["ratings[5].reason"])])
 
 
 def test_links_and_images() -> None:
@@ -275,3 +281,165 @@ def test_mutated_replies_are_never_recorded(
         uninstall()
         upstream.close()
     assert not (folder / "recorded").exists()
+
+
+def test_removing_every_tool_call_removes_them_from_the_body(scripted_endpoint: Endpoint) -> None:
+    chat_body = {
+        "object": "chat.completion",
+        "choices": [
+            {
+                "index": 0,
+                "finish_reason": "tool_calls",
+                "message": {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": "c1",
+                            "type": "function",
+                            "function": {"name": "delete_user", "arguments": "{}"},
+                        }
+                    ],
+                },
+            }
+        ],
+    }
+
+    def disarm(reply: MutableReply) -> None:
+        reply.tool_calls.clear()
+        reply.text = "ok"
+
+    with model_endpoint("disarm", script=Script(chat_body), mutate=disarm):  # one mutator
+        body = post(scripted_endpoint, CHAT, {"messages": []}).json()
+    choice = body["choices"][0]
+    assert choice["message"]["content"] == "ok"
+    assert "tool_calls" not in choice["message"]
+    assert choice["finish_reason"] == "stop"
+
+
+def test_list_form_chat_content_is_mutated_as_text(scripted_endpoint: Endpoint) -> None:
+    chat_body = {
+        "object": "chat.completion",
+        "choices": [
+            {
+                "index": 0,
+                "finish_reason": "stop",
+                "message": {
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": json.dumps(RATINGS)}],
+                },
+            }
+        ],
+    }
+    with model_endpoint("parts", script=Script(chat_body), mutate=[mutate.drop_items("ratings")]):
+        body = post(scripted_endpoint, CHAT, {"messages": []}).json()
+    (part,) = body["choices"][0]["message"]["content"]
+    assert [r["id"] for r in json.loads(part["text"])["ratings"]] == ["0"]
+
+
+def test_responses_items_keep_their_order_ids_and_refusals(scripted_endpoint: Endpoint) -> None:
+    body = {
+        "id": "resp_r",
+        "object": "response",
+        "output": [
+            {"type": "reasoning", "id": "rs", "summary": []},
+            {
+                "type": "message",
+                "id": "msg_r",
+                "role": "assistant",
+                "status": "completed",
+                "content": [
+                    {"type": "output_text", "text": "Part one.", "annotations": []},
+                    {"type": "refusal", "refusal": "Not that."},
+                ],
+            },
+            {
+                "type": "function_call",
+                "id": "fc_abc",
+                "call_id": "call_abc",
+                "name": "lookup",
+                "arguments": "{}",
+                "status": "completed",
+            },
+        ],
+    }
+    with model_endpoint("items", script=Script(body), mutate=[mutate.pad(5)]):
+        served = post(scripted_endpoint, RESPONSES, {"input": "x"}).json()
+    kinds = [item["type"] for item in served["output"]]
+    assert kinds == ["reasoning", "message", "function_call"]
+    message, call = served["output"][1], served["output"][2]
+    assert message["id"] == "msg_r"
+    assert [part["type"] for part in message["content"]] == ["output_text", "refusal"]
+    assert message["content"][0]["text"].startswith("Part one.")
+    assert (call["id"], call["call_id"]) == ("fc_abc", "call_abc")
+
+
+def test_mutate_takes_one_mutator_and_checks_each_entry(scripted_endpoint: Endpoint) -> None:
+    assert len(model_endpoint("one", script=["x"], mutate=mutate.pad(3)).mutate) == 1
+    with pytest.raises(TypeError, match="mutate takes mutators"):
+        model_endpoint("bad", script=["x"], mutate=["pad"])  # type: ignore[list-item]
+
+
+def test_errors_name_the_built_in_mutator() -> None:
+    with pytest.raises(ModelEndpointError, match="pad: the JSON reply has no string"):
+        run([mutate.pad(3)], "[1, 2]")
+    assert mutate.add_links("canary.example").__name__ == "add_links"
+
+
+def test_a_custom_mutator_must_add_tool_call_objects() -> None:
+    with pytest.raises(ModelEndpointError, match="add ToolCall objects"):
+        run([lambda reply: reply.tool_calls.append("delete_user")])  # type: ignore[arg-type]
+
+
+def _record_with_upstream(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, status: int = 200
+) -> tuple[Any, Path]:
+    from tests.test_model_upstream import FakeUpstream
+
+    upstream = FakeUpstream()
+    upstream.status = status
+    clean_environment(monkeypatch)
+    monkeypatch.setattr(_cases, "_claimed", {})
+    monkeypatch.setenv("OPENAI_BASE_URL", upstream.url)
+    monkeypatch.setenv("OPENAI_API_KEY", "zq9k-testvalue-1234567890")  # pragma: allowlist secret
+    uninstall()
+    folder = tmp_path / "llm_responses"
+    folder.mkdir()
+    return upstream, folder
+
+
+def test_record_still_serves_local_replies_to_mutated_cases(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    upstream, folder = _record_with_upstream(tmp_path, monkeypatch)
+    (folder / "hostile.json").write_text(json.dumps(RATINGS))
+    (folder / "wardenbot-responses.toml").write_text(
+        '[[response]]\ncase = "crafted"\nfile = "hostile.json"\nrecord = false\n'
+    )
+    try:
+        endpoint = install(mode="record", responses_dir=folder)
+        with model_endpoint("crafted", mutate=[mutate.drop_items("ratings")]):
+            body = post(endpoint, CHAT, {"messages": []}).json()
+    finally:
+        uninstall()
+        upstream.close()
+    assert upstream.requests == []
+    assert [r["id"] for r in json.loads(body["choices"][0]["message"]["content"])["ratings"]] == [
+        "0"
+    ]
+
+
+@pytest.mark.parametrize("mode", ["live", "record"])
+def test_mutated_upstream_errors_are_relayed_with_their_headers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mode: str
+) -> None:
+    upstream, folder = _record_with_upstream(tmp_path, monkeypatch, status=429)
+    try:
+        endpoint = install(mode=mode, responses_dir=folder)
+        with model_endpoint(f"limited_{mode}", mutate=[mutate.pad(3)]):
+            response = post(endpoint, RESPONSES, {"input": "x"})
+    finally:
+        uninstall()
+        upstream.close()
+    assert response.status_code == 429
+    assert response.headers["retry-after"] == "7"
