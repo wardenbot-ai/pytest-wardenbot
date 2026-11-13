@@ -633,6 +633,8 @@ def model_endpoint(
     application sent inside it. Blocks nest; the innermost one is active.
     """
     endpoint = _active_endpoint(script)
+    if canary is not None and not isinstance(canary, str):
+        raise TypeError(f"canary must be a string, not {type(canary).__name__}.")
     if script is None:
         refuse_in_ci(endpoint.mode)
     return EndpointCase(

@@ -11,17 +11,21 @@ modes markers are random, but stable per case within a process.
 from __future__ import annotations
 
 import base64
+import contextlib
 import hashlib
 import hmac
 import os
 import secrets
+import tempfile
 import threading
+import time
 import tomllib
 import warnings
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
-from pytest_wardenbot.canary import CANARY_PREFIX
+from pytest_wardenbot.canary import CANARY_PREFIX, generate_canary_token
 from pytest_wardenbot.model._cases import current_case
 from pytest_wardenbot.model._errors import ModelEndpointError
 
@@ -34,7 +38,8 @@ SEEDED_MODES = frozenset({"record", "replay", "override"})
 
 _lock = threading.Lock()
 _random: dict[tuple[str, str], str] = {}
-_seed_cache: dict[Path, tuple[float, str | None]] = {}
+_seed_cache: dict[Path, tuple[tuple[int, int], str | None]] = {}
+_LOCK_TIMEOUT_SECONDS = 30.0
 _warned_default_seed = False
 
 
@@ -43,9 +48,11 @@ def _endpoint_state() -> tuple[str | None, Path | None, Any]:
     from pytest_wardenbot.model._endpoint import current_endpoint
 
     endpoint = current_endpoint()
-    if endpoint is None or not endpoint.enabled or endpoint.pid != os.getpid():
+    if endpoint is None or not endpoint.enabled:
         return None, None, None
-    return endpoint.mode, endpoint.responses_dir, endpoint._active_block()
+    # A forked child keeps the mode and folder (so markers stay seeded) but has no blocks.
+    block = endpoint._active_block() if endpoint.pid == os.getpid() else None
+    return endpoint.mode, endpoint.responses_dir, block
 
 
 def read_seed(folder: Path | None) -> str | None:
@@ -54,12 +61,13 @@ def read_seed(folder: Path | None) -> str | None:
         return None
     manifest = folder / MANIFEST_NAME
     try:
-        mtime = manifest.stat().st_mtime
+        stat = manifest.stat()
     except OSError:
         return None
+    stamp = (stat.st_mtime_ns, stat.st_size)
     with _lock:
         cached = _seed_cache.get(manifest)
-    if cached is not None and cached[0] == mtime:
+    if cached is not None and cached[0] == stamp:
         return cached[1]
     try:
         with manifest.open("rb") as handle:
@@ -69,28 +77,62 @@ def read_seed(folder: Path | None) -> str | None:
     if seed is not None and (not isinstance(seed, str) or not seed):
         raise ModelEndpointError(f"{manifest}: marker_seed must be a non-empty string.")
     with _lock:
-        _seed_cache[manifest] = (mtime, seed)
+        _seed_cache[manifest] = (stamp, seed)
     return seed
+
+
+@contextlib.contextmanager
+def _folder_lock(folder: Path) -> Iterator[None]:
+    """A lock across processes (record runs under pytest-xdist): an atomic mkdir."""
+    folder.mkdir(parents=True, exist_ok=True)
+    lock = folder / ".wardenbot-seed.lock"
+    deadline = time.monotonic() + _LOCK_TIMEOUT_SECONDS
+    while True:
+        try:
+            lock.mkdir()
+            break
+        except FileExistsError:
+            if time.monotonic() > deadline:
+                raise ModelEndpointError(
+                    f"Timed out waiting for {lock}; remove it if no record run is active."
+                ) from None
+            time.sleep(0.05)
+    try:
+        yield
+    finally:
+        lock.rmdir()
 
 
 def write_seed(folder: Path) -> str:
     """Give the folder's manifest a random ``marker_seed`` if it has none; return the seed.
 
     The line goes at the top of the manifest, before any table, so the file
-    stays valid TOML and everything else in it is kept byte for byte.
+    stays valid TOML and everything else in it is kept byte for byte. Record
+    runs in several processes agree on one seed: the check and the write
+    happen under a lock, and the file is replaced atomically.
     """
     existing = read_seed(folder)
     if existing is not None:
         return existing
-    seed = secrets.token_urlsafe(18)
-    manifest = folder / MANIFEST_NAME
-    folder.mkdir(parents=True, exist_ok=True)
-    previous = manifest.read_text(encoding="utf-8") if manifest.exists() else ""
-    line = (
-        f'marker_seed = "{seed}"  # derives per-case markers; changing it invalidates '
-        "hash-matched recordings\n"
-    )
-    manifest.write_text(line + previous, encoding="utf-8")
+    with _folder_lock(folder):
+        with _lock:
+            _seed_cache.pop(folder / MANIFEST_NAME, None)
+        existing = read_seed(folder)  # another process may have written it meanwhile
+        if existing is not None:
+            return existing
+        seed = secrets.token_urlsafe(18)
+        manifest = folder / MANIFEST_NAME
+        previous = manifest.read_text(encoding="utf-8") if manifest.exists() else ""
+        line = (
+            f'marker_seed = "{seed}"  # derives per-case markers; changing it invalidates '
+            "hash-matched recordings\n"
+        )
+        handle, temporary = tempfile.mkstemp(dir=folder, prefix=f".{MANIFEST_NAME}.")
+        with os.fdopen(handle, "w", encoding="utf-8") as file:
+            file.write(line + previous)
+        os.replace(temporary, manifest)
+        with _lock:
+            _seed_cache.pop(manifest, None)
     return seed
 
 
@@ -126,17 +168,22 @@ def _canary_from(digest: bytes) -> str:
 def _value(purpose: str, case: str | None) -> str:
     mode, folder, block = _endpoint_state()
     name = case if case is not None else (block.case if block is not None else current_case())
-    if purpose == "canary" and block is not None and block.canary and name == block.case:
-        return block.canary
+    if purpose == "canary":
+        if block is not None and block.canary and name == block.case:
+            return block.canary  # the wardenbot_canary fixture, which reads WARDENBOT_CANARY
+        configured = os.environ.get("WARDENBOT_CANARY", "").strip()
+        if configured:
+            return configured
+    shape = _marker_from if purpose == "marker" else _canary_from
     if mode in SEEDED_MODES:
-        return (_marker_from if purpose == "marker" else _canary_from)(
-            _derive(_seed(mode, folder), purpose, name)
-        )
+        return shape(_derive(_seed(mode, folder), purpose, name))
     with _lock:
         value = _random.get((purpose, name))
         if value is None:
-            digest = secrets.token_bytes(32)
-            value = (_marker_from if purpose == "marker" else _canary_from)(digest)
+            if purpose == "marker":
+                value = shape(secrets.token_bytes(32))
+            else:
+                value = generate_canary_token()
             _random[(purpose, name)] = value
     return value
 
@@ -157,13 +204,12 @@ def injection_marker(case: str | None = None) -> str:
 def case_canary(case: str | None = None) -> str:
     """A canary token for a case, shaped like ``generate_canary_token()``.
 
-    A configured canary is used as is: ``WARDENBOT_CANARY``, or the ``canary=``
-    of the case's ``model_endpoint`` block (the ``wardenbot_model`` fixture passes
-    the ``wardenbot_canary`` fixture's value). Otherwise the canary is derived
+    A configured canary is used as is: the ``canary=`` of the case's
+    ``model_endpoint`` block (the ``wardenbot_model`` fixture passes the
+    ``wardenbot_canary`` fixture's value), else ``WARDENBOT_CANARY``. Use a fixed
+    one with recordings: a canary that changes between runs changes the
+    request hash. Otherwise the canary is derived
     like ``injection_marker``: stable per case in ``record``, ``replay`` and
     ``override``, random but stable within the process in other modes.
     """
-    configured = os.environ.get("WARDENBOT_CANARY", "").strip()
-    if configured:
-        return configured
     return _value("canary", case)

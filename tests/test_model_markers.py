@@ -11,6 +11,7 @@ import sys
 import tomllib
 from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -194,3 +195,76 @@ def test_a_block_canary_is_used_as_is(tmp_path: Path) -> None:
         assert case_canary("case") == "WBCANARY-from-the-fixture"
         assert case_canary("another") != "WBCANARY-from-the-fixture"
     assert case_canary("case") != "WBCANARY-from-the-fixture"
+
+
+def test_the_fixture_canary_beats_the_environment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("WARDENBOT_CANARY", "WBCANARY-from-the-environment")
+    install(mode="replay", responses_dir=seeded_folder(tmp_path))
+    with model_endpoint("case", script="x", canary="WBCANARY-from-the-fixture"):
+        assert case_canary() == "WBCANARY-from-the-fixture"
+    assert case_canary("case") == "WBCANARY-from-the-environment"
+
+
+def test_canary_must_be_a_string(tmp_path: Path) -> None:
+    install(mode="replay", responses_dir=seeded_folder(tmp_path))
+    with pytest.raises(TypeError, match="canary must be a string"):
+        model_endpoint("case", script="x", canary=b"bytes")  # type: ignore[arg-type]
+
+
+def _write_seed_in_a_process(folder: str, queue: Any) -> None:
+    queue.put(write_seed(Path(folder)))
+
+
+def test_concurrent_record_processes_agree_on_one_seed(tmp_path: Path) -> None:
+    import multiprocessing
+
+    folder = tmp_path / "shared"
+    folder.mkdir()
+    (folder / "wardenbot-responses.toml").write_text('[[response]]\ncase = "a"\nfile = "a.txt"\n')
+    context = multiprocessing.get_context("spawn")
+    queue = context.Queue()
+    processes = [
+        context.Process(target=_write_seed_in_a_process, args=(str(folder), queue))
+        for _ in range(4)
+    ]
+    for process in processes:
+        process.start()
+    seeds = {queue.get(timeout=60) for _ in processes}
+    for process in processes:
+        process.join(timeout=60)
+    text = (folder / "wardenbot-responses.toml").read_text()
+    assert len(seeds) == 1 and text.count("marker_seed") == 1
+    assert tomllib.loads(text)["marker_seed"] == seeds.pop()
+    assert not (folder / ".wardenbot-seed.lock").exists()
+
+
+def test_a_written_seed_is_seen_at_once(tmp_path: Path) -> None:
+    folder = tmp_path / "fresh"
+    folder.mkdir()
+    (folder / "wardenbot-responses.toml").write_text("")
+    assert read_seed(folder) is None  # cached as "no seed"
+    seed = write_seed(folder)
+    assert read_seed(folder) == seed
+
+
+def _marker_in_a_forked_child(queue: Any) -> None:
+    queue.put(injection_marker("forked case"))
+
+
+@pytest.mark.skipif(
+    "fork" not in __import__("multiprocessing").get_all_start_methods(), reason="needs fork"
+)
+@pytest.mark.filterwarnings("ignore::DeprecationWarning")
+def test_a_forked_child_keeps_seeded_markers(tmp_path: Path) -> None:
+    import multiprocessing
+
+    install(mode="replay", responses_dir=seeded_folder(tmp_path))
+    context = multiprocessing.get_context("fork")
+    queue = context.Queue()
+    process = context.Process(target=_marker_in_a_forked_child, args=(queue,))
+    process.start()
+    child = queue.get(timeout=30)
+    process.join(timeout=30)
+    assert child == injection_marker("forked case")
