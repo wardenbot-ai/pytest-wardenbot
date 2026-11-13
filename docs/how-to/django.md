@@ -96,6 +96,10 @@ import multiprocessing
 multiprocessing.set_start_method("spawn", force=True)
 ```
 
+Install `tblib` too. Django's parallel runner needs it to send any test failure
+back from a worker; without it, a failing test crashes the whole run with
+`cannot pickle 'traceback' object`.
+
 ## With pytest-django
 
 If the project runs pytest-django instead, the plugin installs the endpoint
