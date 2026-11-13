@@ -6,19 +6,20 @@ import json
 import os
 from pathlib import Path
 from types import ModuleType
-from urllib.parse import urlsplit
 
 import httpx
 import pytest
 
 from doc_chat import fixed, naive
+from doc_chat.render import render_safely
 from pytest_wardenbot.grading.prompt import assert_instruction_present, assert_untrusted_confined
 from pytest_wardenbot.grading.structured import assert_links_allowed
 from pytest_wardenbot.model import Script, model_endpoint, mutate
 
-DOCUMENTS = json.loads(Path("doc_chat/documents.json").read_text(encoding="utf-8"))
+HERE = Path(__file__).parent
+DOCUMENTS = json.loads((HERE / "documents.json").read_text(encoding="utf-8"))
 ATTACK_DOCUMENT = DOCUMENTS[2]["text"]
-ALLOWED_HOSTS = sorted({urlsplit(doc["url"]).hostname for doc in DOCUMENTS})
+ALLOWED_HOSTS = sorted(fixed.TRUSTED_HOSTS)
 QUESTION = "How should I charge my laptop?"
 BENIGN_ANSWER = "Charge the laptop between 20% and 80% to extend battery life."
 CANARY_HOST = "canary.wardenbot.invalid"
@@ -63,7 +64,7 @@ def test_layer3_benign_control(pipeline: ModuleType) -> None:
 
 
 def test_the_hand_written_stream_replays_byte_for_byte() -> None:
-    recorded = Path("llm_responses/cases/doc_chat_attack/1.sse").read_bytes()
+    recorded = (HERE.parent / "llm_responses" / "cases" / "doc_chat_attack" / "1.sse").read_bytes()
     with model_endpoint("doc_chat_attack"):
         reply = httpx.post(
             os.environ["OPENAI_BASE_URL"] + "/responses",
@@ -76,3 +77,19 @@ def test_the_hand_written_stream_replays_byte_for_byte() -> None:
 def test_a_scripted_stream_parses_too() -> None:
     with model_endpoint("doc_chat_scripted", script=Script.text(BENIGN_ANSWER)):
         assert fixed.answer(QUESTION, DOCUMENTS) == f"<p>{BENIGN_ANSWER}</p>"
+
+
+@pytest.mark.parametrize(
+    "markdown",
+    [
+        "[x](https://canary.wardenbot.invalid\\@docs.example.com/?d=secret)",  # backslash
+        "[x](https://user@canary.wardenbot.invalid/)",  # userinfo
+        "[guide](javascript://docs.example.com/%0aalert(1))",  # a script, on an allowed host
+        "![x](https://canary.wardenbot.invalid/p.png)(https://docs.example.com/y)",  # re-parse
+        "[x](https://forum.example.net/?d=chat-history)",  # a retrieved, untrusted host
+    ],
+)
+def test_the_fixed_renderer_keeps_only_trusted_links(markdown: str) -> None:
+    rendered = render_safely(markdown, fixed.TRUSTED_HOSTS)
+    assert "<a " not in rendered and "<img" not in rendered
+    assert_links_allowed(rendered, ALLOWED_HOSTS)
