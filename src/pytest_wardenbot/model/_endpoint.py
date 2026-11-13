@@ -72,6 +72,7 @@ class Endpoint:
         self.pid = os.getpid()
         self.url: str | None = None
         self.request_count = 0
+        self.error_count = 0
         self._cli = cli
         self._server: ThreadingHTTPServer | None = None
         self._thread: threading.Thread | None = None
@@ -266,10 +267,12 @@ class Endpoint:
         with self._state:
             if block is None:
                 self._errors.append(error)
+                self.error_count += 1
             elif block._closed:
                 # The block already exited and can no longer raise; keep the error visible.
                 late = ModelEndpointError(f"After case {block.case!r} exited: {error}")
                 self._errors.append(late)
+                self.error_count += 1
             else:
                 block._errors.append(error)
 
@@ -432,6 +435,7 @@ def install(
     _cli_responses_dir: str | os.PathLike[str] | None = None,
     _start: Path | None = None,
     _explicit: bool = True,
+    _settings: Settings | None = None,
 ) -> Endpoint:
     """Start the process's model endpoint and point the OpenAI SDK at it.
 
@@ -457,9 +461,9 @@ def install(
     with _lock:
         existing = _endpoint
         if existing is not None and existing.pid == os.getpid():
-            _check_compatible(existing, mode, responses_dir)
+            _check_compatible(existing, mode, responses_dir, _cli_mode, _cli_responses_dir)
             return existing
-        settings = resolve_settings(
+        settings = _settings or resolve_settings(
             cli_mode=_cli_mode,
             cli_responses_dir=_cli_responses_dir,
             code_mode=mode,
@@ -481,15 +485,21 @@ def install(
 
 
 def _check_compatible(
-    endpoint: Endpoint, mode: str | None, responses_dir: str | os.PathLike[str] | None
+    endpoint: Endpoint,
+    mode: str | None,
+    responses_dir: str | os.PathLike[str] | None,
+    cli_mode: str | None = None,
+    cli_responses_dir: str | os.PathLike[str] | None = None,
 ) -> None:
     """Refuse a second ``install()`` whose arguments would resolve to different settings."""
-    if mode is None and responses_dir is None:
+    if mode is None and responses_dir is None and cli_mode is None and cli_responses_dir is None:
         return
-    cli_mode, cli_responses_dir, start = endpoint._cli
+    installed_cli_mode, installed_cli_responses_dir, start = endpoint._cli
     wanted = resolve_settings(
-        cli_mode=cli_mode,
-        cli_responses_dir=cli_responses_dir,
+        cli_mode=cli_mode if cli_mode is not None else installed_cli_mode,
+        cli_responses_dir=(
+            cli_responses_dir if cli_responses_dir is not None else installed_cli_responses_dir
+        ),
         code_mode=mode,
         code_responses_dir=responses_dir,
         start=start,
@@ -499,8 +509,9 @@ def _check_compatible(
     if (wanted.mode, wanted.responses_dir) != (endpoint.mode, endpoint.responses_dir):
         raise ModelEndpointError(
             "The wardenbot model endpoint is already installed in this process with "
-            f"mode={endpoint.mode!r} and responses_dir={endpoint.responses_dir}, so "
-            f"install(mode={mode!r}, responses_dir={responses_dir!r}) can't take effect. "
+            f"mode={endpoint.mode!r} and responses_dir={endpoint.responses_dir}, so a request "
+            f"for mode={wanted.mode!r} and responses_dir={wanted.responses_dir} can't take "
+            "effect. "
             "The endpoint starts once per process, before the application is imported: "
             "choose the mode and folder there, or with WARDENBOT_MODEL_MODE and "
             "WARDENBOT_RESPONSES_DIR."
