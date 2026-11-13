@@ -136,6 +136,18 @@ exported by `pytest_wardenbot.grading`. Measured accuracy and known misses:
       show_root_heading: false
       heading_level: 3
 
+## Output graders for pipelines
+
+Import from `pytest_wardenbot.grading.structured`. They check what a pipeline
+did with a scripted, replayed or mutated reply: whether the injection marker
+reached the output, whether it kept ids it never issued or dropped ones it
+did, and whether its rendered output links to hosts it shouldn't.
+
+::: pytest_wardenbot.grading.structured
+    options:
+      show_root_heading: false
+      heading_level: 3
+
 ## Canary tokens
 
 Import from `pytest_wardenbot.canary`.

@@ -54,6 +54,7 @@ in [GitHub Discussions](https://github.com/wardenbot-ai/pytest-wardenbot/discuss
 | `pytest_wardenbot.corpus` | The attack prompts the shipped tests use |
 | `pytest_wardenbot.grading` | Deterministic graders and the main judge helpers |
 | `pytest_wardenbot.grading.deterministic` | Deterministic graders |
+| `pytest_wardenbot.grading.structured` | Output graders for pipelines: markers, ids and links |
 | `pytest_wardenbot.grading.judge` | LLM-judge helpers and ensembles (`[judge]`) |
 | `pytest_wardenbot.runners` | Parallel async probes and the legacy runner protocol |
 | `pytest_wardenbot.agents` | Agent contracts, runner, campaigns, evidence and reports |
