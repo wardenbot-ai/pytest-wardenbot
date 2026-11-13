@@ -88,6 +88,8 @@ def test_all_patterns_together() -> None:
     """The README's plain `pytest` in the example folder: all patterns in one process."""
     code, output = run_pattern(".")
     assert code == 0, output[-4000:]
+    outcome = counts(output)  # may also count third-party warnings
+    assert outcome.get("failed", 0) == 0 and outcome.get("xpassed", 0) == 0
     passed = sum(expected[0] for expected in EXPECTED.values())
     xfailed = sum(expected[1] for expected in EXPECTED.values())
-    assert counts(output) == {"passed": passed, "xfailed": xfailed}
+    assert (outcome["passed"], outcome["xfailed"]) == (passed, xfailed)
