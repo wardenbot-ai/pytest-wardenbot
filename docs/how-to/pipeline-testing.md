@@ -83,8 +83,28 @@ def test_page_text_stays_fenced():
 `assert_untrusted_confined` fails, naming the request, role and offset, when
 the payload is in the system, developer or instructions role, sits outside the
 fence, or can close the fence early. `fence_break_payloads(FENCE)` gives a
-fixed set of attempts to close it (case and whitespace variants, entities,
-percent-encoding and Unicode lookalikes) to parametrize over.
+fixed set of attempts to close it (case, whitespace and zero-width variants,
+entities, percent-encoding and Unicode lookalikes) to parametrize over.
+
+Three more checks cover the rest of the prompt. Each fails when the planted
+payload never reached a request, since then nothing was checked:
+
+- `assert_untrusted_bounded(block.requests, payload, max_chars)`: plant a
+  payload longer than your limit and check no more than `max_chars` of it
+  arrived.
+- `assert_tools_offered(block.requests, {"lookup"}, payload=attack)`: a request
+  that carries untrusted text offers only the tools you allow.
+- `assert_instruction_present(..., payload=attack)`: the data rule is in every
+  request that carries the payload.
+
+`assert_prompt_shape(block.requests, "snapshots/rating.txt", untrusted=[page])`
+compares the assembled prompt with a committed snapshot: the path, the tools
+and each role's text, one `|`-prefixed line per line of text. Untrusted values
+(pass the application's escaper as `escape=` if it has one), markers, canaries,
+dates and UUIDs are replaced, so a refactor that moves untrusted text, drops a
+fence or reorders roles fails with a diff, while new page content doesn't.
+Write or refresh the file with `WARDENBOT_UPDATE_SNAPSHOTS=1`, review it, and
+commit it.
 
 The safest escaper normalizes first, so lookalike characters fold into `<` and
 `>`, then encodes:
