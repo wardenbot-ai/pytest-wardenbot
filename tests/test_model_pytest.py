@@ -407,3 +407,21 @@ def test_worker_reports_reach_the_controller(pytester: pytest.Pytester) -> None:
     _model_plugin.session_finish(worker_session)  # type: ignore[arg-type]
     assert worker.workeroutput["wardenbot_model"] == {"requests": 0, "errors": []}  # type: ignore[attr-defined]
     assert worker_session.exitstatus == pytest.ExitCode.OK
+
+
+def test_the_wardenbot_canary_fixture_becomes_the_case_canary(pytester: pytest.Pytester) -> None:
+    pytester.makeconftest(
+        "import pytest\n\n"
+        "@pytest.fixture\n"
+        "def wardenbot_canary():\n"
+        "    return 'WBCANARY-from-conftest'\n"
+    )
+    pytester.makepyfile(
+        """
+        from pytest_wardenbot.model import case_canary
+
+        def test_canary(wardenbot_model):
+            assert case_canary() == "WBCANARY-from-conftest"
+        """
+    )
+    pytester.runpytest_subprocess(*SCRIPTED).assert_outcomes(passed=1)
