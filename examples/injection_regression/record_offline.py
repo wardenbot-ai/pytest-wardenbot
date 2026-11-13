@@ -50,22 +50,30 @@ class StandIn(BaseHTTPRequestHandler):
 
 
 def main() -> None:
+    # WARDENBOT_* variables outrank install()'s arguments (so record mode can be
+    # switched on without editing code); clear them so this always records here.
+    for name in [name for name in os.environ if name.startswith("WARDENBOT_")]:
+        del os.environ[name]
     server = ThreadingHTTPServer(("127.0.0.1", 0), StandIn)
     threading.Thread(target=server.serve_forever, daemon=True).start()
-    os.environ["OPENAI_BASE_URL"] = f"http://127.0.0.1:{server.server_address[1]}/v1"
-    os.environ["OPENAI_API_KEY"] = "offline-stand-in"  # pragma: allowlist secret
-    os.chdir(HERE)
-    sys.path.insert(0, str(HERE))
+    try:
+        os.environ["OPENAI_BASE_URL"] = f"http://127.0.0.1:{server.server_address[1]}/v1"
+        os.environ["OPENAI_API_KEY"] = "offline-stand-in"  # pragma: allowlist secret
+        os.chdir(HERE)
+        sys.path.insert(0, str(HERE))
 
-    from pytest_wardenbot.model import install, model_endpoint
+        from pytest_wardenbot.model import install, model_endpoint
 
-    install(mode="record", responses_dir=HERE / "llm_responses")
-    from source_rating import fixed
-    from source_rating.test_source_rating import attack_text, sources
+        endpoint = install(mode="record", responses_dir=HERE / "llm_responses")
+        assert endpoint.mode == "record", endpoint.mode
+        from source_rating import fixed
+        from source_rating.test_source_rating import attack_text, sources
 
-    with model_endpoint("source_rating_hash_churn"):
-        fixed.rate_sources(sources(attack_text("source_rating_hash_churn")))
-    server.shutdown()
+        with model_endpoint("source_rating_hash_churn"):
+            fixed.rate_sources(sources(attack_text("source_rating_hash_churn")))
+    finally:
+        server.shutdown()
+        server.server_close()
 
 
 if __name__ == "__main__":

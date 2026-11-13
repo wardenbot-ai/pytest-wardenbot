@@ -34,13 +34,16 @@ def rate_sources(sources: list[dict[str, str]]) -> list[dict[str, Any]]:
             {"role": "user", "content": body},
         ]
     )
-    ratings = {
-        rating["id"]: rating
-        for rating in reply.get("ratings", [])
-        if isinstance(rating, dict) and rating.get("id") in by_id
-    }
+    listed = reply.get("ratings") if isinstance(reply, dict) else None
+    ratings: dict[str, Any] = {}
+    for rating in listed if isinstance(listed, list) else []:
+        if not isinstance(rating, dict):
+            continue
+        rating_id = rating.get("id")
+        if isinstance(rating_id, int) and not isinstance(rating_id, bool):
+            rating_id = str(rating_id)  # a model may write 0 for "0"
+        if isinstance(rating_id, str) and rating_id in by_id and rating_id not in ratings:
+            relevant = rating.get("relevant")
+            ratings[rating_id] = relevant if isinstance(relevant, bool) else None
     # One result per issued id: an omitted source is unknown, never silently dropped.
-    return [
-        {"id": index, "relevant": ratings[index]["relevant"] if index in ratings else None}
-        for index in by_id
-    ]
+    return [{"id": index, "relevant": ratings.get(index)} for index in by_id]

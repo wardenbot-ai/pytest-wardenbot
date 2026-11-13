@@ -7,6 +7,7 @@ the same replies.
 
 from __future__ import annotations
 
+from pathlib import Path
 from types import ModuleType
 
 import pytest
@@ -30,8 +31,13 @@ from pytest_wardenbot.model import (
 from source_rating import fixed, naive
 
 FENCE = fixed.FENCE
-BENIGN_BATCH = "llm_responses/source_rating/benign_batch.json"
-NAIVE_FAILS = pytest.mark.xfail(strict=True, reason="naive: no fence and no id binding")
+BENIGN_BATCH = (
+    Path(__file__).parent.parent / "llm_responses" / "source_rating" / "benign_batch.json"
+)
+# Only a grader's failure counts as the expected red: a crash is a real failure.
+NAIVE_FAILS = pytest.mark.xfail(
+    strict=True, raises=AssertionError, reason="naive: no fence and no id binding"
+)
 ATTACKED = [pytest.param(naive, id="naive", marks=NAIVE_FAILS), pytest.param(fixed, id="fixed")]
 BOTH = [pytest.param(naive, id="naive"), pytest.param(fixed, id="fixed")]
 
@@ -121,7 +127,13 @@ def test_layer2_hostile_replies_are_contained(pipeline: ModuleType, hostile: str
 
 
 @pytest.mark.parametrize("pipeline", ATTACKED)
-def test_layer3_reply_that_followed_the_attack(pipeline: ModuleType) -> None:
+def test_layer3_reply_that_followed_the_attack_cant_invent_ids(pipeline: ModuleType) -> None:
+    """The recorded reply rates the attacker's page relevant and adds a source "7".
+
+    No pipeline can tell a manipulated judgment from a real one, so source 2
+    stays relevant=True even on fixed. What fixed guarantees is the shape: the
+    invented id is dropped and every issued id is accounted for.
+    """
     with model_endpoint("source_rating_attack"):
         result = pipeline.rate_sources(sources(attack_text("source_rating_attack")))
     check_ids(result)

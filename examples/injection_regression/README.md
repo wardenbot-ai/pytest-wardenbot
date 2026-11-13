@@ -12,7 +12,7 @@ No API key is needed. Attack cases are strict `xfail` on the naive implementatio
 and pass on the fixed one; benign controls pass on both.
 
 ```bash
-pip install "pytest-wardenbot[openai]"
+pip install "pytest-wardenbot[openai]>=0.8.0"
 cd examples/injection_regression
 pytest
 ```
