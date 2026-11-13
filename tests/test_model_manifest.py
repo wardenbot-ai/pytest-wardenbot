@@ -96,6 +96,10 @@ def test_last_component() -> None:
     assert last_component("tests/a.py::Suite::test_x[1.5-b]") == "test_x[1.5-b]"
     assert last_component("app.tests.Suite.test_x") == "test_x"
     assert last_component("plain") == "plain"
+    # Explicit case names are not unittest ids: they stay whole.
+    assert last_component("summarizer.v2") == "summarizer.v2"
+    assert last_component("gpt-4.1-attack") == "gpt-4.1-attack"
+    assert last_component("test_x[1.5]") == "test_x[1.5]"
 
 
 def test_each_match_field(folder: Path, replay: Endpoint) -> None:
@@ -238,6 +242,7 @@ def test_case_rules_never_match_outside_blocks(folder: Path, replay: Endpoint) -
         ('[[response]]\nfiles = ["a.jsonl"]\n', "can't name a .jsonl file"),
         ('[[response]]\nfile = "../outside.txt"\n', "inside the response folder"),
         ('[[response]]\nfile = "/etc/passwd"\n', "inside the response folder"),
+        ('[[response]]\nfile = "C:secrets.json"\n', "inside the response folder"),
         ('[[response]]\nfile = "a.txt"\nrecord = "no"\n', "true or false"),
         ('[[response]]\ncase = ""\nfile = "a.txt"\n', "non-empty string"),
         ("rules = []\n", r"unknown key\(s\) 'rules'"),
@@ -266,3 +271,56 @@ def test_shadowed_rules(folder: Path) -> None:
     found = shadowed_rules(parse_manifest(folder / "wardenbot-responses.toml"))
     assert [(rule.index, earlier.index) for rule, earlier in found] == [(2, 1)]
     assert "matches everything" in found[0][1].describe()
+
+
+def test_jsonl_rules_with_an_upper_case_extension_and_inferred_fields(
+    folder: Path, replay: Endpoint
+) -> None:
+    lines = [
+        {"request": {"input": "a"}, "response": "inferred path", "case": 7},
+        {"request": {"messages": []}, "response": "chat entry"},
+    ]
+    reply(folder, "Exports/LOG.JSONL", "\n".join(json.dumps(line) for line in lines))
+    manifest(
+        folder,
+        '[[response]]\ncase = "by_path"\nfile = "Exports/LOG.JSONL"\n'
+        'where = { path = "/v1/chat/completions" }\n\n'
+        '[[response]]\ncase = "by_number"\nfile = "Exports/LOG.JSONL"\nwhere = { case = 7 }\n',
+    )
+    with model_endpoint("by_path"):
+        assert text_of(post(replay, RESPONSES, {"input": "x"})) == "chat entry"
+    with model_endpoint("by_number"):
+        assert text_of(post(replay, RESPONSES, {"input": "x"})) == "inferred path"
+
+
+def test_rule_targets_must_stay_inside_the_folder(
+    folder: Path, replay: Endpoint, tmp_path: Path
+) -> None:
+    outside = tmp_path / "outside.txt"
+    outside.write_text("secret")
+    (folder / "link.txt").symlink_to(outside)
+    manifest(folder, '[[response]]\ncase = "escape"\nfile = "link.txt"\n')
+    with (
+        pytest.raises(ModelEndpointError, match="outside the response folder"),
+        model_endpoint("escape"),
+    ):
+        post(replay, RESPONSES, {"input": "x"})
+
+
+def test_a_rewritten_manifest_is_reread_even_with_the_same_mtime(folder: Path) -> None:
+    import os
+
+    from pytest_wardenbot.model._manifest import load_manifest
+
+    manifest(folder, '[[response]]\ncase = "a"\nfile = "a.txt"\n')
+    path = folder / "wardenbot-responses.toml"
+    first = load_manifest(folder)
+    stat = path.stat()
+    manifest(
+        folder,
+        '[[response]]\ncase = "a"\nfile = "a.txt"\n\n[[response]]\ncase = "b"\nfile = "b.txt"\n',
+    )
+    os.utime(path, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+    second = load_manifest(folder)
+    assert first is not None and second is not None
+    assert len(first.rules) == 1 and len(second.rules) == 2

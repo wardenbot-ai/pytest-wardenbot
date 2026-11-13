@@ -19,6 +19,7 @@ from pytest_wardenbot.canary import canary_present
 from pytest_wardenbot.model import (
     MARKER_PREFIX,
     ModelEndpointError,
+    _manifest,
     _markers,
     case_canary,
     injection_marker,
@@ -38,7 +39,7 @@ def fresh_state(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     clean_environment(monkeypatch)
     monkeypatch.delenv("WARDENBOT_CANARY", raising=False)
     monkeypatch.setattr(_markers, "_random", {})
-    monkeypatch.setattr(_markers, "_seed_cache", {})
+    monkeypatch.setattr(_manifest, "_cache", {})
     monkeypatch.setattr(_markers, "_warned_default_seed", False)
     uninstall()
     yield
@@ -182,7 +183,7 @@ def test_invalid_seeds_are_reported(tmp_path: Path) -> None:
     with pytest.raises(ModelEndpointError, match="marker_seed must be a non-empty string"):
         read_seed(folder)
     (folder / "wardenbot-responses.toml").write_text("marker_seed = [\n")
-    with pytest.raises(ModelEndpointError, match="Cannot read"):
+    with pytest.raises(ModelEndpointError, match="is not valid TOML"):
         read_seed(folder)
     assert read_seed(None) is None
     assert read_seed(tmp_path / "missing") is None

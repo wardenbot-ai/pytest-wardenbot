@@ -22,7 +22,7 @@ import threading
 import tomllib
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any
 
 from pytest_wardenbot.model._capture import CapturedRequest
@@ -35,15 +35,22 @@ TOP_LEVEL = ("marker_seed", "allow_patterns", "response")
 THEN = ("fail", "repeat_last")
 
 
+_UNITTEST_ID = re.compile(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*){2,}")
+
+
 def last_component(case: str) -> str:
     """The part of a case name a rule's ``case`` may name on its own.
 
     After the last ``::`` for pytest node ids, so parametrize ids such as
-    ``test_x[1.5]`` stay whole; after the last ``.`` for unittest ids.
+    ``test_x[1.5]`` stay whole; after the last ``.`` for unittest ids
+    (``app.tests.Suite.test_x``). Any other name, such as an explicit
+    ``summarizer.v2``, is its own last component.
     """
     if "::" in case:
         return case.rsplit("::", 1)[1]
-    return case.rsplit(".", 1)[-1]
+    if _UNITTEST_ID.fullmatch(case):
+        return case.rsplit(".", 1)[1]
+    return case
 
 
 @dataclass(frozen=True)
@@ -175,7 +182,12 @@ def _parse_rule(path: Path, index: int, table: Any) -> Rule:
         if selector is not None and (not isinstance(selector, Mapping) or not selector):
             raise _error(path, where, "`where` must be a non-empty table.")
     for target in (file, *files):
-        if isinstance(target, str) and (Path(target).is_absolute() or ".." in Path(target).parts):
+        if isinstance(target, str) and (
+            Path(target).is_absolute()
+            or ".." in Path(target).parts
+            or PureWindowsPath(target).drive
+            or PureWindowsPath(target).root
+        ):
             raise _error(path, where, f"{target!r} must be a path inside the response folder.")
     return Rule(
         index=index,
@@ -227,7 +239,7 @@ def parse_manifest(path: Path) -> Manifest:
     )
 
 
-_cache: dict[Path, tuple[float, Manifest]] = {}
+_cache: dict[Path, tuple[tuple[int, int], Manifest]] = {}
 _cache_lock = threading.Lock()
 
 
@@ -235,17 +247,24 @@ def load_manifest(folder: Path) -> Manifest | None:
     """The folder's manifest, re-read when it changes; None if there isn't one."""
     path = folder / MANIFEST_NAME
     try:
-        mtime = path.stat().st_mtime
+        stat = path.stat()
     except OSError:
         return None
+    stamp = (stat.st_mtime_ns, stat.st_size)
     with _cache_lock:
         cached = _cache.get(path)
-    if cached is not None and cached[0] == mtime:
+    if cached is not None and cached[0] == stamp:
         return cached[1]
     manifest = parse_manifest(path)
     with _cache_lock:
-        _cache[path] = (mtime, manifest)
+        _cache[path] = (stamp, manifest)
     return manifest
+
+
+def forget_manifest(folder: Path) -> None:
+    """Drop the cached manifest, after writing it."""
+    with _cache_lock:
+        _cache.pop(folder / MANIFEST_NAME, None)
 
 
 def shadowed_rules(manifest: Manifest) -> list[tuple[Rule, Rule]]:
