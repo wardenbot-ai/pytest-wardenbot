@@ -178,29 +178,40 @@ def _run(
         "PYTEST_DISABLE_PLUGIN_AUTOLOAD",
     ):
         environment.pop(name, None)
+    return _pytest(project, ["--pyargs", *targets], environment, timeout=60)
+
+
+def _pytest(
+    project: Path, arguments: list[str], environment: dict[str, str], *, timeout: int
+) -> dict[str, Any]:
+    """Run pytest in ``project`` and count its junit report, as every consumer check does."""
+    xml_path = project / "result.xml"
     result = subprocess.run(
-        [sys.executable, "-m", "pytest", "--pyargs", *targets, "-v", "--junitxml=result.xml"],
+        [sys.executable, "-m", "pytest", *arguments, "-v", f"--junitxml={xml_path}"],
         cwd=project,
         env=environment,
         capture_output=True,
         text=True,
-        timeout=60,
+        timeout=timeout,
         check=False,
     )
     output = result.stdout + result.stderr
-    xml_path = project / "result.xml"
     _require(xml_path.exists(), f"Pytest did not write a consumer report:\n{output}")
     cases = ET.parse(xml_path).findall(".//testcase")
-    failures = sum(case.find("failure") is not None for case in cases)
+    xml_path.unlink()  # never left in a checkout
+    failures = [case for case in cases if case.find("failure") is not None]
     errors = sum(case.find("error") is not None for case in cases)
-    skipped = sum(case.find("skipped") is not None for case in cases)
+    skips = [skip for case in cases if (skip := case.find("skipped")) is not None]
+    xfailed = sum(skip.get("type") == "pytest.xfail" for skip in skips)
     return {
         "exit_code": result.returncode,
-        "passed": len(cases) - failures - errors - skipped,
-        "failed": failures,
+        "passed": len(cases) - len(failures) - errors - len(skips),
+        "failed": len(failures),
         "errors": errors,
-        "skipped": skipped,
+        "skipped": len(skips) - xfailed,
+        "xfailed": xfailed,
         "names": [case.get("name", "") for case in cases],
+        "failed_names": [case.get("name", "") for case in failures],
         "properties": [
             {prop.get("name"): prop.get("value") for prop in case.findall("./properties/property")}
             for case in cases
@@ -515,6 +526,7 @@ def summarize(text):
 """,
     "conftest.py": "import app  # noqa: F401\n",
     "test_pipeline.py": """
+import pytest
 from app import summarize
 from pytest_wardenbot.grading.prompt import assert_untrusted_confined
 from pytest_wardenbot.grading.structured import assert_marker_absent
@@ -528,8 +540,10 @@ def test_scripted_and_confined():
 
 def test_replayed_and_mutated():
     with model_endpoint("consumer_replay", mutate=[mutate.inject_marker(marker="MK")]):
-        assert summarize("anything") == "A replayed summary. MK"
-    assert_marker_absent("A replayed summary.", "MK")
+        result = summarize("anything")
+    assert result == "A replayed summary. MK"
+    with pytest.raises(AssertionError, match="injection marker in the output"):
+        assert_marker_absent({"summary": result}, "MK")
 
 def test_a_miss_fails():
     with model_endpoint("nothing_recorded"):
@@ -538,8 +552,38 @@ def test_a_miss_fails():
 }
 
 
+_EXAMPLES = Path(__file__).resolve().parents[1] / "examples" / "injection_regression"
+
+
+def _clean_environment() -> dict[str, str]:
+    """No keys, endpoint settings, pytest options or source paths from the outer run."""
+    return {
+        key: value
+        for key, value in os.environ.items()
+        if not key.startswith(("OPENAI_", "WARDENBOT_", "PYTEST_", "PYTHONPATH"))
+    }
+
+
+def _model_check(folder: Path, cwd: Path) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, "-m", "pytest_wardenbot.model", "check", str(folder)],
+        cwd=cwd,
+        env=_clean_environment(),
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+
+
 def check_pipeline() -> None:
-    """The model endpoint and pipeline graders from the installed wheel, with no API key."""
+    """The model endpoint and pipeline graders from the installed wheel, with no API key.
+
+    A throwaway project (scripted, replayed with a mutator, and a miss that must
+    fail with the report), the check command on a clean and a leaky folder, and
+    the reference examples when run from a checkout, all against the wheel.
+    """
+    package_path = _check_installation()
     _require(importlib.util.find_spec("openai") is not None, "Install the [openai] extra first.")
     with tempfile.TemporaryDirectory(prefix="wardenbot-pipeline-") as temporary:
         project = Path(temporary) / "pipeline"
@@ -547,38 +591,42 @@ def check_pipeline() -> None:
             path = project / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(content.lstrip("\n"), encoding="utf-8")
-        environment = {
-            key: value
-            for key, value in os.environ.items()
-            if not key.startswith(("OPENAI_", "WARDENBOT_", "PYTEST_", "PYTHONPATH"))
-        }
-        result = subprocess.run(
-            [sys.executable, "-m", "pytest", "-v", "--junitxml=result.xml"],
-            cwd=project,
-            env=environment,
-            capture_output=True,
-            text=True,
-            timeout=120,
-            check=False,
-        )
-        output = result.stdout + result.stderr
-        cases = ET.parse(project / "result.xml").findall(".//testcase")
-        failed = [case.get("name") for case in cases if case.find("failure") is not None]
-        _require(len(cases) == 3, f"Expected 3 pipeline tests:\n{output}")
-        _require(failed == ["test_a_miss_fails"], f"Only the miss should fail:\n{output}")
+        result = _pytest(project, [], _clean_environment(), timeout=120)
+        _expect(result, exit_code=1, passed=2, failed=1, errors=0, skipped=0, xfailed=0)
+        output = result["output"]
+        _require(result["failed_names"] == ["test_a_miss_fails"], f"Only the miss fails:\n{output}")
         _require("No reply in the response folder" in output, f"No miss report:\n{output}")
         _require("mode=replay" in output, f"No endpoint summary:\n{output}")
-        check = subprocess.run(
-            [sys.executable, "-m", "pytest_wardenbot.model", "check", "replies"],
-            cwd=project,
-            env=environment,
-            capture_output=True,
-            text=True,
-            timeout=60,
-            check=False,
+
+        clean = _model_check(Path("replies"), project)
+        _require(clean.returncode == 0, f"check failed:\n{clean.stdout}{clean.stderr}")
+        leaky = project / "leaky"
+        secret = "sk-" + "proj-" + "Ab3d" * 10  # built at runtime  # pragma: allowlist secret
+        (leaky / "cases" / "c").mkdir(parents=True)
+        (leaky / "cases" / "c" / "1.txt").write_text(f"The key is {secret}\n", encoding="utf-8")
+        found = _model_check(leaky, project)
+        _require(
+            found.returncode == 1 and "looks like an OpenAI API key" in found.stdout,
+            f"check missed a planted key:\n{found.stdout}{found.stderr}",
         )
-        _require(check.returncode == 0, f"check failed:\n{check.stdout}{check.stderr}")
-    print("Installed wheel: pipeline tests (scripted, replay, mutate, miss) and check verified")  # noqa: T201
+        _require(secret not in found.stdout + found.stderr, "check printed the key it found.")
+
+    examples = None
+    if _EXAMPLES.is_dir():  # from a checkout: the reference examples against the wheel
+        examples = _pytest(_EXAMPLES, ["-p", "no:cacheprovider"], _clean_environment(), timeout=300)
+        _expect(examples, exit_code=0, failed=0, errors=0, skipped=0)
+        _require(
+            examples["passed"] > 0 and examples["xfailed"] > 0,
+            f"The examples ran no attack cases:\n{examples['output']}",
+        )
+    summary = {
+        "package": package_path,
+        "pipeline": {key: result[key] for key in ("exit_code", "passed", "failed", "errors")},
+        "examples": (
+            {key: examples[key] for key in ("exit_code", "passed", "xfailed")} if examples else None
+        ),
+    }
+    sys.stdout.write(json.dumps(summary, indent=2) + "\n")
 
 
 def main() -> None:
