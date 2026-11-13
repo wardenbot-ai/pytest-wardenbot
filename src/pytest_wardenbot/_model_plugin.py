@@ -180,15 +180,17 @@ def wardenbot_model(request: pytest.FixtureRequest) -> Iterator[EndpointCase]:
     defaults to the test's node id; pass ``case=`` to share replies between
     tests. The fixture yields the block, whose ``requests`` are the requests the
     application sent during the test. Endpoint errors, such as a replay miss,
-    fail the test at teardown even if the application swallowed them.
+    fail the test at teardown even if the application swallowed them. A canary
+    from the ``wardenbot_canary`` fixture becomes the case's canary.
     """
     marker = request.node.get_closest_marker("wardenbot_model")
     if marker is not None and marker.args:
         pytest.fail("@pytest.mark.wardenbot_model takes keyword arguments only.", pytrace=False)
     arguments: dict[str, Any] = dict(marker.kwargs) if marker is not None else {}
     case = arguments.pop("case", request.node.nodeid)
+    canary = request.getfixturevalue("wardenbot_canary")
     try:
-        block = model_endpoint(case, **arguments)
+        block = model_endpoint(case, canary=canary, **arguments)
     except (WardenBotError, TypeError, ValueError) as error:
         pytest.fail(f"wardenbot_model: {error}", pytrace=False)
     with block:

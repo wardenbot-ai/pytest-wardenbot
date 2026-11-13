@@ -313,10 +313,13 @@ class EndpointCase:
     already raising, the endpoint's errors are added to that exception as notes.
     """
 
-    def __init__(self, endpoint: Endpoint, case: str, script: Script | None) -> None:
+    def __init__(
+        self, endpoint: Endpoint, case: str, script: Script | None, canary: str | None = None
+    ) -> None:
         self._endpoint = endpoint
         self.case = case
         self.script = script
+        self.canary = canary
         self._cursor: ScriptCursor | None = script.cursor(case) if script is not None else None
         self._requests: list[CapturedRequest] = []
         self._errors: list[ModelEndpointError] = []
@@ -614,20 +617,29 @@ def _active_endpoint(script: object) -> Endpoint:
     return endpoint
 
 
-def model_endpoint(case: str | None = None, *, script: Any = None) -> EndpointCase:
+def model_endpoint(
+    case: str | None = None, *, script: Any = None, canary: str | None = None
+) -> EndpointCase:
     """Open a block that serves one case's model requests.
 
     ``case`` names the case; it defaults to the running test's id. Passing the
     same name from two tests lets them share replies. ``script`` makes the case
     scripted whatever the global mode: it takes anything ``Script.coerce``
-    accepts. Without it, the case follows the global mode.
+    accepts. Without it, the case follows the global mode. ``canary`` is a canary
+    configured elsewhere, such as the ``wardenbot_canary`` fixture, that
+    ``case_canary()`` returns for this case instead of a derived one.
 
     The block yields an ``EndpointCase`` whose ``requests`` are the requests the
     application sent inside it. Blocks nest; the innermost one is active.
     """
     endpoint = _active_endpoint(script)
+    if canary is not None and not isinstance(canary, str):
+        raise TypeError(f"canary must be a string, not {type(canary).__name__}.")
     if script is None:
         refuse_in_ci(endpoint.mode)
     return EndpointCase(
-        endpoint, current_case(case), Script.coerce(script) if script is not None else None
+        endpoint,
+        current_case(case),
+        Script.coerce(script) if script is not None else None,
+        canary=canary.strip() or None if canary is not None else None,
     )
