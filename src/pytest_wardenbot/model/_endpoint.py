@@ -20,10 +20,17 @@ from pathlib import Path
 from types import TracebackType
 from typing import Any
 
+from pytest_wardenbot._errors import WardenBotConfigError
 from pytest_wardenbot.model._capture import CapturedRequest
-from pytest_wardenbot.model._cases import current_case
-from pytest_wardenbot.model._config import Settings, refuse_in_ci, resolve_settings
+from pytest_wardenbot.model._cases import current_case, running_test_id
+from pytest_wardenbot.model._config import (
+    Settings,
+    load_callable,
+    refuse_in_ci,
+    resolve_settings,
+)
 from pytest_wardenbot.model._errors import ModelEndpointError
+from pytest_wardenbot.model._folder import LookupState, ReplayMissError, ResponseFolder
 from pytest_wardenbot.model._guard import (
     DEFAULT_GUARDED,
     EgressBlockedError,
@@ -89,6 +96,9 @@ class Endpoint:
         self._requests: deque[CapturedRequest] = deque(maxlen=_KEEP_OUTSIDE)
         self._errors: deque[ModelEndpointError] = deque(maxlen=_KEEP_OUTSIDE)
         self._outside_calls = 0
+        self._outside_lookup = LookupState()
+        self._folder: ResponseFolder | None = None
+        self._folder_lock = threading.Lock()
 
     def __repr__(self) -> str:
         return f"Endpoint(mode={self.mode!r}, url={self.url!r})"
@@ -289,6 +299,25 @@ class Endpoint:
             else:
                 block._errors.append(error)
 
+    def response_folder(self) -> ResponseFolder | None:
+        """The response folder, built on first use; its normalizers import then."""
+        if self.responses_dir is None:
+            return None
+        # Not under _state: importing a normalizer can make the application send a
+        # request, whose handler needs _state.
+        with self._folder_lock:
+            if self._folder is None:
+                from pytest_wardenbot.model._hash import RequestHasher
+
+                config = self.settings.config
+                try:
+                    normalizers = [load_callable(name) for name in config.normalizers]
+                except WardenBotConfigError as error:
+                    raise ModelEndpointError(f"In {config.source}: {error}") from None
+                hasher = RequestHasher(config.ignore_fields, normalizers)
+                self._folder = ResponseFolder(self.responses_dir, hasher)
+            return self._folder
+
     def _reply_for(self, block: EndpointCase | None, request: CapturedRequest) -> Reply:
         if block is not None and block._cursor is not None:
             return block._cursor.next(request)
@@ -298,6 +327,19 @@ class Endpoint:
                 f"The wardenbot model mode is 'scripted', so every case must pass script=, "
                 f"but {where} has none (request to {request.path})."
             )
+        if self.mode == "replay":
+            folder = self.response_folder()
+            if folder is None:
+                raise ReplayMissError(
+                    f"The wardenbot model mode is 'replay', but no response folder is "
+                    f"configured, so {where} has no reply (request to {request.path}). Set "
+                    "responses_dir in [tool.wardenbot.model], WARDENBOT_RESPONSES_DIR or "
+                    "--wardenbot-responses-dir."
+                )
+            if block is None:
+                # Stateless outside blocks, so results don't depend on test order.
+                return folder.find(request, None, LookupState())
+            return folder.find(request, block.case, block._lookup, test_id=block.test_id)
         raise ModelEndpointError(
             f"The wardenbot model mode {self.mode!r} can't answer {where} yet "
             f"(request to {request.path}): pass script=."
@@ -320,6 +362,8 @@ class EndpointCase:
         self.case = case
         self.script = script
         self.canary = canary
+        self.test_id = running_test_id()
+        self._lookup = LookupState()
         self._cursor: ScriptCursor | None = script.cursor(case) if script is not None else None
         self._requests: list[CapturedRequest] = []
         self._errors: list[ModelEndpointError] = []

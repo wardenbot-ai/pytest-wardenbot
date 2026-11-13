@@ -261,7 +261,7 @@ jobs:
         # native code), because there is no route off the machine.
         run: >-
           unshare --user --map-root-user --net sh -c
-          'ip link set lo up && python -m pytest tests/test_egress.py tests/test_local.py tests/test_model_guard.py
+          'ip link set lo up && python -m pytest tests/test_egress.py tests/test_local.py tests/test_model_guard.py tests/test_model_folders.py
           -v -ra -p no:cacheprovider'
 
   mcp-contracts:

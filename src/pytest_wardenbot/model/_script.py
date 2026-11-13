@@ -24,22 +24,10 @@ class _File:
     def __init__(self, path: Path) -> None:
         self.path = path
 
-    def load(self) -> Reply:
-        source = str(self.path)
-        suffix = self.path.suffix.lower()
-        try:
-            if suffix == ".sse":
-                return Reply(sse=self.path.read_bytes(), source=source)
-            text = self.path.read_text(encoding="utf-8")
-        except OSError as error:
-            raise ModelEndpointError(f"Cannot read the reply file {source}: {error}") from None
-        if suffix == ".txt":
-            return Reply(text=text, source=source)
-        try:
-            value = json.loads(text)
-        except json.JSONDecodeError as error:
-            raise ModelEndpointError(f"{source} is not valid JSON: {error}") from None
-        return _from_value(value, source)
+    def load(self, case: str | None = None) -> Reply:
+        from pytest_wardenbot.model._folder import load_reply_file
+
+        return load_reply_file(self.path, case, str(self.path))
 
 
 ReplyLike = Union[str, Mapping[str, Any], Reply, "Script", Callable[[CapturedRequest], Any]]
@@ -252,7 +240,7 @@ class ScriptCursor:
         item = items[index]
         source = f"reply {index + 1} of the script for case {self._case!r}"
         if isinstance(item, _File):
-            return item.load()
+            return item.load(self._case)
         if _is_callable(item):
             try:
                 value = item(request)
@@ -272,7 +260,7 @@ class ScriptCursor:
                     )
                 value = value._items[0]
                 if isinstance(value, _File):
-                    return value.load()
+                    return value.load(self._case)
             return _from_value(value, f"The value the script callable returned for {source}")
         return _from_value(item, source)
 

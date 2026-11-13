@@ -218,8 +218,56 @@ def _item_events(index: int, item: Mapping[str, Any]) -> Iterator[tuple[str, dic
     yield "response.output_item.done", {"output_index": index, "item": item}
 
 
+def _completed_item(item: Any) -> Any:
+    if not isinstance(item, Mapping) or item.get("type") != "message":
+        return item
+    content = [
+        {"annotations": [], **part}
+        if isinstance(part, Mapping) and part.get("type") == "output_text"
+        else part
+        for part in item.get("content") or ()
+    ]
+    return {"status": "completed", "role": "assistant", **item, "content": content}
+
+
+def complete_response_body(body: Mapping[str, Any]) -> dict[str, Any]:
+    """Fill the fields SDKs need that a hand-written Responses body may leave out.
+
+    Present values are kept; only missing ones get defaults. Streaming SDK
+    helpers validate each event's response object, so a minimal body would
+    otherwise reach them as a plain dict.
+    """
+    output = [_completed_item(item) for item in body.get("output") or ()]
+    usage = body.get("usage")
+    completed: dict[str, Any] = {
+        "id": "resp_wardenbot",
+        "created_at": 0,
+        "status": "completed",
+        "error": None,
+        "incomplete_details": None,
+        "instructions": None,
+        "metadata": {},
+        "model": DEFAULT_MODEL,
+        "parallel_tool_calls": True,
+        "temperature": None,
+        "tool_choice": "auto",
+        "tools": [],
+        "top_p": None,
+        **body,
+        "object": "response",
+        "output": output,
+    }
+    completed.setdefault("output_text", output_text(output))
+    if usage is None:
+        completed["usage"] = responses_usage()
+    elif isinstance(usage, Mapping):
+        completed["usage"] = {**responses_usage(), **usage}
+    return completed
+
+
 def responses_events(body: Mapping[str, Any]) -> bytes:
     """The server-sent event stream for a complete Responses body."""
+    body = complete_response_body(body)
     start = {**body, "status": "in_progress", "output": [], "output_text": "", "usage": None}
     events: list[tuple[str, dict[str, Any]]] = [
         ("response.created", {"response": start}),
