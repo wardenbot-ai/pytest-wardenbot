@@ -21,16 +21,20 @@ pytest.importorskip("openai")
 EXAMPLE = Path(__file__).resolve().parents[1] / "examples" / "injection_regression"
 
 
-def run_pattern(pattern: str) -> tuple[int, str]:
-    env = {
+def clean_env() -> dict[str, str]:
+    """The environment without keys, endpoint settings or pytest's own variables."""
+    return {
         key: value
         for key, value in os.environ.items()
         if not key.startswith(("OPENAI_", "WARDENBOT_", "PYTEST_"))
     }
+
+
+def run_pattern(pattern: str) -> tuple[int, str]:
     result = subprocess.run(
         [sys.executable, "-m", "pytest", pattern, "-q", "-p", "no:cacheprovider"],
         cwd=EXAMPLE,
-        env=env,
+        env=clean_env(),
         capture_output=True,
         text=True,
         timeout=300,
@@ -67,7 +71,7 @@ def test_pattern_b_exports_are_up_to_date() -> None:
     result = subprocess.run(
         [sys.executable, "make_exports.py", "--check"],
         cwd=EXAMPLE,
-        env={k: v for k, v in os.environ.items() if not k.startswith(("OPENAI_", "WARDENBOT_"))},
+        env=clean_env(),
         capture_output=True,
         text=True,
         timeout=120,

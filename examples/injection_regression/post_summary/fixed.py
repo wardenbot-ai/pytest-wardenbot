@@ -25,7 +25,7 @@ def escape(text: str) -> str:
 
 def messages(posts: list[dict[str, str]]) -> list[dict[str, str]]:
     body = "\n".join(
-        f'<post id="{post["id"]}">{FENCE[0]}{escape(post["text"])}{FENCE[1]}</post>'
+        f'<post id="{html.escape(post["id"])}">{FENCE[0]}{escape(post["text"])}{FENCE[1]}</post>'
         for post in posts
     )
     return [{"role": "system", "content": SYSTEM}, {"role": "user", "content": body}]

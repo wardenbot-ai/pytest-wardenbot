@@ -2,7 +2,10 @@
 
 This is the export shape a project would produce from its own logs: one line
 per model call, with the request the application sent, the response it got,
-and the case it belongs to. Headers are never exported.
+and the case it belongs to. Headers are never exported. The request is what
+the fixed version sends today; replay picks entries by case (the manifest's
+where rules), so after editing the prompt, regenerate the file to keep it an
+honest log.
 
     python make_exports.py          # write the file
     python make_exports.py --check  # exit 1 if the file is out of date
@@ -11,6 +14,7 @@ and the case it belongs to. Headers are never exported.
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -24,26 +28,34 @@ CASES = {
 
 
 def build() -> str:
+    # WARDENBOT_* variables outrank install()'s arguments; clear them so the
+    # markers always come from the folder's seed, the same on every machine.
+    for name in [name for name in os.environ if name.startswith("WARDENBOT_")]:
+        del os.environ[name]
     sys.path.insert(0, str(HERE))
     from pytest_wardenbot.model import injection_marker, install
 
-    install(mode="replay", responses_dir=FOLDER)  # seeded markers: the same on every machine
+    endpoint = install(mode="replay", responses_dir=FOLDER)
+    assert endpoint.mode == "replay", endpoint.mode
     from llm import MODEL
     from post_summary import data, fixed
 
     lines = []
     for case, reply_file in CASES.items():
         reply = json.loads(reply_file.read_text(encoding="utf-8"))
+        posts = (
+            data.benign_posts() if case.endswith("benign") else data.posts(injection_marker(case))
+        )
         request = {
             "model": MODEL,
-            "messages": fixed.messages(data.posts(injection_marker(case))),
+            "messages": fixed.messages(posts),
             "response_format": {"type": "json_object"},
         }
         response = {
             "id": f"chatcmpl-{case}",
             "object": "chat.completion",
             "created": 1763000000,
-            "model": "gpt-4.1-mini-2025-04-14",
+            "model": MODEL,
             "choices": [
                 {
                     "index": 0,
