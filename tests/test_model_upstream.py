@@ -327,9 +327,9 @@ def test_record_writes_where_replay_reads(folder: Path, upstream: FakeUpstream) 
     assert logged["output_text"] == "logged"
     files = files_under(folder)
     assert json.loads(files["rules/single.json"])["object"] == "response"
-    assert files["rules/first.txt"] == files["rules/second.txt"] == "Upstream reply."
+    assert files["rules/first.txt"] == files["rules/second.txt"] == "Upstream reply.\n"
     assert files["rules/hostile.json"] == '{"crafted": true}'  # never overwritten
-    assert files["cases/folder_case/1.txt"] == "Upstream reply."
+    assert files["cases/folder_case/1.txt"] == "Upstream reply.\n"
     assert json.loads(files["cases/folder_case/2.json"])["object"] == "response"
     third = [name for name in files if name.startswith("recorded/folder_case/")]
     assert len(third) == 2  # the third call goes to recorded/, with its sidecar

@@ -125,7 +125,8 @@ def _convert(raw: bytes, request: CapturedRequest, path: Path) -> bytes:
         except json.JSONDecodeError as error:
             raise ModelEndpointError(f"The upstream reply is not JSON: {error}") from None
     if suffix == ".txt":
-        return assistant_text(body).encode("utf-8")
+        # End with the newline editors and hooks add; the loader drops exactly one.
+        return (assistant_text(body) + "\n").encode("utf-8")
     return (json.dumps(body, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
 
 
