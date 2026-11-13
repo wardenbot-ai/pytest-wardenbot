@@ -119,6 +119,10 @@ nav:
       - Bound agent campaigns: how-to/agent-campaigns.md
       - Share and replay evidence: how-to/evidence-bundles.md
       - Connect the reference agent: how-to/reference-agent.md
+  - Pipeline tests:
+      - Test a pipeline without a live model: how-to/pipeline-testing.md
+      - Response folders: how-to/response-folders.md
+      - Use it with Django's test runner: how-to/django.md
   - Guides:
       - CI integration: how-to/ci-integration.md
       - Run against local models: how-to/local-models.md
@@ -126,6 +130,7 @@ nav:
       - Community release updates: how-to/community-updates.md
   - Reference:
       - API: reference/api.md
+      - Model endpoint: reference/model-endpoint.md
       - Agent outcomes and reason codes: reference/agent-outcomes.md
       - Grading accuracy: reference/grading-accuracy.md
       - Pytest markers: reference/markers.md

@@ -47,6 +47,17 @@ real model. Then connect your own:
 [Agent quickstart →](quickstart.md#test-an-agent){ .md-button .md-button--primary }
 [Agent outcomes →](reference/agent-outcomes.md){ .md-button }
 
+## Test an LLM pipeline
+
+For applications that put untrusted text into their own model calls: a local
+OpenAI-compatible endpoint serves your SDK client scripted, replayed or
+recorded replies and captures every request. Check where untrusted text
+landed, how the application handles a hostile reply, and how it handles real
+replies captured earlier, all in CI with no API key.
+
+[Pipeline tests →](how-to/pipeline-testing.md){ .md-button .md-button--primary }
+[Response folders →](how-to/response-folders.md){ .md-button }
+
 ## What a result means
 
 A failing chatbot check found a problem in a response. A passing one found
