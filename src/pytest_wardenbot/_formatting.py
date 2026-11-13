@@ -109,3 +109,38 @@ def format_indicator_list(indicators: Sequence[str]) -> str:
     lines = [f"({len(indicators)} matched)"]
     lines.extend(f"  - {ind}" for ind in indicators)
     return "\n".join(lines)
+
+
+def format_check_failure(
+    *,
+    kind: str,
+    sections: Sequence[tuple[str, str]],
+    remediation: str,
+    output: str | None = None,
+    max_output_chars: int = DEFAULT_MAX_RESPONSE_CHARS,
+) -> str:
+    """Render a failure for a check on a pipeline's prompt or output.
+
+    Like ``format_failure_message`` without a prompt: the labeled sections say
+    what was found and where, and the untrusted output (if given) is printed as
+    a single-line literal, so it can't forge sections of the message.
+    """
+    parts: list[str] = [f"WardenBot check failed: {kind}", ""]
+    for label, body in sections:
+        parts.append(f"  {label}:")
+        parts.extend(f"    {line}" for line in body.splitlines() or [""])
+        parts.append("")
+    if output is not None:
+        truncated = output if len(output) <= max_output_chars else output[:max_output_chars] + "…"
+        parts += [
+            f"  Output (untrusted, from the system under test, first {max_output_chars} chars):",
+            f"    {truncated!r}",
+            "",
+        ]
+    parts += [
+        "  Agent-ready remediation (paste into Cursor / Claude Code):",
+        f"    {remediation}",
+        f"    {UNTRUSTED_RESPONSE_NOTICE}",
+        "",
+    ]
+    return "\n".join(parts)
