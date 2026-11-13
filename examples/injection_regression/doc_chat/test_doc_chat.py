@@ -22,7 +22,9 @@ ALLOWED_HOSTS = sorted({urlsplit(doc["url"]).hostname for doc in DOCUMENTS})
 QUESTION = "How should I charge my laptop?"
 BENIGN_ANSWER = "Charge the laptop between 20% and 80% to extend battery life."
 CANARY_HOST = "canary.wardenbot.invalid"
-NAIVE_FAILS = pytest.mark.xfail(strict=True, reason="naive: documents in instructions, renders all")
+NAIVE_FAILS = pytest.mark.xfail(
+    strict=True, raises=AssertionError, reason="naive: documents in instructions, renders all"
+)
 ATTACKED = [pytest.param(naive, id="naive", marks=NAIVE_FAILS), pytest.param(fixed, id="fixed")]
 BOTH = [pytest.param(naive, id="naive"), pytest.param(fixed, id="fixed")]
 
