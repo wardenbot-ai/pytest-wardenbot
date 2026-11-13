@@ -350,3 +350,60 @@ def test_options_are_documented_in_help(pytester: pytest.Pytester) -> None:
     result = pytester.runpytest_subprocess("--help")
     text = textwrap.dedent(result.stdout.str())
     assert "--wardenbot-model-mode" in text and "--wardenbot-responses-dir" in text
+
+
+# In-process runs: the same paths as above, measured by coverage in this process.
+
+
+def test_in_process_errors_outside_blocks_fail_the_run(pytester: pytest.Pytester) -> None:
+    pytester.makepyfile(
+        """
+        import os, httpx, pytest
+
+        def test_stray_request():
+            httpx.post(os.environ["OPENAI_BASE_URL"] + "/responses", json={"input": "x"})
+
+        @pytest.mark.wardenbot_model("positional")
+        def test_positional(wardenbot_model):
+            pass
+
+        @pytest.mark.wardenbot_model(scirpt="typo")
+        def test_typo(wardenbot_model):
+            pass
+        """
+    )
+    result = pytester.runpytest_inprocess(*SCRIPTED, "--wardenbot-responses-dir=replies")
+    result.assert_outcomes(passed=1, errors=2)
+    assert result.ret == pytest.ExitCode.TESTS_FAILED
+    result.stdout.fnmatch_lines(
+        ["mode=scripted, folder=*replies, 1 requests", "model endpoint error: *"]
+    )
+
+
+def test_in_process_help_with_a_broken_config(pytester: pytest.Pytester) -> None:
+    pytester.makepyprojecttoml('[tool.wardenbot.model]\nmode = "sometimes"\n')
+    assert pytester.runpytest_inprocess("--help").ret == pytest.ExitCode.OK
+    assert pytester.runpytest_inprocess().ret == pytest.ExitCode.USAGE_ERROR
+
+
+def test_worker_reports_reach_the_controller(pytester: pytest.Pytester) -> None:
+    from types import SimpleNamespace
+
+    from pytest_wardenbot import _model_plugin
+
+    controller = pytester.parseconfig()
+    _model_plugin.testnode_down(SimpleNamespace(config=controller, workeroutput={}))
+    report = {"requests": 3, "errors": ["late error"]}
+    node = SimpleNamespace(config=controller, workeroutput={"wardenbot_model": report})
+    _model_plugin.testnode_down(node)
+    session = SimpleNamespace(config=controller, exitstatus=pytest.ExitCode.OK)
+    _model_plugin.session_finish(session)  # type: ignore[arg-type]
+    assert session.exitstatus == pytest.ExitCode.TESTS_FAILED
+    assert _model_plugin._session(controller).worker_requests == 3
+
+    worker = pytester.parseconfig()
+    worker.workeroutput = {}  # type: ignore[attr-defined]
+    worker_session = SimpleNamespace(config=worker, exitstatus=pytest.ExitCode.OK)
+    _model_plugin.session_finish(worker_session)  # type: ignore[arg-type]
+    assert worker.workeroutput["wardenbot_model"] == {"requests": 0, "errors": []}  # type: ignore[attr-defined]
+    assert worker_session.exitstatus == pytest.ExitCode.OK
