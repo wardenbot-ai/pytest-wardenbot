@@ -90,4 +90,4 @@ def test_pattern_c_doc_chat() -> None:
 def test_all_patterns_together() -> None:
     code, output = run_pattern(".")
     assert code == 0, output[-4000:]
-    assert counts(output) == {"passed": 36, "xfailed": 26}
+    assert counts(output) == {"passed": 37, "xfailed": 27}
