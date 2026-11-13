@@ -107,6 +107,15 @@ and Django's test runner.
       show_root_heading: false
       heading_level: 3
 
+### Hostile replies
+
+Import from `pytest_wardenbot.model.mutate`, or `from pytest_wardenbot.model import mutate`.
+
+::: pytest_wardenbot.model.mutate
+    options:
+      show_root_heading: false
+      heading_level: 4
+
 ## Business truth
 
 Import from `pytest_wardenbot.business_truth`.

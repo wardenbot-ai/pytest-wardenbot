@@ -156,7 +156,8 @@ def test_documented_code_imports_only_public_names(where, source):
         problems += [
             f"{module}.{alias.name} is not in __all__"
             for alias in node.names
-            if alias.name not in names
+            # A public submodule imported from its package is public too.
+            if alias.name not in names and f"{module}.{alias.name}" not in PUBLIC
         ]
     assert not problems, problems
 

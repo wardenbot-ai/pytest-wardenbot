@@ -48,6 +48,7 @@ in [GitHub Discussions](https://github.com/wardenbot-ai/pytest-wardenbot/discuss
 | `pytest_wardenbot.adapters.langchain_runnable` | LangChain Runnable adapters (`[langchain]`) |
 | `pytest_wardenbot.local` | Ollama, vLLM and llama.cpp presets and the tool-calling check |
 | `pytest_wardenbot.model` | The local model endpoint for deterministic pipeline tests |
+| `pytest_wardenbot.model.mutate` | Mutators that turn a reply hostile, for `model_endpoint(mutate=...)` |
 | `pytest_wardenbot.business_truth` | Business facts and their matcher |
 | `pytest_wardenbot.canary` | Canary tokens |
 | `pytest_wardenbot.corpus` | The attack prompts the shipped tests use |

@@ -16,7 +16,7 @@ import sys
 import threading
 import warnings
 from collections import deque
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -318,6 +318,10 @@ class Endpoint:
 
         try:
             result = self._reply_for(block, request, raw, headers, path)
+            if block is not None and block.mutate and isinstance(result, Reply):
+                from pytest_wardenbot.model._mutation import mutate_reply
+
+                result = mutate_reply(result, request, block.mutate, block.case)
             if isinstance(result, _Response):
                 result.done = _chain(result.done, done)
                 return result
@@ -335,6 +339,29 @@ class Endpoint:
             )
             self._record(block, wrapped)
             return _Response(500, JSON_TYPE, error_body(str(wrapped)), done)
+
+    def _fetch(
+        self, request: CapturedRequest, raw: bytes, headers: Mapping[str, str], raw_path: str | None
+    ) -> Reply:
+        """The whole upstream reply, for mutation; it is never saved."""
+        assert self.upstream is not None
+        reply = self.upstream.forward(raw_path or request.path, raw, headers)
+        try:
+            data = b"".join(reply.chunks)
+        finally:
+            reply.close()
+        if not 200 <= reply.status < 300:
+            raise ModelEndpointError(
+                f"The upstream {self.upstream.host} returned HTTP {reply.status} for "
+                f"{request.path}."
+            )
+        source = f"the upstream reply to {request.path}"
+        if request.stream:
+            return Reply(sse=data, source=source)
+        try:
+            return Reply(body=json.loads(data), source=source)
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise ModelEndpointError(f"The upstream reply is not JSON: {error}") from None
 
     def _forward(
         self,
@@ -482,7 +509,10 @@ class Endpoint:
                 # Stateless outside blocks, so results don't depend on test order.
                 return folder.find(request, None, LookupState())
             return folder.find(request, block.case, block._lookup, test_id=block.test_id)
-        if self.mode == "live":
+        mutating = block is not None and bool(block.mutate)
+        if self.mode == "live" or (mutating and self.mode == "record"):
+            if mutating:  # a mutated reply is never recorded
+                return self._fetch(request, raw, headers or {}, raw_path)
             return self._forward(block, request, raw, headers or {}, raw_path=raw_path)
         if self.mode == "override":
             folder = self.response_folder()
@@ -492,6 +522,8 @@ class Endpoint:
                 if found is not None:
                     return found
                 # Not in the folder: the real API answers, and nothing is saved.
+            if mutating:
+                return self._fetch(request, raw, headers or {}, raw_path)
             return self._forward(block, request, raw, headers or {}, raw_path=raw_path)
         if self.mode == "record":
             recorder = self._recorder
@@ -514,12 +546,18 @@ class EndpointCase:
     """
 
     def __init__(
-        self, endpoint: Endpoint, case: str, script: Script | None, canary: str | None = None
+        self,
+        endpoint: Endpoint,
+        case: str,
+        script: Script | None,
+        canary: str | None = None,
+        mutate: tuple[Any, ...] = (),
     ) -> None:
         self._endpoint = endpoint
         self.case = case
         self.script = script
         self.canary = canary
+        self.mutate = mutate
         self.test_id = running_test_id()
         self._lookup = LookupState()
         self._cursor: ScriptCursor | None = script.cursor(case) if script is not None else None
@@ -868,14 +906,20 @@ def _active_endpoint(script: object) -> Endpoint:
 
 
 def model_endpoint(
-    case: str | None = None, *, script: Any = None, canary: str | None = None
+    case: str | None = None,
+    *,
+    script: Any = None,
+    mutate: Iterable[Callable[..., Any]] | None = None,
+    canary: str | None = None,
 ) -> EndpointCase:
     """Open a block that serves one case's model requests.
 
     ``case`` names the case; it defaults to the running test's id. Passing the
     same name from two tests lets them share replies. ``script`` makes the case
     scripted whatever the global mode: it takes anything ``Script.coerce``
-    accepts. Without it, the case follows the global mode. ``canary`` is a canary
+    accepts. Without it, the case follows the global mode. ``mutate`` lists
+    mutators (``pytest_wardenbot.model.mutate``) applied, in order, to whatever
+    reply the case gets: scripted, replayed or forwarded. ``canary`` is a canary
     configured elsewhere, such as the ``wardenbot_canary`` fixture, that
     ``case_canary()`` returns for this case instead of a derived one.
 
@@ -892,4 +936,5 @@ def model_endpoint(
         current_case(case),
         Script.coerce(script) if script is not None else None,
         canary=canary.strip() or None if canary is not None else None,
+        mutate=tuple(mutate or ()),
     )
