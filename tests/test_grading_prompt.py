@@ -180,7 +180,7 @@ def test_failure_message_lists_every_problem_once() -> None:
     with pytest.raises(AssertionError) as error:
         check(prompt, escape=None)
     message = str(error.value)
-    assert "WardenBot check failed: untrusted text not confined" in message
+    assert "WardenBot test failed: untrusted text not confined" in message
     assert message.count("request 0, role 'user', offset 0") == 1
     assert "role 'system'" in message
     assert "html.escape(unicodedata.normalize('NFKC', text), quote=False)" in message
