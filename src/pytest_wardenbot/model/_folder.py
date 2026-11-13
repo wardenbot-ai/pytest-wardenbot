@@ -28,6 +28,7 @@ from pytest_wardenbot.model._capture import CapturedRequest
 from pytest_wardenbot.model._cases import claim_case_dirname, pytest_running
 from pytest_wardenbot.model._errors import ModelEndpointError
 from pytest_wardenbot.model._hash import RequestHasher
+from pytest_wardenbot.model._manifest import Manifest, Rule, load_manifest
 from pytest_wardenbot.model._markers import fill_placeholders
 from pytest_wardenbot.model._reply import Reply
 
@@ -89,6 +90,8 @@ class JsonlEntry:
     response: Any
     case: str | None
     digest: str
+    fields: Mapping[str, Any] = field(default_factory=dict)
+    """The line's other top-level fields, which a rule's ``where`` can select on."""
 
     @property
     def where(self) -> str:
@@ -219,9 +222,83 @@ class ResponseFolder:
                     response=record["response"],
                     case=case if isinstance(case, str) else None,
                     digest=self.hasher.digest(method, route, request),
+                    fields={
+                        key: value
+                        for key, value in record.items()
+                        if key not in {"request", "response", "headers"}
+                    },
                 )
             )
         return entries
+
+    # Rules ----------------------------------------------------------------
+
+    def manifest(self) -> Manifest | None:
+        return load_manifest(self.root)
+
+    def match_rule(
+        self, request: CapturedRequest, case: str | None, digest: str, tried: list[str]
+    ) -> Rule | None:
+        """The first rule that matches, noting why each earlier one didn't."""
+        manifest = self.manifest()
+        if manifest is None:
+            return None
+        for rule in manifest.rules:
+            reason = rule.mismatch(request, case, digest)
+            if reason is None:
+                return rule
+            tried.append(f"{rule.describe()}: {reason}")
+        return None
+
+    def rule_target(self, rule: Rule, state: LookupState) -> Path:
+        """The file a rule serves on this call, advancing its per-block counter."""
+        targets = rule.targets
+        call = state.next_rule_call(rule.index)
+        if call > len(targets):
+            if rule.then != "repeat_last":
+                raise ModelEndpointError(
+                    f"{rule.describe()} in {self.relative(self.root / 'wardenbot-responses.toml')}"
+                    f" served all {len(targets)} of its files, and this was call {call}. Add a "
+                    'file, or set then = "repeat_last".'
+                )
+            call = len(targets)
+        return self.root / targets[call - 1]
+
+    def jsonl_entry(self, rule: Rule) -> JsonlEntry:
+        """The entry a ``.jsonl`` rule picks with ``line`` or ``where``."""
+        assert rule.file is not None
+        path = self.root / rule.file
+        if not path.is_file():
+            raise ModelEndpointError(f"{rule.describe()} names {rule.file}, which doesn't exist.")
+        entries = [entry for entry in self.jsonl_entries() if entry.file == path]
+        if rule.line is not None:
+            chosen = [entry for entry in entries if entry.line == rule.line]
+            wanted = f"line {rule.line}"
+        else:
+            assert rule.where is not None
+            chosen = [
+                entry
+                for entry in entries
+                if all(
+                    (entry.case if key == "case" else entry.fields.get(key)) == value
+                    for key, value in rule.where.items()
+                )
+            ]
+            wanted = "where " + ", ".join(f"{k} = {v!r}" for k, v in rule.where.items())
+        if not chosen:
+            raise ModelEndpointError(f"{rule.describe()}: {rule.file} has no entry with {wanted}.")
+        return chosen[0]
+
+    def serve_rule(self, rule: Rule, case: str | None, state: LookupState) -> Reply:
+        if rule.jsonl:
+            entry = self.jsonl_entry(rule)
+            return reply_from_value(entry.response, entry.where)
+        path = self.rule_target(rule, state)
+        if not path.is_file():
+            raise ModelEndpointError(
+                f"{rule.describe()} names {self.relative(path)}, which doesn't exist."
+            )
+        return self.load_reply(path, case)
 
     # Lookup ---------------------------------------------------------------
 
@@ -236,6 +313,9 @@ class ResponseFolder:
         """The reply for ``request``, or raise ``ReplayMissError`` explaining the miss."""
         tried: list[str] = []
         digest = self.hasher.digest(request.method, request.path, request.body)
+        rule = self.match_rule(request, case, digest, tried)
+        if rule is not None:
+            return self.serve_rule(rule, case, state)
         call = state.next_hash_call(digest)
         entries = self.jsonl_entries()  # walk the folder once per request
 
