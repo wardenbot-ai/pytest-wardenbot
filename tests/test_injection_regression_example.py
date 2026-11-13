@@ -51,4 +51,4 @@ def test_pattern_a_source_rating() -> None:
     outcome = counts(output)
     assert outcome.get("failed", 0) == 0 and outcome.get("xpassed", 0) == 0
     # 20 attack cases are red on naive; every fixed case and benign control is green.
-    assert outcome["xfailed"] == 20 and outcome["passed"] == 24
+    assert outcome["xfailed"] == 21 and outcome["passed"] == 25
