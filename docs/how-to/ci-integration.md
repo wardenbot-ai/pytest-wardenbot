@@ -52,7 +52,7 @@ or unsupported case fails the build instead of passing quietly:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
         with:
           python-version: "3.12"
-      - run: python -m pip install "pytest-wardenbot[mcp,openai]==0.7.0"
+      - run: python -m pip install "pytest-wardenbot[mcp,openai]==0.8.0"
       - name: Run the agent suite
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -71,7 +71,7 @@ accept outside contributions.
 wardenbot:
   image: python:3.12
   script:
-    - python -m pip install "pytest-wardenbot==0.7.0"
+    - python -m pip install "pytest-wardenbot==0.8.0"
     - python -m pytest test_my_bot.py -v --tb=short
   rules:
     - if: $CI_PIPELINE_SOURCE == "push"
@@ -94,7 +94,7 @@ jobs:
       - checkout
       - run:
           name: Install
-          command: python -m pip install "pytest-wardenbot==0.7.0"
+          command: python -m pip install "pytest-wardenbot==0.8.0"
       - run:
           name: Run tests
           command: python -m pytest test_my_bot.py -v --tb=short
