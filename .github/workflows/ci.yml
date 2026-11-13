@@ -264,6 +264,32 @@ jobs:
           'ip link set lo up && python -m pytest tests/test_egress.py tests/test_local.py tests/test_model_guard.py tests/test_model_folders.py
           -v -ra -p no:cacheprovider'
 
+  django:
+    name: Django test runner (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        # Both force spawn, forkserver and fork in turn; the default start method differs:
+        # fork on 3.12 (a clean, explained failure) and forkserver on 3.14 (works).
+        python: ["3.12", "3.14"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+      - name: Install with OpenAI, Django, pytest-django and tblib
+        # tblib lets Django's parallel runner report a failure from a worker.
+        run: pip install -e ".[dev,openai]" django pytest-django tblib
+      - name: Report resolved versions
+        run: pip list
+      - name: Run the example project under manage.py test and pytest-django
+        run: pytest tests/test_model_django.py -v -ra -p no:cacheprovider
+
   mcp-contracts:
     name: MCP harness (Python ${{ matrix.python }}, ${{ matrix.dependencies }})
     runs-on: ubuntu-latest

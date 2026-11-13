@@ -84,6 +84,21 @@ well as adapter behavior. Add bounds only when a reproduced incompatibility
 justifies them. The judge extra has its own transitive requirements and should
 be tested separately from the core minimum lane.
 
+## Django
+
+The model endpoint for pipeline tests needs no Django package or plugin. CI's
+Django job runs an example project with `python manage.py test` and with
+pytest-django on Python 3.12 and 3.14, using the current Django and
+pytest-django releases (the job prints the resolved versions). It covers the
+test settings calling `install()`, clients built at import time and in
+`AppConfig.ready()`, and `--parallel` under the `spawn` and `forkserver` start
+methods and the platform default, where each worker starts its own endpoint.
+Under `fork`, the default on Linux before Python 3.14, a worker's first
+`model_endpoint` block fails with an explanation instead of capturing requests
+in the wrong process. Install `tblib` alongside Django's parallel runner: without
+it, Django can't send any test failure back from a worker and the run crashes
+with `cannot pickle 'traceback' object` (the explanation is still printed).
+
 ## Packaging and tooling
 
 The optional [MCP harness](mcp-harness.md) has a separate Python 3.11 floor and

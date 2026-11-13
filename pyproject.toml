@@ -137,7 +137,7 @@ ignore = []
 
 [tool.pyright]
 include = ["src", "tests"]
-exclude = ["**/__pycache__", "**/.venv", "build", "dist"]
+exclude = ["**/__pycache__", "**/.venv", "build", "dist", "tests/fixtures/django_project"]
 pythonVersion = "3.11"
 typeCheckingMode = "basic"
 reportMissingImports = true
