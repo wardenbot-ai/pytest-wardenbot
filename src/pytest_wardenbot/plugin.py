@@ -67,6 +67,7 @@ from pytest_wardenbot.corpus.off_topic import OFF_TOPIC_PROMPTS
 from pytest_wardenbot.corpus.refusal_bypass import REFUSAL_BYPASS_PROMPTS
 from pytest_wardenbot.corpus.system_prompt_leak import SYSTEM_PROMPT_LEAK_PROMPTS
 from pytest_wardenbot.grading.judge import JudgeCase
+from pytest_wardenbot.model import _cases as _model_cases
 from pytest_wardenbot.quickstart import AVAILABLE_TEMPLATES, run_quickstart
 
 _NO_CHATBOT_FIXTURE_MESSAGE = """\
@@ -287,6 +288,9 @@ def pytest_cmdline_main(config: pytest.Config) -> int | None:
 
 def pytest_configure(config: pytest.Config) -> None:
     """Register wardenbot-specific markers so --strict-markers doesn't reject them."""
+    # Model requests take their case name from PYTEST_CURRENT_TEST only while a
+    # pytest session runs in this process; child processes inherit the variable.
+    _model_cases.pytest_configured(config)
     config.addinivalue_line("markers", "wardenbot: marks tests provided by pytest-wardenbot")
     config.addinivalue_line("markers", "severity_high: high-severity wardenbot test")
     config.addinivalue_line("markers", "severity_medium: medium-severity wardenbot test")
@@ -421,6 +425,7 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
 
 def pytest_unconfigure(config: pytest.Config) -> None:
     _agent_plugin.close_runner(config)
+    _model_cases.pytest_unconfigured(config)
 
 
 def pytest_terminal_summary(terminalreporter: Any) -> None:
