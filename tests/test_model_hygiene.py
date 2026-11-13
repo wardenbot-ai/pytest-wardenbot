@@ -17,7 +17,7 @@ import pytest
 from pytest_wardenbot.model import (
     CredentialFoundError,
     _cases,
-    _markers,
+    _manifest,
     install,
     model_endpoint,
     uninstall,
@@ -79,7 +79,7 @@ def test_allow_patterns_exempt_false_positives() -> None:
 def folder(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
     clean_environment(monkeypatch)
     monkeypatch.setattr(_cases, "_claimed", {})
-    monkeypatch.setattr(_markers, "_seed_cache", {})
+    monkeypatch.setattr(_manifest, "_cache", {})
     uninstall()
     root = tmp_path / "llm_responses"
     root.mkdir()
