@@ -13,3 +13,16 @@ record = false
 [[response]]
 case = "source_rating_benign"
 file = "source_rating/benign_batch.json"
+
+# Pattern B, layer 3: entries from exported application logs. The rules pick
+# each case's entry by its case field, whatever the request hash, so the naive
+# and the fixed implementation get the same reply though their requests differ.
+[[response]]
+case = "post_summary_attack"
+file = "exports/posts.jsonl"
+where = { case = "post_summary_attack" }
+
+[[response]]
+case = "post_summary_benign"
+file = "exports/posts.jsonl"
+where = { case = "post_summary_benign" }
