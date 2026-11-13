@@ -24,6 +24,24 @@ Select only wardenbot tests:
 pytest -m wardenbot
 ```
 
+## `@pytest.mark.wardenbot_model`
+
+Runs a test inside a `model_endpoint` block through the `wardenbot_model`
+fixture, with the marker's keyword arguments: `script=`, `mutate=` and `case=`.
+The case defaults to the test's node id. The fixture yields the block, whose
+`requests` are the requests the application sent during the test. See
+[Test an LLM pipeline without a live model](../how-to/pipeline-testing.md).
+
+```python
+import pytest
+
+
+@pytest.mark.wardenbot_model(script={"ratings": []})
+def test_page_text_stays_fenced(wardenbot_model):
+    rate_sources(SOURCES)
+    assert wardenbot_model.requests
+```
+
 ## Severity markers
 
 | Marker | When to use |

@@ -83,6 +83,7 @@ def _registered_options() -> set[str]:
     sources = [
         ROOT / "src/pytest_wardenbot/plugin.py",
         ROOT / "src/pytest_wardenbot/_agent_plugin.py",
+        ROOT / "src/pytest_wardenbot/_model_plugin.py",
     ]
     options: set[str] = set()
     for source in sources:

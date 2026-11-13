@@ -306,3 +306,15 @@ def test_the_scan_stays_fast_with_many_matches() -> None:
     assert len(scan_text(text, "big.jsonl", allow=["k3yk3y"])) == 0
     assert len(scan_text(text, "big.jsonl")) == 20000
     assert time.monotonic() - started < 5
+
+
+def test_check_scans_a_hidden_file_a_rule_serves(folder: Path) -> None:
+    secret = CREDENTIALS["an AWS access key id"]
+    (folder / ".scratch").mkdir()
+    (folder / ".scratch" / "reply.txt").write_text(f"served: {secret}\n")
+    (folder / ".scratch" / "notes.txt").write_text(f"not served: {secret}\n")
+    (folder / "wardenbot-responses.toml").write_text(
+        'marker_seed = "hygiene"\n[[response]]\ncase = "a"\nfile = ".scratch/reply.txt"\n'
+    )
+    problems, _ = check_folder(folder)
+    assert problems == [".scratch/reply.txt:1: looks like an AWS access key id"]

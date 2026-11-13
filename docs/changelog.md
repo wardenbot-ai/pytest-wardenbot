@@ -5,6 +5,54 @@ All notable changes to `pytest-wardenbot` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+**Deterministic tests for LLM pipelines.** A local OpenAI-compatible model
+endpoint serves an application's own SDK client scripted, replayed or
+recorded replies and captures every request, so prompt assembly and output
+handling can be tested in CI with no API key, under pytest or Django's
+`manage.py test`.
+
+### Added
+
+- **Model endpoint** (`pytest_wardenbot.model`): `install()` starts it once per
+  process before the application is imported and points the OpenAI SDK at it;
+  `model_endpoint(...)` blocks switch the case, its replies and its capture
+  buffer. Responses and Chat Completions, streaming or not, with envelopes
+  complete enough for `responses.stream()` and `responses.parse`. Modes `off`,
+  `scripted`, `replay`, `override`, `record` and `live`; the last three refuse to
+  run in CI. Child processes start their own endpoint; forked ones fail loudly.
+- **Scripts and hostile replies:** `Script` (text, JSON, files, sequences,
+  callables, `tool_call` with strict result pairing, `web_search`) and
+  `pytest_wardenbot.model.mutate` (`add_item`, `drop_items`, `duplicate_item`,
+  `inject_marker`, `add_links`, `add_images`, `tool_call`, `truncate_json`, `pad`,
+  `echo_fence`).
+- **Response folders:** every reply format, request hashing with
+  `ignore_fields` and normalizers, case-scoped recordings, `.jsonl` exports, case
+  folders, manifest rules (`wardenbot-responses.toml`), placeholders, a miss
+  report with a diff and the record command, and record mode that writes where
+  replay reads. Credential scanning on load and record, and
+  `python -m pytest_wardenbot.model check`.
+- **Stable markers:** `injection_marker()` and `case_canary()`, derived per case
+  from the folder's `marker_seed` in seeded modes.
+- **Egress guard:** in `scripted` and `replay`, clients that bypass the endpoint
+  are refused instead of reaching the real API (`EgressBlockedError`).
+- **Prompt graders** (`pytest_wardenbot.grading.prompt`):
+  `assert_untrusted_confined`, `fence_break_payloads`,
+  `assert_instruction_present`, `assert_untrusted_bounded`,
+  `assert_tools_offered`, `assert_prompt_shape`.
+- **Output graders** (`pytest_wardenbot.grading.structured`): `find_marker`,
+  `assert_marker_absent`, `assert_only_known_ids`, `assert_all_ids_accounted`,
+  `assert_unique_ids`, `assert_links_allowed`, `find_links`.
+- **pytest integration:** `--wardenbot-model-mode`, `--wardenbot-responses-dir`,
+  the `wardenbot_model` marker and fixture, and a summary line; each
+  pytest-xdist worker gets its own endpoint.
+- **Reference examples** in `examples/injection_regression`: batch source
+  rating, a structured summarizer over exported logs, and a streaming chat that
+  renders links, each with a naive and a fixed implementation.
+- **CI:** a Django test-runner job, a Python 3.14 real-SDK lane, and
+  fresh-wheel checks of the pipeline features and examples.
+
 ## [0.7.0] — 2026-11-11
 
 **Lifecycle scenarios, fixed baselines, and results you can check.** The

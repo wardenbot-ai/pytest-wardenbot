@@ -36,9 +36,14 @@ def check_folder(root: Path) -> tuple[list[str], int]:
 
     scanned = 0
     folder = ResponseFolder(root, RequestHasher())
+    # Hidden files are skipped, as the loader skips them, unless a rule serves one.
+    served = {
+        Path(target) for rule in (manifest.rules if manifest else ()) for target in rule.targets
+    }
     for path in sorted(root.rglob("*")):
         relative = path.relative_to(root)
-        if not path.is_file() or any(part.startswith(".") for part in relative.parts):
+        hidden = any(part.startswith(".") for part in relative.parts)
+        if not path.is_file() or (hidden and relative not in served):
             continue
         try:
             if path.stat().st_size > _MAX_BYTES:
