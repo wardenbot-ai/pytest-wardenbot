@@ -49,6 +49,16 @@ def _pytest_case() -> str | None:
     return _PYTEST_PHASE.sub("", value) or None
 
 
+def pytest_running() -> bool:
+    """True while a pytest session runs in this process."""
+    return bool(_pytest_sessions)
+
+
+def running_test_id() -> str | None:
+    """The running test's id (pytest node id, or unittest ``self.id()``), if any."""
+    return _pytest_case() or _unittest_case()
+
+
 def _unittest_case() -> str | None:
     frame = inspect.currentframe()
     try:

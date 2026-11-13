@@ -24,7 +24,9 @@ class _File:
     def __init__(self, path: Path) -> None:
         self.path = path
 
-    def load(self) -> Reply:
+    def load(self, case: str | None = None) -> Reply:
+        from pytest_wardenbot.model._markers import fill_placeholders
+
         source = str(self.path)
         suffix = self.path.suffix.lower()
         try:
@@ -33,6 +35,7 @@ class _File:
             text = self.path.read_text(encoding="utf-8")
         except OSError as error:
             raise ModelEndpointError(f"Cannot read the reply file {source}: {error}") from None
+        text = fill_placeholders(text, case, source)
         if suffix == ".txt":
             return Reply(text=text, source=source)
         try:
@@ -252,7 +255,7 @@ class ScriptCursor:
         item = items[index]
         source = f"reply {index + 1} of the script for case {self._case!r}"
         if isinstance(item, _File):
-            return item.load()
+            return item.load(self._case)
         if _is_callable(item):
             try:
                 value = item(request)
@@ -272,7 +275,7 @@ class ScriptCursor:
                     )
                 value = value._items[0]
                 if isinstance(value, _File):
-                    return value.load()
+                    return value.load(self._case)
             return _from_value(value, f"The value the script callable returned for {source}")
         return _from_value(item, source)
 

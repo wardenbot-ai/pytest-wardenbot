@@ -267,3 +267,67 @@ def test_responses_parse_with_tools_present(endpoint: Endpoint) -> None:
             model="gpt-x", input="summarize", text_format=PostSummary, tools=[LOOKUP_TOOL]
         )
     assert parsed.output_parsed == PostSummary(**SUMMARY)
+
+
+def test_recorded_bodies_replay_through_the_sdk(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from pytest_wardenbot.model._hash import RequestHasher
+
+    clean_environment(monkeypatch)
+    uninstall()
+    folder = tmp_path / "llm_responses"
+    recorded = {
+        "id": "resp_0123",
+        "object": "response",
+        "created_at": 1763000000,
+        "status": "completed",
+        "model": "gpt-4.1-mini-2025-04-14",
+        "output": [
+            {
+                "id": "msg_0123",
+                "type": "message",
+                "status": "completed",
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "output_text",
+                        "text": json.dumps(SUMMARY),
+                        "annotations": [],
+                        "logprobs": [],
+                    }
+                ],
+            }
+        ],
+        "parallel_tool_calls": True,
+        "tool_choice": "auto",
+        "tools": [],
+        "usage": {"input_tokens": 12, "output_tokens": 30, "total_tokens": 42},
+    }
+    # The plain request is matched by hash; the streamed parse request (whose body
+    # carries text.format) falls through to the case folder, which wraps the body.
+    plain_request = {"model": "gpt-x", "input": "summarize"}
+    name = RequestHasher().digest("POST", "/v1/responses", plain_request)
+    for target in (
+        folder / "recorded" / "replayed" / f"{name}-1.json",
+        folder / "cases" / "replayed" / "1.json",
+    ):
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(json.dumps(recorded))
+    install(mode="replay", responses_dir=folder)
+    try:
+        client = _client()
+        with model_endpoint("replayed") as block:
+            plain = client.responses.create(**plain_request)
+            with client.responses.stream(
+                model="gpt-x", input="summarize", text_format=PostSummary
+            ) as stream:
+                for _ in stream:
+                    pass
+                final = stream.get_final_response()
+        assert plain.usage is not None and plain.usage.total_tokens == 42
+        assert json.loads(plain.output_text) == SUMMARY
+        assert final.output_parsed == PostSummary(**SUMMARY)
+        assert len(block.requests) == 2
+    finally:
+        uninstall()

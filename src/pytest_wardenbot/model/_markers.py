@@ -188,6 +188,23 @@ def _value(purpose: str, case: str | None) -> str:
     return value
 
 
+PLACEHOLDERS = ("{{wardenbot.marker}}", "{{wardenbot.canary}}")
+
+
+def fill_placeholders(text: str, case: str | None, source: str) -> str:
+    """Replace ``{{wardenbot.marker}}`` and ``{{wardenbot.canary}}`` with the case's values."""
+    if not any(placeholder in text for placeholder in PLACEHOLDERS):
+        return text
+    if case is None:
+        raise ModelEndpointError(
+            f"{source} uses a {{{{wardenbot.*}}}} placeholder, which needs a case, but the "
+            "request was made outside any model_endpoint block."
+        )
+    return text.replace("{{wardenbot.marker}}", injection_marker(case)).replace(
+        "{{wardenbot.canary}}", case_canary(case)
+    )
+
+
 def injection_marker(case: str | None = None) -> str:
     """The injection marker for a case: plant it in untrusted input, then look for it.
 

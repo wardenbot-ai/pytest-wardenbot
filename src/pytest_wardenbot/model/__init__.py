@@ -25,6 +25,7 @@ from pytest_wardenbot.model._endpoint import (
     uninstall,
 )
 from pytest_wardenbot.model._errors import ModelEndpointError
+from pytest_wardenbot.model._folder import ReplayMissError
 from pytest_wardenbot.model._guard import EgressBlockedError
 from pytest_wardenbot.model._markers import MARKER_PREFIX, case_canary, injection_marker
 from pytest_wardenbot.model._reply import Reply, ToolCall, WebSearch
@@ -37,6 +38,7 @@ __all__ = [
     "Endpoint",
     "EndpointCase",
     "ModelEndpointError",
+    "ReplayMissError",
     "Reply",
     "Script",
     "ToolCall",
