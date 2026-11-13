@@ -24,6 +24,12 @@ from pytest_wardenbot.model._capture import CapturedRequest
 from pytest_wardenbot.model._cases import current_case
 from pytest_wardenbot.model._config import Settings, refuse_in_ci, resolve_settings
 from pytest_wardenbot.model._errors import ModelEndpointError
+from pytest_wardenbot.model._guard import (
+    DEFAULT_GUARDED,
+    EgressBlockedError,
+    install_guard,
+    uninstall_guard,
+)
 from pytest_wardenbot.model._reply import Reply
 from pytest_wardenbot.model._script import Script, ScriptCursor
 from pytest_wardenbot.model._wire import JSON_TYPE, Ids, error_body, render
@@ -45,6 +51,7 @@ _TOUCHED = (
     ORIGINAL_API_KEY_ENV,
 )
 _LOOPBACK_HOSTS = ("127.0.0.1", "localhost")
+_GUARDED_MODES = frozenset({"scripted", "replay"})
 _KEEP_OUTSIDE = 1000
 """How many requests and errors from outside any block an endpoint keeps."""
 _EXIT_WAIT_SECONDS = 5.0
@@ -263,6 +270,10 @@ class Endpoint:
                     block._inflight -= 1
                     self._state.notify_all()
 
+    def _record_egress(self, error: EgressBlockedError) -> None:
+        """Called by the egress guard, on the application's thread."""
+        self._record(self._active_block(), error)
+
     def _record(self, block: EndpointCase | None, error: ModelEndpointError) -> None:
         with self._state:
             if block is None:
@@ -357,7 +368,10 @@ class EndpointCase:
         if exc is not None:
             exc.add_note(summary)
             return
-        raise ModelEndpointError(summary) from errors[0]
+        # Keep the specific class (such as EgressBlockedError) when every error shares it.
+        kinds = {type(error) for error in errors}
+        kind = kinds.pop() if len(kinds) == 1 else ModelEndpointError
+        raise kind(summary) from errors[0]
 
 
 def _summarize(case: str, errors: list[ModelEndpointError]) -> str:
@@ -424,7 +438,23 @@ def _warn_about_proxies() -> None:
 def _shutdown_at_exit() -> None:
     endpoint = _endpoint
     if endpoint is not None and endpoint.enabled and endpoint.pid == os.getpid():
+        uninstall_guard()
         endpoint._stop()
+
+
+def _install_guard(endpoint: Endpoint) -> None:
+    """Guard the model API hosts a client could reach by bypassing the endpoint."""
+    server = endpoint._server
+    assert server is not None
+    host, port = server.server_address[:2]
+    hosts = [*DEFAULT_GUARDED, *endpoint.settings.config.guard_hosts]
+    original = os.environ.get(ORIGINAL_BASE_URL_ENV, "").strip()
+    if original:
+        hosts.append(original)
+    try:
+        install_guard(hosts, allowed=(str(host), int(port)), on_block=endpoint._record_egress)
+    except ValueError as error:
+        raise ModelEndpointError(f"Invalid egress guard host: {error}") from None
 
 
 def install(
@@ -456,6 +486,11 @@ def install(
     pid and URL in ``WARDENBOT_ENDPOINT``. A child process that inherits these
     starts its own endpoint when it calls ``install()``, and keeps the
     originals as its upstream.
+
+    In ``scripted`` and ``replay`` it also installs the egress guard, which
+    refuses ``api.openai.com``, the original ``OPENAI_BASE_URL`` host and the
+    configured ``guard_hosts``, so a client that bypasses the endpoint fails
+    loudly instead of reaching the real API.
     """
     global _endpoint, _atexit_registered
     with _lock:
@@ -476,7 +511,16 @@ def install(
             refuse_in_ci(settings.mode)
             _warn_about_proxies()  # before any change, in case warnings are errors
             endpoint._start()
-            _handoff_environment(endpoint)
+            try:
+                _handoff_environment(endpoint)
+                if settings.mode in _GUARDED_MODES:
+                    _install_guard(endpoint)
+            except BaseException:
+                # Leave nothing half-installed: no server, guard or rewritten environment.
+                uninstall_guard()
+                endpoint._stop()
+                _restore_environment(endpoint._saved_env)
+                raise
             if not _atexit_registered:
                 atexit.register(_shutdown_at_exit)
                 _atexit_registered = True
@@ -525,6 +569,7 @@ def uninstall() -> None:
         endpoint, _endpoint = _endpoint, None
     if endpoint is None or not endpoint.enabled or endpoint.pid != os.getpid():
         return
+    uninstall_guard()
     endpoint._stop()
     _restore_environment(endpoint._saved_env)
 
