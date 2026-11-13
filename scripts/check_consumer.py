@@ -601,15 +601,17 @@ def check_pipeline() -> None:
         clean = _model_check(Path("replies"), project)
         _require(clean.returncode == 0, f"check failed:\n{clean.stdout}{clean.stderr}")
         leaky = project / "leaky"
-        secret = "sk-" + "proj-" + "Ab3d" * 10  # built at runtime  # pragma: allowlist secret
+        planted = (
+            "sk-" + "proj-" + "Ab3d" * 10
+        )  # fake, built at runtime  # pragma: allowlist secret
         (leaky / "cases" / "c").mkdir(parents=True)
-        (leaky / "cases" / "c" / "1.txt").write_text(f"The key is {secret}\n", encoding="utf-8")
+        (leaky / "cases" / "c" / "1.txt").write_text(f"The key is {planted}\n", encoding="utf-8")
         found = _model_check(leaky, project)
         _require(
             found.returncode == 1 and "looks like an OpenAI API key" in found.stdout,
             f"check missed a planted key:\n{found.stdout}{found.stderr}",
         )
-        _require(secret not in found.stdout + found.stderr, "check printed the key it found.")
+        _require(planted not in found.stdout + found.stderr, "check printed the key it found.")
 
     examples = None
     if _EXAMPLES.is_dir():  # from a checkout: the reference examples against the wheel
