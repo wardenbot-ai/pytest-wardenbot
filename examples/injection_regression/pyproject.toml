@@ -1,0 +1,8 @@
+# The test setup a pipeline project needs: pytest options and the model endpoint.
+[tool.pytest.ini_options]
+addopts = "-ra -p no:cacheprovider"
+testpaths = ["."]
+
+[tool.wardenbot.model]
+mode = "replay"
+responses_dir = "llm_responses"

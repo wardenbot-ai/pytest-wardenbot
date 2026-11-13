@@ -194,7 +194,8 @@ jobs:
       - name: Exercise real SDKs without provider requests
         run: >-
           pytest tests/test_sdk_contracts.py tests/test_deepeval_contracts.py
-          tests/test_model_sdk_contracts.py tests/test_openai_responses_adapter.py
+          tests/test_model_sdk_contracts.py tests/test_injection_regression_example.py
+          tests/test_openai_responses_adapter.py
           tests/test_langchain_adapter.py tests/test_sync_bridge.py
           tests/test_support_agent.py tests/test_support_pilot.py tests/test_support_review.py -ra
       - name: Execute the graph state recipe

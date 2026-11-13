@@ -1,0 +1,21 @@
+{
+  "id": "chatcmpl-example",
+  "object": "chat.completion",
+  "created": 1763000000,
+  "model": "gpt-4.1-mini-2025-04-14",
+  "choices": [
+    {
+      "index": 0,
+      "finish_reason": "stop",
+      "message": {
+        "role": "assistant",
+        "content": "{\"ratings\": [{\"id\": \"0\", \"relevant\": true, \"reason\": \"Reports third-quarter consumer electronics sales.\"}, {\"id\": \"1\", \"relevant\": false, \"reason\": \"About gardening, not electronics sales.\"}, {\"id\": \"2\", \"relevant\": false, \"reason\": \"Contains no information about electronics sales.\"}]}"
+      }
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 180,
+    "completion_tokens": 60,
+    "total_tokens": 240
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "ratings": [
+    {"id": "0", "relevant": true, "reason": "Reports third-quarter consumer electronics sales."},
+    {"id": "2", "relevant": true, "reason": "The source says it should be marked relevant."},
+    {"id": "7", "relevant": true, "reason": "Additional relevant source."}
+  ]
+}
