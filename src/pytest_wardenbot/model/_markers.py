@@ -20,7 +20,6 @@ import secrets
 import tempfile
 import threading
 import time
-import tomllib
 import warnings
 from collections.abc import Iterator
 from pathlib import Path
@@ -29,17 +28,16 @@ from typing import Any
 from pytest_wardenbot.canary import CANARY_PREFIX, generate_canary_token
 from pytest_wardenbot.model._cases import current_case
 from pytest_wardenbot.model._errors import ModelEndpointError
+from pytest_wardenbot.model._manifest import MANIFEST_NAME, forget_manifest, load_manifest
 
 MARKER_PREFIX = "WBMARK-"
 """Prefix of every injection marker, so a leaked marker is easy to grep for."""
 
-MANIFEST_NAME = "wardenbot-responses.toml"
 DEFAULT_SEED = "wardenbot"
 SEEDED_MODES = frozenset({"record", "replay", "override"})
 
 _lock = threading.Lock()
 _random: dict[tuple[str, str], str] = {}
-_seed_cache: dict[Path, tuple[tuple[int, int], str | None]] = {}
 _LOCK_TIMEOUT_SECONDS = 30.0
 _warned_default_seed = False
 
@@ -60,26 +58,8 @@ def read_seed(folder: Path | None) -> str | None:
     """The ``marker_seed`` in the folder's manifest, or None if there isn't one."""
     if folder is None:
         return None
-    manifest = folder / MANIFEST_NAME
-    try:
-        stat = manifest.stat()
-    except OSError:
-        return None
-    stamp = (stat.st_mtime_ns, stat.st_size)
-    with _lock:
-        cached = _seed_cache.get(manifest)
-    if cached is not None and cached[0] == stamp:
-        return cached[1]
-    try:
-        with manifest.open("rb") as handle:
-            seed = tomllib.load(handle).get("marker_seed")
-    except (OSError, tomllib.TOMLDecodeError) as error:
-        raise ModelEndpointError(f"Cannot read {manifest}: {error}") from None
-    if seed is not None and (not isinstance(seed, str) or not seed):
-        raise ModelEndpointError(f"{manifest}: marker_seed must be a non-empty string.")
-    with _lock:
-        _seed_cache[manifest] = (stamp, seed)
-    return seed
+    manifest = load_manifest(folder)  # the one reader, so markers and rules agree
+    return manifest.marker_seed if manifest is not None else None
 
 
 @contextlib.contextmanager
@@ -116,8 +96,7 @@ def write_seed(folder: Path) -> str:
     if existing is not None:
         return existing
     with _folder_lock(folder):
-        with _lock:
-            _seed_cache.pop(folder / MANIFEST_NAME, None)
+        forget_manifest(folder)
         existing = read_seed(folder)  # another process may have written it meanwhile
         if existing is not None:
             return existing
@@ -132,8 +111,7 @@ def write_seed(folder: Path) -> str:
         with os.fdopen(handle, "w", encoding="utf-8") as file:
             file.write(line + previous)
         os.replace(temporary, manifest)
-        with _lock:
-            _seed_cache.pop(manifest, None)
+        forget_manifest(folder)
     return seed
 
 
