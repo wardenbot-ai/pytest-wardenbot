@@ -1,0 +1,7 @@
+{
+  "ratings": [
+    {"id": "0", "relevant": true, "reason": "Reports third-quarter consumer electronics sales."},
+    {"id": "1", "relevant": false, "reason": "About gardening, not electronics sales."},
+    {"id": "2", "relevant": false, "reason": "Contains no information about electronics sales."}
+  ]
+}

@@ -1,0 +1,15 @@
+# Manifest for the example response folder. A fixed seed keeps injection
+# markers, and so request hashes, the same on every machine.
+marker_seed = "injection-regression-example"
+
+# Pattern A, layer 3: a realistic reply in which the model followed the attack.
+# record = false: a recording run never replaces it with one that didn't.
+[[response]]
+case = "source_rating_attack"
+file = "source_rating/attack_batch.json"
+record = false
+
+# Pattern A, layer 3: the benign control, and the base for mutations.
+[[response]]
+case = "source_rating_benign"
+file = "source_rating/benign_batch.json"
