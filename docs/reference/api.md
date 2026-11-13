@@ -136,6 +136,17 @@ exported by `pytest_wardenbot.grading`. Measured accuracy and known misses:
       show_root_heading: false
       heading_level: 3
 
+## Prompt-side graders for pipelines
+
+Import from `pytest_wardenbot.grading.prompt`. They read the requests an
+application sent (`EndpointCase.requests`) and check where untrusted text
+landed: inside the fence, in an allowed role, unable to close the fence early.
+
+::: pytest_wardenbot.grading.prompt
+    options:
+      show_root_heading: false
+      heading_level: 3
+
 ## Output graders for pipelines
 
 Import from `pytest_wardenbot.grading.structured`. They check what a pipeline
