@@ -21,11 +21,16 @@ repos:
       - id: check-merge-conflict
       - id: check-added-large-files
         args: ["--maxkb=500"]
+      # Response folders hold model replies byte for byte (.sse streams end in a
+      # blank line); whitespace fixes would change what replays.
       - id: end-of-file-fixer
+        exclude: (^|/)llm_responses/
       - id: trailing-whitespace
         args: ["--markdown-linebreak-ext=md"]
+        exclude: (^|/)llm_responses/
       - id: mixed-line-ending
         args: ["--fix=lf"]
+        exclude: (^|/)llm_responses/
       - id: debug-statements
 
   - repo: https://github.com/astral-sh/ruff-pre-commit

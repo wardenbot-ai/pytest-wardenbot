@@ -29,3 +29,11 @@ def ask_model(messages: list[dict[str, str]]) -> dict[str, Any]:
         model=MODEL, messages=messages, response_format={"type": "json_object"}
     )
     return json.loads(reply.choices[0].message.content or "{}")
+
+
+def stream_answer(instructions: str, input: str | list[dict[str, str]]) -> str:  # noqa: A002
+    """Make one streaming Responses call; return the text the deltas spell out."""
+    stream = client().responses.create(
+        model=MODEL, instructions=instructions, input=input, stream=True
+    )
+    return "".join(event.delta for event in stream if event.type == "response.output_text.delta")

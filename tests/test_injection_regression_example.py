@@ -77,3 +77,17 @@ def test_pattern_b_exports_are_up_to_date() -> None:
         timeout=120,
     )
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_pattern_c_doc_chat() -> None:
+    code, output = run_pattern("doc_chat")
+    assert code == 0, output[-4000:]
+    outcome = counts(output)
+    assert outcome.get("failed", 0) == 0 and outcome.get("xpassed", 0) == 0
+    assert outcome["xfailed"] == 3 and outcome["passed"] == 7
+
+
+def test_all_patterns_together() -> None:
+    code, output = run_pattern(".")
+    assert code == 0, output[-4000:]
+    assert counts(output) == {"passed": 36, "xfailed": 26}
