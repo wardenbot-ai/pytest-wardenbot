@@ -59,7 +59,7 @@ def test_cli_mode_installs_before_conftest_imports(pytester: pytest.Pytester) ->
 
         def test_endpoint_was_there_first():
             assert SEEN_AT_IMPORT.startswith("http://127.0.0.1:")
-            assert os.environ["OPENAI_API_KEY"] == "wardenbot-mock"
+            assert os.environ["OPENAI_API_KEY"] == "wardenbot-mock"  # pragma: allowlist secret
             with model_endpoint(script="hi") as block:
                 assert block.mode == "scripted"
         """
