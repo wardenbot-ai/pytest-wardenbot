@@ -44,7 +44,7 @@ from warnings import WarningMessage
 
 import pytest
 
-from pytest_wardenbot import _agent_plugin
+from pytest_wardenbot import _agent_plugin, _model_plugin
 from pytest_wardenbot._agent_plugin import (  # noqa: F401 -- pytest discovers these fixtures
     agent_observer,
     agent_target,
@@ -54,6 +54,7 @@ from pytest_wardenbot._agent_plugin import (  # noqa: F401 -- pytest discovers t
     wardenbot_agent_scenario,
 )
 from pytest_wardenbot._corpus_override import resolve_corpus
+from pytest_wardenbot._model_plugin import wardenbot_model  # noqa: F401 -- pytest discovers it
 from pytest_wardenbot.adapters.base import ChatbotAdapter
 from pytest_wardenbot.business_truth import BusinessTruthFact
 from pytest_wardenbot.corpus.encoded_payloads import (
@@ -242,6 +243,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         ),
     )
     _agent_plugin.add_options(group)
+    _model_plugin.add_options(group)
     group.addoption(
         "--wardenbot-quickstart",
         nargs="?",
@@ -278,6 +280,16 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     )
 
 
+@pytest.hookimpl(tryfirst=True)
+def pytest_load_initial_conftests(early_config: pytest.Config) -> None:
+    """Start the model endpoint, when configured, before any conftest.py is imported.
+
+    ``tryfirst`` also puts it ahead of pytest-django's own hook, which calls
+    ``django.setup()`` and so imports the applications.
+    """
+    _model_plugin.load_initial_conftests(early_config)
+
+
 def pytest_cmdline_main(config: pytest.Config) -> int | None:
     """Intercept `--wardenbot-quickstart` and exit before test collection."""
     template = config.getoption("--wardenbot-quickstart", default=None)
@@ -296,6 +308,7 @@ def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line("markers", "severity_medium: medium-severity wardenbot test")
     config.addinivalue_line("markers", "severity_low: low-severity wardenbot test")
     _agent_plugin.configure(config)
+    _model_plugin.configure(config)
 
 
 @pytest.hookimpl(trylast=True)
@@ -430,6 +443,7 @@ def pytest_unconfigure(config: pytest.Config) -> None:
 
 def pytest_terminal_summary(terminalreporter: Any) -> None:
     _agent_plugin.terminal_summary(terminalreporter)
+    _model_plugin.terminal_summary(terminalreporter)
 
 
 @pytest.hookimpl(tryfirst=True)
