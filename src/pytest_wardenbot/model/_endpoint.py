@@ -272,6 +272,8 @@ class Endpoint:
 
     def _record_egress(self, error: EgressBlockedError) -> None:
         """Called by the egress guard, on the application's thread."""
+        if self.pid != os.getpid():
+            return  # a forked child: this copy of the endpoint has no server and no reader
         self._record(self._active_block(), error)
 
     def _record(self, block: EndpointCase | None, error: ModelEndpointError) -> None:
@@ -498,6 +500,8 @@ def install(
         if existing is not None and existing.pid == os.getpid():
             _check_compatible(existing, mode, responses_dir, _cli_mode, _cli_responses_dir)
             return existing
+        if existing is not None:
+            uninstall_guard()  # a forked child: drop the parent's guard before installing anew
         settings = _settings or resolve_settings(
             cli_mode=_cli_mode,
             cli_responses_dir=_cli_responses_dir,
@@ -567,9 +571,11 @@ def uninstall() -> None:
     global _endpoint
     with _lock:
         endpoint, _endpoint = _endpoint, None
-    if endpoint is None or not endpoint.enabled or endpoint.pid != os.getpid():
+    if endpoint is None or not endpoint.enabled:
         return
-    uninstall_guard()
+    uninstall_guard()  # also in a forked child, which inherited the guard
+    if endpoint.pid != os.getpid():
+        return
     endpoint._stop()
     _restore_environment(endpoint._saved_env)
 
