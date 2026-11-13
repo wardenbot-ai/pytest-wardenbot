@@ -145,16 +145,28 @@ WARDENBOT_MODEL_MODE=record OPENAI_API_KEY=... pytest tests/test_pipeline.py
 WARDENBOT_MODEL_MODE=override OPENAI_API_KEY=... pytest tests/test_pipeline.py
 ```
 
-`record` writes each reply where replay will read it: a matching rule's file
-(the Nth of its `files` on call N), a case folder's files in call order, or
-`recorded/<case>/<hash>-N.json` (`.sse` for streams). Rules with
-`record = false`, and rules that pick from a `.jsonl` file, are served from the
-folder with no call. A case's `recorded/` folder is cleared on its first write,
-so nothing stale answers in front of a new reply. Cases that pass `script=` are
-never recorded.
+`record` writes each reply where replay will read it, taking replay's steps in
+replay's order:
+
+- a matching rule's file, or the Nth of its `files` on call N;
+- a case folder's files in call order (further calls add files that sort after
+  the last one);
+- otherwise `recorded/<case>/<hash>-N.json` (`.sse` for streams).
+
+Rules with `record = false`, rules that pick from a `.jsonl` file, and requests
+a `.jsonl` entry already answers are served from the folder with no call. A
+target that can't hold the reply is refused: an `.sse` file for a request that
+doesn't stream (before the call is made), or a `.txt` file for a reply with
+tool calls. On a case's first write, files in `recorded/<case>/` from before
+the run are deleted, so nothing stale answers in front of a new reply; files
+other pytest-xdist workers wrote during the run are kept. Cases that pass
+`script=` are never recorded.
 
 `override` serves what the folder has and sends misses to the real API without
-saving them. Both modes, and `live`, refuse to run in CI.
+saving them. Both modes, and `live`, refuse to run in CI. In `live` and
+`override` the real API's errors reach your client with their retry headers,
+so the SDK retries as it would in production; in `record` an upstream error
+fails the test instead, since a retry would be saved as the next call.
 
 The upstream is `WARDENBOT_UPSTREAM_BASE_URL`, else your original
 `OPENAI_BASE_URL`, else `https://api.openai.com`. Your key is held in memory
