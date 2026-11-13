@@ -1,0 +1,6 @@
+# As in a real project: pytest's rootdir and the model settings share this file.
+[tool.pytest.ini_options]
+addopts = "-p no:cacheprovider"
+
+[tool.wardenbot.model]
+responses_dir = "llm_responses"
