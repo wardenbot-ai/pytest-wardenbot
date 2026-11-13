@@ -46,6 +46,7 @@ from pytest_wardenbot.model._folder import (
 )
 from pytest_wardenbot.model._markers import folder_lock
 from pytest_wardenbot.model._reply import Reply
+from pytest_wardenbot.model._scan import refuse, scan_file, scan_text
 from pytest_wardenbot.model._upstream import assistant_text, body_from_stream
 
 STARTED_ENV = "WARDENBOT_RECORD_STARTED_NS"
@@ -121,23 +122,35 @@ class Recorder:
     def save(
         self, target: Target, request: CapturedRequest, case: str, raw: bytes, status: int
     ) -> None:
-        """Write a successful upstream reply to ``target``, converted to the file's format."""
+        """Write a successful upstream reply to ``target``, converted to the file's format.
+
+        The reply and its sidecar are scanned for credentials first; a match is
+        refused and nothing is written.
+        """
         content = _convert(raw, request, target.path)
+        sidecar_text = None
+        if target.sidecar is not None:
+            sidecar = {
+                "method": request.method,
+                "path": request.path,
+                "status": status,
+                "request": request.body,
+            }
+            sidecar_text = json.dumps(sidecar, indent=2, ensure_ascii=False) + "\n"
+        allow = self.folder.allow_patterns()
+        name = self.folder.relative(target.path)
+        findings = scan_file(content.decode("utf-8", errors="replace"), name, allow)
+        if sidecar_text is not None and target.sidecar is not None:
+            findings += scan_text(sidecar_text, self.folder.relative(target.sidecar), allow)
+        refuse(findings, action=f"record {name}")
         recorded = self.folder.root / "recorded" / claim_case_dirname(case)
         with self._lock:
             if recorded.name not in self._cleared:
                 self._clear_stale(recorded)
                 self._cleared.add(recorded.name)
             _write(target.path, content)
-            if target.sidecar is not None:
-                sidecar = {
-                    "method": request.method,
-                    "path": request.path,
-                    "status": status,
-                    "request": request.body,
-                }
-                text = json.dumps(sidecar, indent=2, ensure_ascii=False) + "\n"
-                _write(target.sidecar, text.encode("utf-8"))
+            if target.sidecar is not None and sidecar_text is not None:
+                _write(target.sidecar, sidecar_text.encode("utf-8"))
 
     def _clear_stale(self, recorded: Path) -> None:
         """Delete what an earlier run left in ``recorded/<case>/``, never this run's files."""

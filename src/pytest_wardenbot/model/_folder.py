@@ -19,7 +19,7 @@ import re
 import shlex
 import threading
 from collections import Counter
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -31,6 +31,7 @@ from pytest_wardenbot.model._hash import RequestHasher
 from pytest_wardenbot.model._manifest import MANIFEST_NAME, Manifest, Rule, load_manifest
 from pytest_wardenbot.model._markers import fill_placeholders
 from pytest_wardenbot.model._reply import Reply
+from pytest_wardenbot.model._scan import refuse, scan_file
 
 REPLY_SUFFIXES = frozenset({".json", ".txt", ".sse"})
 SIDECAR_SUFFIX = ".request.json"
@@ -156,6 +157,14 @@ class ResponseFolder:
         except ValueError:
             return str(path)
 
+    def allow_patterns(self) -> tuple[str, ...]:
+        manifest = self.manifest()
+        return manifest.allow_patterns if manifest is not None else ()
+
+    def scan(self, text: str, source: str) -> None:
+        """Refuse a file that holds what looks like a credential."""
+        refuse(scan_file(text, source, self.allow_patterns()), action=f"serve {source}")
+
     def load_reply(self, path: Path, case: str | None) -> Reply:
         """Read a reply file; fill placeholders in ``.txt`` and ``.json`` files.
 
@@ -164,15 +173,21 @@ class ResponseFolder:
         ``.txt`` reply drops one trailing newline, and an ``.sse`` stream gets its
         final blank line back, without which a client drops the last event.
         """
-        return load_reply_file(path, case, self.relative(path))
+        source = self.relative(path)
+        return load_reply_file(path, case, source, check=lambda text: self.scan(text, source))
 
     def jsonl_entries(self) -> tuple[JsonlEntry, ...]:
-        """Every ``.jsonl`` entry in the folder, re-read when a file changes."""
+        """Every ``.jsonl`` entry in the folder, re-read when a file changes.
+
+        Files under hidden folders (``.scratch/``) are skipped, as ``check`` skips them.
+        """
         files = (
             sorted(
                 path
                 for path in self.root.rglob("*")
-                if path.suffix.lower() == ".jsonl" and path.is_file()
+                if path.suffix.lower() == ".jsonl"
+                and not any(part.startswith(".") for part in path.relative_to(self.root).parts)
+                and path.is_file()
             )
             if self.root.exists()
             else []
@@ -193,13 +208,18 @@ class ResponseFolder:
         return entries
 
     def _read_jsonl(self, path: Path) -> list[JsonlEntry]:
-        entries: list[JsonlEntry] = []
         source = self.relative(path)
         try:
-            lines = path.read_text(encoding="utf-8").splitlines()
+            text = path.read_text(encoding="utf-8")
         except OSError as error:
             raise ModelEndpointError(f"Cannot read {source}: {error}") from None
-        for number, line in enumerate(lines, 1):
+        self.scan(text, source)
+        return self.parse_jsonl(path, text, source)
+
+    def parse_jsonl(self, path: Path, text: str, source: str) -> list[JsonlEntry]:
+        """A ``.jsonl`` file's entries, validated; no credential scan (``check`` scans first)."""
+        entries: list[JsonlEntry] = []
+        for number, line in enumerate(text.splitlines(), 1):
             if not line.strip():
                 continue
             try:
@@ -480,9 +500,12 @@ class ResponseFolder:
         return "\n".join(lines)
 
 
-def load_reply_file(path: Path, case: str | None, source: str) -> Reply:
+def load_reply_file(
+    path: Path, case: str | None, source: str, *, check: Callable[[str], None] | None = None
+) -> Reply:
     """Read a reply file: ``.sse`` raw, ``.txt`` text, ``.json`` a body or structured output.
 
+    ``check`` sees the file's text first (the folder's credential scan).
     Placeholders are filled in text and JSON (JSON-escaped there), a ``.txt``
     reply drops one trailing newline, and an ``.sse`` stream gets its final
     blank line back. Response folders and ``Script.file`` both read this way.
@@ -490,10 +513,15 @@ def load_reply_file(path: Path, case: str | None, source: str) -> Reply:
     suffix = path.suffix.lower()
     try:
         if suffix == ".sse":
-            return Reply(sse=terminate_stream(path.read_bytes()), source=source)
+            raw = path.read_bytes()
+            if check is not None:
+                check(raw.decode("utf-8", errors="replace"))
+            return Reply(sse=terminate_stream(raw), source=source)
         text = path.read_text(encoding="utf-8")
     except OSError as error:
         raise ModelEndpointError(f"Cannot read the reply file {source}: {error}") from None
+    if check is not None:
+        check(text)  # before placeholders are filled
     if suffix == ".txt":
         return Reply(text=_drop_final_newline(fill_placeholders(text, case, source)), source=source)
     if suffix != ".json":
