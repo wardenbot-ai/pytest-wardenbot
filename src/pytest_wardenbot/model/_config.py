@@ -197,15 +197,21 @@ def resolve_settings(
     *,
     cli_mode: str | None = None,
     cli_responses_dir: str | os.PathLike[str] | None = None,
+    code_mode: str | None = None,
+    code_responses_dir: str | os.PathLike[str] | None = None,
     start: Path | None = None,
     installing: bool = False,
     environ: Mapping[str, str] | None = None,
     config: ModelConfig | None = None,
 ) -> Settings:
-    """Apply precedence: the runner's value, then the environment, then the config file.
+    """Apply precedence: the runner, then the environment, then code, then the config file.
 
-    With nothing set, the mode is ``replay`` when a config file enables the
-    feature or ``install()`` is called explicitly (``installing``), else ``off``.
+    ``cli_*`` come from the test runner's options. ``code_*`` are the arguments
+    to ``install()``; the environment outranks them, so a recording run can set
+    ``WARDENBOT_MODEL_MODE=record`` without editing the settings that call
+    ``install()``. With nothing set, the mode is ``replay`` when a config file
+    enables the feature or ``install()`` is called explicitly (``installing``),
+    else ``off``.
     """
     env = os.environ if environ is None else environ
     config = load_config(start, environ=env) if config is None else config
@@ -214,6 +220,7 @@ def resolve_settings(
     for source, value in (
         (MODE_OPTION, cli_mode),
         (MODE_ENV, env.get(MODE_ENV)),
+        ("install(mode=...)", code_mode),
         (str(config.source), config.mode),
     ):
         if value is not None and value.strip():
@@ -223,7 +230,7 @@ def resolve_settings(
         mode = "replay" if config.configured or installing else "off"
 
     responses_dir: Path | None = None
-    for value in (cli_responses_dir, env.get(RESPONSES_DIR_ENV)):
+    for value in (cli_responses_dir, env.get(RESPONSES_DIR_ENV), code_responses_dir):
         if value is not None and str(value).strip():
             responses_dir = Path(value).expanduser().resolve()
             break

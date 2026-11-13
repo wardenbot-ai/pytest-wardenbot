@@ -95,6 +95,18 @@ Import from `pytest_wardenbot.local`. See
       show_root_heading: false
       heading_level: 3
 
+## Model endpoint for pipeline tests
+
+Import from `pytest_wardenbot.model`. A local OpenAI-compatible endpoint that
+serves scripted replies to the application's own SDK client and captures
+every request it sends. No pytest import, so it also works under `unittest`
+and Django's test runner.
+
+::: pytest_wardenbot.model
+    options:
+      show_root_heading: false
+      heading_level: 3
+
 ## Business truth
 
 Import from `pytest_wardenbot.business_truth`.

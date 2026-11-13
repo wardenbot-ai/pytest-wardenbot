@@ -189,6 +189,17 @@ def test_mode_precedence_both_directions(
     assert resolve_settings(cli_mode=cli, start=tmp_path, environ=environ).mode == expected
 
 
+def test_install_arguments_sit_between_environment_and_file(tmp_path: Path) -> None:
+    write(tmp_path / "pyproject.toml", '[tool.wardenbot.model]\nmode = "live"\n')
+    assert resolve_settings(code_mode="scripted", start=tmp_path, environ={}).mode == "scripted"
+    env = {"WARDENBOT_MODEL_MODE": "record"}
+    assert resolve_settings(code_mode="scripted", start=tmp_path, environ=env).mode == "record"
+    chosen = resolve_settings(cli_mode="replay", code_mode="scripted", start=tmp_path, environ=env)
+    assert chosen.mode == "replay"
+    directory = resolve_settings(code_responses_dir=tmp_path / "code", start=tmp_path, environ={})
+    assert directory.responses_dir == tmp_path / "code"
+
+
 def test_bad_mode_names_its_source(tmp_path: Path) -> None:
     with pytest.raises(WardenBotConfigError, match="'nope' from WARDENBOT_MODEL_MODE"):
         resolve_settings(start=tmp_path, environ={"WARDENBOT_MODEL_MODE": "nope"})
