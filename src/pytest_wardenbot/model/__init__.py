@@ -4,8 +4,38 @@ The endpoint lets an application's own SDK client run against scripted,
 replayed or recorded replies, so prompt assembly and output handling can be
 tested in CI without an API key. Nothing in this package imports pytest: it
 works the same under pytest, ``unittest`` and Django's ``manage.py test``.
+
+    from pytest_wardenbot.model import install, model_endpoint
+
+    install()  # before the application is imported
+
+    with model_endpoint(script={"ratings": []}) as ep:
+        rate_sources(sources)
+    assert ep.requests[0].text("user")
 """
 
 from __future__ import annotations
 
-__all__: list[str] = []
+from pytest_wardenbot.model._capture import CapturedRequest
+from pytest_wardenbot.model._endpoint import (
+    Endpoint,
+    EndpointCase,
+    install,
+    model_endpoint,
+    uninstall,
+)
+from pytest_wardenbot.model._errors import ModelEndpointError
+from pytest_wardenbot.model._reply import Reply
+from pytest_wardenbot.model._script import Script
+
+__all__ = [
+    "CapturedRequest",
+    "Endpoint",
+    "EndpointCase",
+    "ModelEndpointError",
+    "Reply",
+    "Script",
+    "install",
+    "model_endpoint",
+    "uninstall",
+]
