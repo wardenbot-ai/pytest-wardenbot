@@ -6,7 +6,7 @@ from django.test import SimpleTestCase, tag
 
 from pipeline import llm
 from pytest_wardenbot.grading.prompt import assert_instruction_present, assert_untrusted_confined
-from pytest_wardenbot.model import injection_marker, model_endpoint
+from pytest_wardenbot.model import injection_marker, install, model_endpoint
 
 
 @tag("injection")
@@ -37,3 +37,15 @@ class ReplayedPipeline(SimpleTestCase):
         pid, _, url = os.environ["WARDENBOT_ENDPOINT"].partition(" ")
         self.assertEqual(int(pid), os.getpid())
         self.assertEqual(url, os.environ["OPENAI_BASE_URL"])
+        if os.environ.get("EXPECT_PARALLEL"):  # really in a worker, not the main process
+            self.assertNotEqual(os.getpid(), int(os.environ["PIPELINE_MAIN_PID"]))
+
+
+class ModeCheck(SimpleTestCase):
+    """Run by name: the endpoint's mode is the one the environment asked for."""
+
+    def test_mode(self) -> None:
+        expected = os.environ.get("EXPECTED_WARDENBOT_MODE")
+        if expected is None:
+            self.skipTest("run by name with EXPECTED_WARDENBOT_MODE set")
+        self.assertEqual(install().mode, expected)

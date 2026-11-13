@@ -271,7 +271,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 3.12 runs Django's parallel workers under fork by default; 3.14 under forkserver.
+        # Both force spawn, forkserver and fork in turn; the default start method differs:
+        # fork on 3.12 (a clean, explained failure) and forkserver on 3.14 (works).
         python: ["3.12", "3.14"]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -281,8 +282,9 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
           cache: pip
-      - name: Install with OpenAI, Django and pytest-django
-        run: pip install -e ".[dev,openai]" django pytest-django
+      - name: Install with OpenAI, Django, pytest-django and tblib
+        # tblib lets Django's parallel runner report a failure from a worker.
+        run: pip install -e ".[dev,openai]" django pytest-django tblib
       - name: Report resolved versions
         run: pip list
       - name: Run the example project under manage.py test and pytest-django
