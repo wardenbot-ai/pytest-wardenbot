@@ -48,7 +48,8 @@ With the table present, the plugin starts the endpoint before any
 `conftest.py` is imported, sets `OPENAI_BASE_URL` to it and `OPENAI_API_KEY` to
 a dummy value. Clients your application builds at import time, or caches,
 reach it with no code changes. The default mode is `replay`; tests that pass
-`script=` are scripted whatever the mode. See the
+`script=` are scripted in every mode but `off`, which turns the endpoint off.
+See the
 [endpoint reference](../reference/model-endpoint.md) for every mode, setting
 and variable.
 
@@ -87,7 +88,8 @@ fixed set of attempts to close it (case, whitespace and zero-width variants,
 entities, percent-encoding and Unicode lookalikes) to parametrize over.
 
 Three more checks cover the rest of the prompt. Each fails when the planted
-payload never reached a request, since then nothing was checked:
+payload never reached a request, since then nothing was checked (except
+`assert_untrusted_bounded` with `max_chars=0`, where absence is the pass):
 
 - `assert_untrusted_bounded(block.requests, payload, max_chars)`: plant a
   payload longer than your limit and check no more than `max_chars` of it
@@ -129,9 +131,12 @@ from pytest_wardenbot.grading.structured import (
     assert_only_known_ids,
     assert_unique_ids,
 )
+from pathlib import Path
+
 from pytest_wardenbot.model import Script, model_endpoint, mutate
 
-benign = Script.file("tests/llm_responses/source_rating/benign_batch.json")
+# Relative to this file, so the test runs from any working directory.
+benign = Script.file(Path(__file__).parent / "llm_responses/source_rating/benign_batch.json")
 
 
 def test_invented_ids_are_dropped():
@@ -185,7 +190,9 @@ WARDENBOT_MODEL_MODE=record OPENAI_API_KEY=... pytest tests/test_pipeline.py
 WARDENBOT_MODEL_MODE=live OPENAI_API_KEY=... pytest tests/test_pipeline.py
 ```
 
-`record` writes each reply where replay will read it; `live` saves nothing.
+`record` writes each reply where replay will read it (see
+[Response folders](response-folders.md#record-and-override-locally) for what it
+skips); `live` saves nothing.
 Layers 1 and 2 cost nothing, and layer 3 can run entirely on exported or
 hand-written replies.
 

@@ -70,7 +70,9 @@ pre-commit's `end-of-file-fixer`.
    entries whose `case` is this case, then `.jsonl` entries with no `case`.
 3. **The case folder**, `cases/<case>/`, one file per call. Running out fails.
 
-Repeated identical requests replay in call order, and the last file repeats.
+Repeated identical requests replay recordings and `.jsonl` entries in call
+order, and once they run out the last one repeats; a case folder doesn't
+repeat (use a rule's `files` with `then = "repeat_last"` for that).
 Each `model_endpoint` block starts counting again, so a naive and a fixed
 implementation that share a case both get the first reply.
 Requests made outside any block (module-level code, `runserver` under
@@ -159,8 +161,9 @@ target that can't hold the reply is refused: an `.sse` file for a request that
 doesn't stream (before the call is made), or a `.txt` file for a reply with
 tool calls. On a case's first write, files in `recorded/<case>/` from before
 the run are deleted, so nothing stale answers in front of a new reply; files
-other pytest-xdist workers wrote during the run are kept. Cases that pass
-`script=` are never recorded.
+other pytest-xdist workers wrote during the run are kept. Blocks that pass
+`script=` are never recorded, and blocks that pass `mutate=` call the real API
+for anything they would record but never save it.
 
 `override` serves what the folder has and sends misses to the real API without
 saving them. Both modes, and `live`, refuse to run in CI. In `live` and
@@ -187,7 +190,8 @@ Response folders get committed, so they must never hold credentials:
   `your-api-key-here`, aren't flagged. Add a regular expression to
   `allow_patterns` in the manifest for a false positive, and plant secrets on
   purpose with `case_canary()`, whose tokens never look like keys;
-- files under hidden folders (`.scratch/`) are neither served nor checked.
+- files under hidden folders (`.scratch/`) are skipped: they aren't served
+  unless a manifest rule names one, and `check` scans only those a rule names.
 
 Response folders hold full prompts and model output: review them like source
 code before committing. Check one without a test run:

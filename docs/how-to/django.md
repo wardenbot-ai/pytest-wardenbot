@@ -60,13 +60,22 @@ class SourceRatingTests(SimpleTestCase):
 
     def test_invented_ids_are_dropped(self):
         hostile = [mutate.add_item("ratings", {"id": "99", "relevant": True})]
-        with model_endpoint(case="source_rating_benign", mutate=hostile):
+        benign = {"ratings": [{"id": str(n), "relevant": n == 0} for n in range(3)]}
+        with model_endpoint(script=benign, mutate=hostile):
+            result = rate_sources(SOURCES)
+        assert_only_known_ids(result, "id", ["0", "1", "2"])
+
+    def test_replayed_reply(self):
+        # Reads tests/llm_responses/cases/source_rating_benign/1.json.
+        with model_endpoint(case="source_rating_benign"):
             result = rate_sources(SOURCES)
         assert_only_known_ids(result, "id", ["0", "1", "2"])
 ```
 
 Layer 1 and 2 tests pass `script=`; layer 3 tests pass `case=` when they share
-replies. CI runs the existing test step and needs no API key and no new job.
+replies, and read them from the response folder: see
+[Response folders](response-folders.md). CI runs the existing test step and
+needs no API key and no new job.
 
 ## Record and override locally
 
@@ -75,16 +84,19 @@ WARDENBOT_MODEL_MODE=record OPENAI_API_KEY=... python manage.py test --tag injec
 WARDENBOT_MODEL_MODE=override OPENAI_API_KEY=... python manage.py runserver
 ```
 
-`record` refreshes every reply that can be refreshed, for every case that
-doesn't pass `script=`; it skips rules marked `record = false`. `override` runs
-the application against the folder while you develop and sends unmatched
-requests to the real API; it needs `install()` in the settings `runserver`
-uses. Both refuse to run in CI.
+`record` writes each reply where replay will read it; what it skips and why
+(`script=` and `mutate=` blocks, `record = false` rules, `.jsonl` replies) is in
+[Response folders](response-folders.md#record-and-override-locally).
+`override` runs the application against the folder while you develop and sends
+unmatched requests to the real API; it needs `install()` in the settings
+`runserver` uses. Both refuse to run in CI.
 
 ## Parallel test runs
 
 `manage.py test --parallel` works under the `spawn` and `forkserver` start
 methods: each worker imports the settings again and starts its own endpoint.
+CI checks this with the current Django release; older releases' parallel
+runners may not support every start method.
 `fork`, the default on Linux before Python 3.14, isn't supported: the
 endpoint's thread doesn't survive the fork, so a worker's first
 `model_endpoint` block fails with an explanation. Choose another start method
