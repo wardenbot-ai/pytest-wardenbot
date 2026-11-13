@@ -15,7 +15,9 @@ from pytest_wardenbot.model import injection_marker, model_endpoint, mutate
 
 BENIGN = json.loads(Path("llm_responses/post_summary/benign.json").read_text(encoding="utf-8"))
 SENT_IDS = ["p1", "p2", "p3"]
-NAIVE_FAILS = pytest.mark.xfail(strict=True, reason="naive: no fence, no data rule, no id binding")
+NAIVE_FAILS = pytest.mark.xfail(
+    strict=True, raises=AssertionError, reason="naive: no fence, no data rule, no id binding"
+)
 ATTACKED = [pytest.param(naive, id="naive", marks=NAIVE_FAILS), pytest.param(fixed, id="fixed")]
 BOTH = [pytest.param(naive, id="naive"), pytest.param(fixed, id="fixed")]
 
