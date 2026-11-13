@@ -20,8 +20,8 @@ from pytest_wardenbot.model._config import MODES, resolve_settings
 from pytest_wardenbot.model._endpoint import current_endpoint
 
 MARKER = (
-    "wardenbot_model(script=None, case=None): run the test inside a model_endpoint block "
-    "through the `wardenbot_model` fixture, with these arguments"
+    "wardenbot_model(script=None, mutate=None, case=None): run the test inside a "
+    "model_endpoint block through the `wardenbot_model` fixture, with these arguments"
 )
 WORKER_OUTPUT_KEY = "wardenbot_model"
 
