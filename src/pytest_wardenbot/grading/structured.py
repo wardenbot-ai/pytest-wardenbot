@@ -372,10 +372,14 @@ def _links_in(text: str, path: str, bare_urls: bool) -> list[Link]:
 def find_links(obj_or_text: Any, *, bare_urls: bool = False) -> list[Link]:
     """Every Markdown and HTML link and image in a string, or in every string of an object.
 
-    Covers Markdown links, images, reference definitions and autolinks, and HTML
-    ``href``, ``src`` and ``srcset`` attributes, with HTML entities in URLs
-    decoded. HTML-escaped markup (``&lt;img ...&gt;``) is inert and not counted.
-    Bare URLs count only with ``bare_urls=True``.
+    Covers Markdown links, images, reference definitions (reference-style images
+    count as images) and autolinks. In HTML: ``href``, ``src``, ``srcset``,
+    ``xlink:href``, ``action``, ``formaction``, ``ping``, ``background``, CSS
+    ``url()`` in ``style``, and meta refresh. Anything fetched without a click
+    (images, embeds, stylesheets, SVG ``image`` and ``use``, a refresh) is an
+    image (``Link.is_image``). HTML entities in URLs are decoded; HTML-escaped
+    markup (``&lt;img ...&gt;``) is inert and not counted. Bare URLs count only
+    with ``bare_urls=True``.
     """
     return [
         link
@@ -445,7 +449,9 @@ def assert_links_allowed(
     """Fail on any link or image that could send data outside ``allowed_hosts`` when rendered.
 
     Hosts match exactly (case-insensitively), or by wildcard: ``*.example.com``
-    allows its subdomains. Relative links are allowed. ``javascript:``,
+    allows its subdomains. URLs are read as browsers read them (backslashes
+    count as slashes). Relative links are allowed; a URL with a scheme but no
+    host (``mailto:``) or that can't be parsed fails. ``javascript:``,
     ``data:`` and ``vbscript:`` URLs always fail. With ``images=False``, any
     image fails, even from an allowed host: a rendered image is fetched with no
     click, which is how a beacon leaks data. ``bare_urls=True`` also checks
