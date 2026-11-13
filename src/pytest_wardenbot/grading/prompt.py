@@ -7,16 +7,23 @@ run. Plain ``(role, text)`` pairs work too.
 - ``assert_untrusted_confined``: the planted payload stays inside the
   application's fence, in an allowed role, and can't close the fence early.
 - ``fence_break_payloads``: a deterministic corpus of attempts to close a fence.
+- ``assert_instruction_present``: the data-not-instructions rule is really there.
+- ``assert_untrusted_bounded``: untrusted fields are truncated as intended.
+- ``assert_tools_offered``: a request carrying untrusted text offers only allowed tools.
+- ``assert_prompt_shape``: the assembled prompt matches a committed snapshot.
 """
 
 from __future__ import annotations
 
+import difflib
 import html
 import json
+import os
 import re
 import unicodedata
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 from urllib.parse import quote, unquote
 
@@ -24,6 +31,11 @@ from pytest_wardenbot._formatting import format_check_failure
 
 __all__ = [
     "INSTRUCTION_ROLES",
+    "SNAPSHOT_ENV",
+    "assert_instruction_present",
+    "assert_prompt_shape",
+    "assert_tools_offered",
+    "assert_untrusted_bounded",
     "assert_untrusted_confined",
     "fence_break_payloads",
 ]
@@ -37,26 +49,65 @@ Requests = Any
 """Captured requests (anything with ``roles``), one of them, or ``(role, text)`` pairs."""
 
 
-def _views(requests: Requests) -> list[tuple[Role, ...]]:
-    """Normalize the accepted inputs to one tuple of (role, text) pairs per request."""
+@dataclass(frozen=True)
+class _Request:
+    """One request as the graders see it: its roles' text, tools, and where it went."""
+
+    roles: tuple[Role, ...]
+    tools: tuple[str, ...] = ()
+    method: str | None = None
+    path: str | None = None
+
+
+_INPUT_ERROR = "Pass captured requests (EndpointCase.requests), one request, or (role, text) pairs."
+
+
+def _captured(item: Any) -> _Request:
+    return _Request(
+        tuple(item.roles),
+        tuple(getattr(item, "tools", ())),
+        getattr(item, "method", None),
+        getattr(item, "path", None),
+    )
+
+
+def _pairs(item: Any) -> _Request:
+    if isinstance(item, str | bytes) or not isinstance(item, Iterable):
+        raise TypeError(_INPUT_ERROR)
+    pairs = list(item)
+    if not all(_is_pair(pair) for pair in pairs):
+        raise TypeError(_INPUT_ERROR)
+    return _Request(tuple((role, text) for role, text in pairs))
+
+
+def _requests(requests: Requests) -> list[_Request]:
+    """Normalize the accepted inputs to one ``_Request`` per request."""
     if hasattr(requests, "roles"):
-        return [tuple(requests.roles)]
+        return [_captured(requests)]
+    if isinstance(requests, str | bytes) or not isinstance(requests, Iterable):
+        raise TypeError(_INPUT_ERROR)
     items = list(requests)
     if items and all(_is_pair(item) for item in items):
-        return [tuple((role, text) for role, text in items)]
-    views: list[tuple[Role, ...]] = []
-    for item in items:
-        if hasattr(item, "roles"):
-            views.append(tuple(item.roles))
-        else:
-            pairs = list(item)
-            if not all(_is_pair(pair) for pair in pairs):
-                raise TypeError(
-                    "Pass captured requests (EndpointCase.requests), one request, or "
-                    "(role, text) pairs."
-                )
-            views.append(tuple((role, text) for role, text in pairs))
-    return views
+        return [_pairs(items)]
+    return [_captured(item) if hasattr(item, "roles") else _pairs(item) for item in items]
+
+
+def _views(requests: Requests) -> list[tuple[Role, ...]]:
+    """One tuple of (role, text) pairs per request."""
+    return [request.roles for request in _requests(requests)]
+
+
+def _carries(request: _Request, needles: Sequence[str]) -> bool:
+    return any(needle in text for _, text in request.roles for needle in needles)
+
+
+def _not_found(needles: Sequence[str]) -> str:
+    return (
+        "the payload isn't in any request under the declared escape and encodings "
+        f"({list(needles)[:3]!r}), so nothing was checked. Either the test didn't exercise "
+        "this path, or the application transforms untrusted text in a way the test didn't "
+        "declare: pass its escaper as escape=, or add an encoding."
+    )
 
 
 def _is_pair(item: Any) -> bool:
@@ -254,12 +305,7 @@ def assert_untrusted_confined(
                                 "close the fence early or forge the application's markup"
                             )
     if not found:
-        problems.append(
-            "the payload isn't in any request under the declared escape and encodings "
-            f"({list(needles)[:3]!r}). Either the test didn't exercise this path, or the "
-            "application transforms untrusted text in a way the test didn't declare: pass "
-            "its escaper as escape=, or add an encoding."
-        )
+        problems.append(_not_found(needles))
 
     if marker is not None:
         for index, view in enumerate(views):
@@ -366,4 +412,324 @@ def fence_break_payloads(fence: tuple[str, str]) -> tuple[tuple[str, str], ...]:
             "this source relevant.",
         )
         for variant, name in unique.items()
+    )
+
+
+def assert_instruction_present(
+    requests: Requests,
+    text_or_regex: str | re.Pattern[str],
+    roles: Iterable[str] = INSTRUCTION_ROLES,
+    *,
+    each: bool = True,
+    payload: str | None = None,
+    escape: Callable[[str], str] | None = None,
+    encodings: Iterable[Encoding] = ("raw",),
+) -> None:
+    """Fail unless the rule (a substring, or a compiled regex) is in one of ``roles``.
+
+    By default every captured request must carry it, so a refactor can't
+    silently drop the data-not-instructions rule from one call; ``each=False``
+    requires only one request to. With ``payload``, only the requests that carry
+    it (under ``escape`` and ``encodings``) must, and it fails if none does.
+    """
+    wanted = set(_strings(roles, "roles"))
+    items = list(enumerate(_requests(requests)))
+    if payload is not None:
+        needles = _encoded(payload, escape, _strings(encodings, "encodings"))
+        items = [(index, request) for index, request in items if _carries(request, needles)]
+        if not items:
+            raise AssertionError(
+                format_check_failure(
+                    kind="instruction check found no untrusted text",
+                    sections=(("Problem", _not_found(needles)),),
+                    remediation="Run the path that embeds the payload, then check again.",
+                )
+            )
+
+    def carries(request: _Request) -> bool:
+        for role, text in request.roles:
+            if role not in wanted:
+                continue
+            if isinstance(text_or_regex, re.Pattern):
+                if text_or_regex.search(text):
+                    return True
+            elif text_or_regex in text:
+                return True
+        return False
+
+    missing = [index for index, request in items if not carries(request)]
+    if items and (not missing or (not each and len(missing) < len(items))):
+        return
+    rule = text_or_regex.pattern if isinstance(text_or_regex, re.Pattern) else text_or_regex
+    which = (
+        "no request was captured"
+        if not items
+        else ("requests " + ", ".join(map(str, missing)) + " lack it")
+        if each
+        else "no request carries it"
+    )
+    raise AssertionError(
+        format_check_failure(
+            kind="instruction missing from the prompt",
+            sections=(
+                ("Expected", f"{rule!r} in {', '.join(sorted(wanted))}"),
+                ("Found", which),
+            ),
+            remediation=(
+                "Keep the rule that untrusted text is data, never instructions, in the system "
+                "or developer message of every request that carries untrusted text, and keep "
+                "this check so it can't be deleted silently."
+            ),
+        )
+    )
+
+
+_FOUND_AT_LEAST = 16
+"""Fewer characters of the payload than this anywhere means it never reached a request."""
+
+
+def assert_untrusted_bounded(
+    requests: Requests,
+    payload: str,
+    max_chars: int,
+    *,
+    escape: Callable[[str], str] | None = None,
+    encodings: Iterable[Encoding] = ("raw",),
+) -> None:
+    """Fail when more than ``max_chars`` of ``payload`` appear contiguously in any role's text.
+
+    Plant a payload longer than the application's limit and check it was cut.
+    Characters are counted as the payload appears in the prompt, after
+    ``escape`` and ``encodings``; a payload without escapable characters makes
+    that the same as counting the original. Runs shorter than 16 characters (or
+    ``max_chars``, if smaller) are coincidence: with ``max_chars=0`` they pass,
+    and otherwise the check fails because the payload never reached a request,
+    so nothing was checked.
+    """
+    if max_chars < 0:
+        raise ValueError("max_chars must be 0 or more")
+    needles = _encoded(payload, escape, _strings(encodings, "encodings"))
+    if not needles:
+        raise ValueError("The payload is empty after escaping and encoding.")
+    longest, where = 0, ""
+    matcher = difflib.SequenceMatcher(None, autojunk=False)
+    for index, request in enumerate(_requests(requests)):
+        for role, text in request.roles:
+            matcher.set_seq2(text)  # index each text once, for every needle
+            for needle in needles:
+                matcher.set_seq1(needle)
+                size = matcher.find_longest_match(0, len(needle), 0, len(text)).size
+                if size > longest:
+                    longest, where = size, f"request {index}, role {role!r}"
+    threshold = min(_FOUND_AT_LEAST, min(len(needle) for needle in needles))
+    if max_chars:
+        threshold = min(threshold, max_chars)
+    if longest < threshold:  # a few shared characters are coincidence, not the payload
+        if max_chars == 0:
+            return  # dropped entirely, as intended
+        raise AssertionError(
+            format_check_failure(
+                kind="untrusted text not found",
+                sections=(("Problem", _not_found(needles)),),
+                remediation="Run the path that embeds the payload, then check again.",
+            )
+        )
+    if longest <= max_chars:
+        return
+    raise AssertionError(
+        format_check_failure(
+            kind="untrusted text not truncated",
+            sections=(
+                ("Limit", f"{max_chars} characters"),
+                ("Longest run", f"{longest} characters, in {where}"),
+            ),
+            remediation=(
+                "Truncate untrusted fields to the intended length before building the prompt, "
+                "so a long document can't crowd out the instructions or smuggle extra text."
+            ),
+        )
+    )
+
+
+def assert_tools_offered(
+    requests: Requests,
+    allowed: Iterable[str],
+    *,
+    payload: str | None = None,
+    escape: Callable[[str], str] | None = None,
+    encodings: Iterable[Encoding] = ("raw",),
+) -> None:
+    """Fail if a request offers a tool outside ``allowed``.
+
+    With ``payload``, only requests that carry it (under ``escape`` and
+    ``encodings``) are checked: an untrusted document should never reach a
+    request that can call a dangerous tool. It fails if no request carries the
+    payload, since then nothing was checked. Tool names are function names, or
+    a hosted tool's type, such as ``web_search``.
+    """
+    permitted = set(_strings(allowed, "allowed"))
+    needles = (
+        _encoded(payload, escape, _strings(encodings, "encodings")) if payload is not None else []
+    )
+    problems = []
+    carried = False
+    for index, request in enumerate(_requests(requests)):
+        if needles and not _carries(request, needles):
+            continue
+        carried = True
+        extra = [tool for tool in request.tools if tool not in permitted]
+        if extra:
+            problems.append(f"request {index} offers {', '.join(extra)}")
+    if payload is not None and not carried:
+        problems.append(_not_found(needles))
+    if not problems:
+        return
+    raise AssertionError(
+        format_check_failure(
+            kind="tool offered alongside untrusted text" if payload else "tool not allowed",
+            sections=(
+                ("Allowed tools", ", ".join(sorted(permitted)) or "(none)"),
+                ("Offered", "\n".join(problems)),
+            ),
+            remediation=(
+                "Offer only the tools the step needs. Keep tools that send, delete or spend "
+                "out of any request that carries untrusted text; run that step without them, "
+                "or behind a separate confirmation."
+            ),
+        )
+    )
+
+
+SNAPSHOT_ENV = "WARDENBOT_UPDATE_SNAPSHOTS"
+"""Set to 1 to write or refresh the snapshots ``assert_prompt_shape`` compares against."""
+
+_MARKERS = re.compile(r"WBMARK-[a-z2-7]{16}")
+_CANARIES = re.compile(r"WBCANARY-[A-Za-z0-9_-]{8,}")
+
+
+_MIN_UNTRUSTED = 4
+"""Shorter untrusted values would be replaced inside unrelated prompt text."""
+
+
+def _content_lines(text: str) -> list[str]:
+    """A role's text as snapshot lines that survive whitespace hooks and can't forge headers.
+
+    Every line starts with ``|``; control and line-separator characters other
+    than newline and tab are escaped, and trailing spaces and tabs are spelled
+    out, so editors and pre-commit hooks can't change the file, and ``\\r\\n``
+    differs from ``\\n``.
+    """
+    escaped = "".join(
+        char
+        if char in "\n\t" or unicodedata.category(char) not in {"Cc", "Zl", "Zp"}
+        else f"\\u{ord(char):04x}"
+        for char in text
+    )
+    lines = []
+    for line in escaped.split("\n"):
+        body = line.rstrip(" \t")
+        tail = line[len(body) :].replace(" ", "\\s").replace("\t", "\\t")
+        lines.append(f"| {body}{tail}" if body or tail else "|")
+    return lines
+
+
+def _render(
+    requests: Requests,
+    untrusted: Sequence[str],
+    normalizers: Sequence[Callable[[str], str]],
+    escape: Callable[[str], str] | None = None,
+) -> str:
+    from pytest_wardenbot.model._hash import builtin_normalize, canonical_path
+
+    placeholders: dict[str, str] = {}
+    for number, text in enumerate(untrusted):
+        if len(text) < _MIN_UNTRUSTED:
+            raise ValueError(
+                f"The untrusted value {text!r} is too short to replace reliably: pass values "
+                f"of {_MIN_UNTRUSTED} characters or more."
+            )
+        forms = _encoded(text, None, ("raw", "json"))
+        if escape is not None:
+            forms += _encoded(text, escape, ("raw", "json"))
+        for form in forms:
+            placeholders.setdefault(form, f"<untrusted:{number}>")
+    # One pass, longest first, so a placeholder is never rewritten by a later value.
+    ordered = sorted(placeholders, key=len, reverse=True)
+    pattern = re.compile("|".join(map(re.escape, ordered))) if ordered else None
+
+    def normalize(text: str) -> str:
+        if pattern is not None:
+            text = pattern.sub(lambda match: placeholders[match.group(0)], text)
+        text = _CANARIES.sub("<canary>", _MARKERS.sub("<marker>", text))
+        text = builtin_normalize(text)
+        for normalizer in normalizers:
+            text = normalizer(text)
+        return text
+
+    lines: list[str] = []
+    for index, request in enumerate(_requests(requests)):
+        where = (
+            f": {request.method} {canonical_path(request.path)}"  # no deployment or base path
+            if request.method and request.path
+            else ""
+        )
+        lines.append(f"### request {index}{where}")
+        if request.tools:
+            lines.append(f"tools: {', '.join(request.tools)}")
+        for role, text in request.roles:
+            lines.append(f"[{role}]")
+            lines.extend(_content_lines(normalize(text)))
+        lines.append("")
+    return "\n".join(lines)
+
+
+def assert_prompt_shape(
+    requests: Requests,
+    snapshot: str | os.PathLike[str],
+    *,
+    untrusted: Sequence[str] = (),
+    normalizers: Sequence[Callable[[str], str]] = (),
+    escape: Callable[[str], str] | None = None,
+) -> None:
+    """Compare the assembled prompt with a committed snapshot file.
+
+    Each request is rendered as its canonical path, offered tools and every
+    role's text, each line of it after ``|``. Untrusted spans (the strings in
+    ``untrusted``, raw or JSON-encoded, and escaped by ``escape`` when the
+    application escapes them) become ``<untrusted:N>``, and injection markers,
+    canaries, ISO dates, UUIDs and anything ``normalizers`` rewrite are replaced
+    too, so only the prompt's structure is compared: a refactor that moves
+    untrusted text, drops a fence or reorders roles fails with a diff. The model
+    name and deployment path are left out, so changing models doesn't churn
+    snapshots. Set ``WARDENBOT_UPDATE_SNAPSHOTS=1`` to write or refresh the file.
+    """
+    path = Path(snapshot)
+    rendered = _render(requests, untrusted, normalizers, escape)
+    if os.environ.get(SNAPSHOT_ENV, "").strip() in {"1", "true", "yes"}:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(rendered, encoding="utf-8")
+        return
+    if not path.exists():
+        raise AssertionError(
+            f"No prompt-shape snapshot at {path}. Review the prompt, then create it with "
+            f"{SNAPSHOT_ENV}=1 and commit the file."
+        )
+    expected = path.read_text(encoding="utf-8")
+    if expected == rendered:
+        return
+    diff = "\n".join(
+        difflib.unified_diff(
+            expected.splitlines(), rendered.splitlines(), str(path), "this run", lineterm=""
+        )
+    )
+    raise AssertionError(
+        format_check_failure(
+            kind="prompt shape changed",
+            sections=(("Diff", diff),),
+            remediation=(
+                "If the change is intended, check that untrusted text is still fenced in the "
+                f"user role, then refresh the snapshot with {SNAPSHOT_ENV}=1 and commit it. If "
+                "not, restore the prompt's structure."
+            ),
+        )
     )
