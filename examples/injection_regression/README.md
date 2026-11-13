@@ -21,9 +21,14 @@ pytest
 |---|---|
 | `source_rating/` | A batch of web pages rated in one call: fencing and escaping, a data rule, and binding ratings to the ids the app issued. Includes a recording matched by request hash, which goes stale when the prompt changes. |
 | `post_summary/` | Social posts summarized into a pydantic model. The naive prompt JSON-encodes untrusted posts, which the `json` encoding finds outside any fence. Layer 3 replays exported application logs (`exports/posts.jsonl`, built by `make_exports.py`), picked per case by manifest rules. |
+| `doc_chat/` | A streaming Responses answer over retrieved documents, rendered as HTML. The fixed version fences the documents in the user turn, renders images as text and links only to the application's own sites (never a retrieved page's host, which an attacker may control). Layer 3 replays a hand-written `.sse` stream byte for byte. |
 
 `pyproject.toml` turns the endpoint on (`[tool.wardenbot.model]`) before any
 test module is imported, so the cached client in `llm.py` talks to it.
 `record_offline.py` regenerates the hash-matched recording with record mode
 against a local stand-in for the API, and `make_exports.py` rebuilds the
 exported log from the hand-written replies.
+
+Response folders hold model replies exactly: exclude them from whitespace
+fixers such as pre-commit's `end-of-file-fixer` (see this repository's
+`.pre-commit-config.yaml`), so an `.sse` stream keeps its final blank line.

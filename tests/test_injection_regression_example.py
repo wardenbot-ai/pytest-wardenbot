@@ -49,22 +49,27 @@ def counts(output: str) -> dict[str, int]:
     return {kind: int(number) for number, kind in re.findall(r"(\d+) (\w+)", summary)}
 
 
-def test_pattern_a_source_rating() -> None:
-    code, output = run_pattern("source_rating")
+# Expected (passed, xfailed) per pattern. Attack cases are xfailed on naive and passed
+# on fixed; the rest pass on both.
+EXPECTED = {
+    # 21 attack cases (confinement 1, fence breaks 15, hostile replies 3, replayed 2),
+    # 2 benign controls and 2 hash-churn tests.
+    "source_rating": (25, 21),
+    # 3 attack cases, 1 benign control on both.
+    "post_summary": (5, 3),
+    # 3 attack cases, 1 benign control on both, 2 stream tests, 5 renderer cases.
+    "doc_chat": (12, 3),
+}
+
+
+@pytest.mark.parametrize("pattern", list(EXPECTED))
+def test_each_pattern(pattern: str) -> None:
+    code, output = run_pattern(pattern)
     assert code == 0, output[-4000:]
     outcome = counts(output)
     assert outcome.get("failed", 0) == 0 and outcome.get("xpassed", 0) == 0
-    # 21 attack cases (confinement 1, fence breaks 15, hostile replies 3, replayed 2)
-    # are red on naive and green on fixed; plus 2 benign controls and 2 hash-churn tests.
-    assert outcome["xfailed"] == 21 and outcome["passed"] == 25
-
-
-def test_pattern_b_post_summary() -> None:
-    code, output = run_pattern("post_summary")
-    assert code == 0, output[-4000:]
-    outcome = counts(output)
-    assert outcome.get("failed", 0) == 0 and outcome.get("xpassed", 0) == 0
-    assert outcome["xfailed"] == 3 and outcome["passed"] == 5
+    passed, xfailed = EXPECTED[pattern]
+    assert (outcome["passed"], outcome["xfailed"]) == (passed, xfailed)
 
 
 def test_pattern_b_exports_are_up_to_date() -> None:
@@ -77,3 +82,12 @@ def test_pattern_b_exports_are_up_to_date() -> None:
         timeout=120,
     )
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_all_patterns_together() -> None:
+    """The README's plain `pytest` in the example folder: all patterns in one process."""
+    code, output = run_pattern(".")
+    assert code == 0, output[-4000:]
+    passed = sum(expected[0] for expected in EXPECTED.values())
+    xfailed = sum(expected[1] for expected in EXPECTED.values())
+    assert counts(output) == {"passed": passed, "xfailed": xfailed}
