@@ -96,7 +96,6 @@ class Endpoint:
         self._requests: deque[CapturedRequest] = deque(maxlen=_KEEP_OUTSIDE)
         self._errors: deque[ModelEndpointError] = deque(maxlen=_KEEP_OUTSIDE)
         self._outside_calls = 0
-        self._outside_lookup = LookupState()
         self._folder: ResponseFolder | None = None
         self._folder_lock = threading.Lock()
 
