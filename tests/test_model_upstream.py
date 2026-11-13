@@ -22,7 +22,7 @@ from pytest_wardenbot.model import (
     ModelEndpointError,
     ReplayMissError,
     _cases,
-    _markers,
+    _manifest,
     injection_marker,
     install,
     model_endpoint,
@@ -183,7 +183,7 @@ def folder(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, upstream: FakeUpstre
     monkeypatch.setenv("OPENAI_BASE_URL", upstream.url)  # the original base URL: the upstream
     monkeypatch.setenv("OPENAI_API_KEY", REAL_KEY)
     monkeypatch.setattr(_cases, "_claimed", {})
-    monkeypatch.setattr(_markers, "_seed_cache", {})
+    monkeypatch.setattr(_manifest, "_cache", {})
     uninstall()
     root = tmp_path / "llm_responses"
     root.mkdir()
