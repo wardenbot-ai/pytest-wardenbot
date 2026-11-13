@@ -12,7 +12,10 @@ from pathlib import Path
 import pytest
 
 from pytest_wardenbot._errors import WardenBotConfigError
-from pytest_wardenbot.model._cases import case_dirname, current_case
+from pytest_wardenbot.model import _cases
+from pytest_wardenbot.model._cases import case_dirname, claim_case_dirname, current_case
+
+pytest_plugins = ["pytester"]
 
 
 def test_explicit_case_wins() -> None:
@@ -40,6 +43,8 @@ def test_unittest_id_from_the_running_test_case(tmp_path: Path) -> None:
         textwrap.dedent(
             """
             import unittest
+
+            import pytest  # importing pytest alone must not make its case names trusted
             from pytest_wardenbot.model._cases import current_case
 
             def helper():
@@ -61,7 +66,7 @@ def test_unittest_id_from_the_running_test_case(tmp_path: Path) -> None:
         text=True,
         check=True,
     )
-    # The inherited PYTEST_CURRENT_TEST is ignored: pytest isn't running there.
+    # The inherited PYTEST_CURRENT_TEST is ignored: no pytest session runs there.
     assert "CASE=test_plain.Pipeline.test_rating" in result.stdout
 
 
@@ -101,7 +106,7 @@ def test_long_case_names_keep_a_prefix_and_hash() -> None:
 
 
 def test_pytest_id_ignored_when_pytest_is_not_running(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delitem(sys.modules, "_pytest.runner")
+    monkeypatch.setattr(_cases, "_pytest_sessions", set())
     with pytest.raises(WardenBotConfigError, match="Cannot tell which test is running"):
         current_case()
 
@@ -115,7 +120,41 @@ def test_unittest_case_in_process(monkeypatch: pytest.MonkeyPatch) -> None:
         def test_rating(self) -> None:
             seen.append(current_case())
 
-    monkeypatch.delitem(sys.modules, "_pytest.runner")
+    monkeypatch.setattr(_cases, "_pytest_sessions", set())
     result = unittest.TextTestRunner(stream=io.StringIO()).run(Pipeline("test_rating"))
     assert result.wasSuccessful()
     assert seen == [Pipeline("test_rating").id()]
+
+
+def test_sessions_are_keyed_by_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(_cases, "_pytest_sessions", set())
+    outer, inner, never_configured = object(), object(), object()
+    _cases.pytest_configured(outer)
+    _cases.pytest_configured(inner)
+    _cases.pytest_unconfigured(never_configured)
+    _cases.pytest_unconfigured(inner)
+    assert _cases._pytest_sessions == {id(outer)}
+    _cases.pytest_unconfigured(outer)
+    assert not _cases._pytest_sessions
+
+
+def test_usage_error_in_a_nested_run_keeps_the_outer_session(pytester: pytest.Pytester) -> None:
+    pytester.makeconftest(
+        "import pytest\ndef pytest_configure(config):\n    raise pytest.UsageError('bad option')\n"
+    )
+    assert pytester.runpytest_inprocess().ret == pytest.ExitCode.USAGE_ERROR
+    assert _cases._pytest_sessions
+
+
+@pytest.mark.parametrize(
+    ("first", "second"),
+    [("tests/a.py::t[a/b]", "tests/a.py::t[a_b]"), ("t[café]", "t[cafè]"), ("test_A", "test_a")],
+)
+def test_colliding_case_folders_are_refused(
+    monkeypatch: pytest.MonkeyPatch, first: str, second: str
+) -> None:
+    monkeypatch.setattr(_cases, "_claimed", {})
+    assert claim_case_dirname(first) == case_dirname(first)
+    assert claim_case_dirname(first) == case_dirname(first)  # the same case again is fine
+    with pytest.raises(WardenBotConfigError, match="both map to the response folder name"):
+        claim_case_dirname(second)

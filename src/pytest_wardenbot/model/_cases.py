@@ -11,7 +11,7 @@ import hashlib
 import inspect
 import os
 import re
-import sys
+import threading
 import unittest
 
 from pytest_wardenbot._errors import WardenBotConfigError
@@ -20,11 +20,30 @@ _PYTEST_PHASE = re.compile(r" \((?:setup|call|teardown)\)$")
 _UNSAFE = re.compile(r"[^A-Za-z0-9_.-]")
 _MAX_DIRNAME = 120
 
+_pytest_sessions: set[int] = set()
+_claimed: dict[str, str] = {}
+_claimed_lock = threading.Lock()
+
+
+def pytest_configured(session: object) -> None:
+    """Called by the plugin when a pytest config is set up in this process."""
+    _pytest_sessions.add(id(session))
+
+
+def pytest_unconfigured(session: object) -> None:
+    """Called by the plugin when that config is torn down.
+
+    Keyed by config, so a teardown whose setup never ran (pytest unconfigures
+    after a usage error in ``pytest_configure``) can't drop another session.
+    """
+    _pytest_sessions.discard(id(session))
+
 
 def _pytest_case() -> str | None:
     # PYTEST_CURRENT_TEST is inherited by child processes, such as a Django test
-    # run started from a pytest test. Only trust it while pytest runs here.
-    if "_pytest.runner" not in sys.modules:
+    # run started from a pytest test, and `import pytest` alone proves nothing.
+    # Only trust it while the plugin reports a pytest session in this process.
+    if not _pytest_sessions:
         return None
     value = os.environ.get("PYTEST_CURRENT_TEST", "")
     return _PYTEST_PHASE.sub("", value) or None
@@ -74,4 +93,24 @@ def case_dirname(case: str) -> str:
     if len(name) > _MAX_DIRNAME:
         digest = hashlib.sha256(case.encode("utf-8")).hexdigest()[:12]
         name = f"{name[:100]}-{digest}"
+    return name
+
+
+def claim_case_dirname(case: str) -> str:
+    """Return ``case_dirname(case)``, refusing a name another case already maps to.
+
+    Different case names can sanitize to the same folder name (``a/b`` and
+    ``a_b``), and case-insensitive filesystems also merge ``test_A`` and
+    ``test_a``. Two cases sharing a folder would read and overwrite each
+    other's replies, so within a process the second one fails instead.
+    """
+    name = case_dirname(case)
+    with _claimed_lock:
+        owner = _claimed.setdefault(name.casefold(), case)
+    if owner != case:
+        raise WardenBotConfigError(
+            f"The case names {owner!r} and {case!r} both map to the response folder name "
+            f"{name!r}, so they would share replies. Give one of them an explicit, distinct "
+            "name with model_endpoint(case=...)."
+        )
     return name

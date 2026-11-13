@@ -70,10 +70,30 @@ def test_wardenbot_toml_wins_and_accepts_both_table_names(tmp_path: Path) -> Non
     assert load_config(tmp_path, environ={}).mode == "record"
 
 
+def test_discovery_stops_at_the_project_root(tmp_path: Path) -> None:
+    write(tmp_path / "pyproject.toml", '[tool.wardenbot.model]\nmode = "live"\n')
+    project = tmp_path / "project"
+    write(project / "pyproject.toml", '[project]\nname = "app"\n')
+    assert load_config(project / "src", environ={}).configured is False
+    repo = tmp_path / "repo"
+    (repo / ".git").mkdir(parents=True)
+    assert load_config(repo, environ={}).configured is False
+    # A wardenbot.toml at the root still counts, and so does one below it.
+    write(project / "wardenbot.toml", '[model]\nmode = "scripted"\n')
+    assert load_config(project / "src", environ={}).mode == "scripted"
+
+
+def test_unreadable_ancestor_outside_the_project_is_never_read(tmp_path: Path) -> None:
+    write(tmp_path / "pyproject.toml", "[not valid toml\n")
+    project = tmp_path / "project"
+    (project / ".git").mkdir(parents=True)
+    assert load_config(project, environ={}).configured is False
+
+
 def test_nearest_directory_wins(tmp_path: Path) -> None:
     write(tmp_path / "wardenbot.toml", '[model]\nmode = "live"\n')
     inner = tmp_path / "inner"
-    write(inner / "pyproject.toml", '[tool.wardenbot.model]\nmode = "scripted"\n')
+    write(inner / "wardenbot.toml", '[model]\nmode = "scripted"\n')
     assert load_config(inner, environ={}).mode == "scripted"
 
 
@@ -109,7 +129,10 @@ def test_wardenbot_config_env_errors(
         ('respones_dir = "x"', r"unknown wardenbot model setting\(s\) 'respones_dir'"),
         ('mode = "fast"', "Unknown wardenbot model mode 'fast'"),
         ("mode = 3", "`mode` must be a string"),
-        ("responses_dir = 3", "`responses_dir` must be a string"),
+        ("responses_dir = 3", "`responses_dir` must be a non-empty string"),
+        ('responses_dir = ""', "`responses_dir` must be a non-empty string"),
+        ('normalizers = [".relative:f"]', "must look like 'package.module:function'"),
+        ('normalizers = ["pkg:"]', "must look like 'package.module:function'"),
         ('guard_hosts = "api.example"', "`guard_hosts` must be a list of strings"),
         ('normalizers = ["no_colon"]', "must look like 'package.module:function'"),
     ],
@@ -119,6 +142,18 @@ def test_invalid_config_names_the_file(tmp_path: Path, table: str, message: str)
     with pytest.raises(WardenBotConfigError, match=message) as error:
         load_config(tmp_path, environ={})
     assert str(path.resolve()) in str(error.value)
+
+
+@pytest.mark.parametrize("text", ["tool = 1\n", '[tool]\nwardenbot = "x"\n'])
+def test_non_table_tool_keys_are_ignored(tmp_path: Path, text: str) -> None:
+    write(tmp_path / "pyproject.toml", text)
+    assert load_config(tmp_path, environ={}).configured is False
+
+
+def test_responses_dir_expands_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    write(tmp_path / "pyproject.toml", '[tool.wardenbot.model]\nresponses_dir = "~/fixtures"\n')
+    assert load_config(tmp_path, environ={}).responses_dir == (tmp_path / "home" / "fixtures")
 
 
 def test_invalid_toml_is_reported(tmp_path: Path) -> None:
@@ -176,11 +211,21 @@ def test_a_given_config_skips_discovery(tmp_path: Path) -> None:
     assert resolve_settings(config=config, environ={}).mode == "scripted"
 
 
+def test_load_callable_wraps_import_time_errors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    write(tmp_path / "broken_normalizer.py", "raise RuntimeError('boom at import')\n")
+    monkeypatch.syspath_prepend(str(tmp_path))
+    with pytest.raises(WardenBotConfigError, match="RuntimeError: boom at import"):
+        load_callable("broken_normalizer:f")
+
+
 def test_load_callable(tmp_path: Path) -> None:
     assert load_callable("os.path:join") is __import__("os").path.join
     assert load_callable("os:path.join") is __import__("os").path.join
     for name, message in [
         ("nocolon", "must look like"),
+        (".relative:f", "must look like"),
         ("no_such_module_xyz:f", "Cannot import"),
         ("os:no_such_attr", "has no attribute"),
         ("os:sep", "is not callable"),
@@ -203,10 +248,21 @@ def test_load_callable(tmp_path: Path) -> None:
         ("1", True),
         ("yes", True),
         ("github-actions", True),
+        ("off", False),
     ],
 )
 def test_in_ci(value: str | None, expected: bool) -> None:
     assert in_ci({} if value is None else {"CI": value}) is expected
+
+
+@pytest.mark.parametrize(
+    "name", ["JENKINS_URL", "TF_BUILD", "TEAMCITY_VERSION", "BUILDKITE", "CODEBUILD_BUILD_ID"]
+)
+def test_ci_services_without_ci_variable(name: str) -> None:
+    assert in_ci({name: "x"})
+    assert not in_ci({name: ""})
+    with pytest.raises(WardenBotConfigError, match=f"{name} is set"):
+        refuse_in_ci("record", environ={name: "x"})
 
 
 @pytest.mark.parametrize("mode", MODES)

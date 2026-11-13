@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import importlib
 import os
+import re
 import tomllib
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
@@ -33,7 +34,20 @@ RESPONSES_DIR_ENV = "WARDENBOT_RESPONSES_DIR"
 MODE_OPTION = "--wardenbot-model-mode"
 RESPONSES_DIR_OPTION = "--wardenbot-responses-dir"
 
-_FALSE_CI_VALUES = frozenset({"", "0", "false", "no"})
+_FALSE_CI_VALUES = frozenset({"", "0", "false", "no", "n", "off"})
+_IDENTIFIER = r"[A-Za-z_][A-Za-z0-9_]*"
+_CALLABLE_NAME = re.compile(rf"{_IDENTIFIER}(?:\.{_IDENTIFIER})*:{_IDENTIFIER}(?:\.{_IDENTIFIER})*")
+
+# CI services that don't set CI themselves; their presence alone means CI.
+_CI_MARKERS = (
+    "BUILDKITE",
+    "CODEBUILD_BUILD_ID",
+    "GITHUB_ACTIONS",
+    "GITLAB_CI",
+    "JENKINS_URL",
+    "TEAMCITY_VERSION",
+    "TF_BUILD",
+)
 
 
 @dataclass(frozen=True)
@@ -66,7 +80,9 @@ class Settings:
 
 def _table(data: Mapping[str, Any], path: Path) -> Mapping[str, Any] | None:
     """Return the model table of a parsed config file, or None if it has none."""
-    nested = data.get("tool", {}).get("wardenbot", {}).get("model")
+    nested: Any = data
+    for key in ("tool", "wardenbot", "model"):
+        nested = nested.get(key) if isinstance(nested, Mapping) else None
     if path.name == "wardenbot.toml" and nested is None:
         nested = data.get("model")
     if nested is not None and not isinstance(nested, Mapping):
@@ -90,9 +106,11 @@ def find_config_file(
     """Locate the config file and its model table.
 
     ``WARDENBOT_CONFIG`` names a file directly. Otherwise each directory from
-    ``start`` (default: the working directory) up to the filesystem root is
-    searched; in each, ``wardenbot.toml`` wins over ``pyproject.toml``. A file
-    counts only if it has a model table.
+    ``start`` (default: the working directory) upward is searched, and in each,
+    ``wardenbot.toml`` wins over ``pyproject.toml``. A file counts only if it has
+    a model table. The search stops at the project root, the first directory
+    with a ``pyproject.toml`` or ``.git``, so a file outside the project (a
+    monorepo parent, the home directory) never turns the feature on.
     """
     env = os.environ if environ is None else environ
     named = env.get(CONFIG_ENV, "").strip()
@@ -114,6 +132,8 @@ def find_config_file(
                 table = _table(_read(path), path)
                 if table is not None:
                     return path, table
+        if (folder / "pyproject.toml").is_file() or (folder / ".git").exists():
+            break
     return None
 
 
@@ -153,19 +173,20 @@ def load_config(
             raise WardenBotConfigError(f"{path}: `mode` must be a string.")
         mode = validate_mode(mode, str(path))
     responses_dir = table.get("responses_dir")
-    if responses_dir is not None and not isinstance(responses_dir, str):
-        raise WardenBotConfigError(f"{path}: `responses_dir` must be a string.")
+    if responses_dir is not None and (not isinstance(responses_dir, str) or not responses_dir):
+        raise WardenBotConfigError(f"{path}: `responses_dir` must be a non-empty string.")
     normalizers = _strings(table.get("normalizers", []), "normalizers", path)
     for name in normalizers:
-        module, _, attribute = name.partition(":")
-        if not module or not attribute:
+        if not _CALLABLE_NAME.fullmatch(name):
             raise WardenBotConfigError(
                 f"{path}: normalizer {name!r} must look like 'package.module:function'."
             )
     return ModelConfig(
         source=path,
         mode=mode,
-        responses_dir=(path.parent / responses_dir).resolve() if responses_dir else None,
+        responses_dir=(path.parent / Path(responses_dir).expanduser()).resolve()
+        if responses_dir
+        else None,
         guard_hosts=_strings(table.get("guard_hosts", []), "guard_hosts", path),
         ignore_fields=_strings(table.get("ignore_fields", []), "ignore_fields", path),
         normalizers=normalizers,
@@ -214,13 +235,15 @@ def resolve_settings(
 
 def load_callable(name: str) -> Callable[..., Any]:
     """Import ``package.module:attribute`` and return it; it must be callable."""
-    module_name, _, attribute = name.partition(":")
-    if not module_name or not attribute:
+    if not _CALLABLE_NAME.fullmatch(name):
         raise WardenBotConfigError(f"{name!r} must look like 'package.module:function'.")
+    module_name, _, attribute = name.partition(":")
     try:
         target: Any = importlib.import_module(module_name)
-    except ImportError as error:
-        raise WardenBotConfigError(f"Cannot import {module_name!r} for {name!r}: {error}") from None
+    except Exception as error:  # any import-time failure is reported with the setting
+        raise WardenBotConfigError(
+            f"Cannot import {module_name!r} for {name!r}: {type(error).__name__}: {error}"
+        ) from None
     for part in attribute.split("."):
         try:
             target = getattr(target, part)
@@ -231,19 +254,32 @@ def load_callable(name: str) -> Callable[..., Any]:
     return target
 
 
-def in_ci(environ: Mapping[str, str] | None = None) -> bool:
-    """True when the ``CI`` environment variable is set to a true-looking value."""
-    env = os.environ if environ is None else environ
+def _ci_reason(env: Mapping[str, str]) -> str | None:
     value = env.get("CI")
-    return value is not None and value.strip().lower() not in _FALSE_CI_VALUES
+    if value is not None and value.strip().lower() not in _FALSE_CI_VALUES:
+        return f"CI={value!r}"
+    for name in _CI_MARKERS:
+        if env.get(name, "").strip():
+            return f"{name} is set"
+    return None
+
+
+def in_ci(environ: Mapping[str, str] | None = None) -> bool:
+    """True when running in CI.
+
+    That is, ``CI`` is set to a true-looking value, or a variable that a CI
+    service without ``CI`` sets is present (Jenkins, Azure Pipelines, TeamCity,
+    AWS CodeBuild, and others).
+    """
+    return _ci_reason(os.environ if environ is None else environ) is not None
 
 
 def refuse_in_ci(mode: str, *, environ: Mapping[str, str] | None = None) -> None:
     """Raise if ``mode`` would call the real model API while running in CI."""
-    env = os.environ if environ is None else environ
-    if mode in UPSTREAM_MODES and in_ci(env):
+    reason = _ci_reason(os.environ if environ is None else environ)
+    if mode in UPSTREAM_MODES and reason is not None:
         raise WardenBotConfigError(
             f"The wardenbot model mode {mode!r} calls the real model API, so it refuses to "
-            f"run in CI (CI={env.get('CI')!r}). Use 'replay' or 'scripted' in CI, and "
-            f"'{mode}' only on a developer machine."
+            f"run in CI ({reason}). Use 'replay' or 'scripted' in CI, and '{mode}' only on "
+            "a developer machine."
         )
