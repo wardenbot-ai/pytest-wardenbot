@@ -20,8 +20,10 @@ pytest
 | Pattern | What it shows |
 |---|---|
 | `source_rating/` | A batch of web pages rated in one call: fencing and escaping, a data rule, and binding ratings to the ids the app issued. Includes a recording matched by request hash, which goes stale when the prompt changes. |
+| `post_summary/` | Social posts summarized into a pydantic model. The naive prompt JSON-encodes untrusted posts, which the `json` encoding finds outside any fence. Layer 3 replays exported application logs (`exports/posts.jsonl`, built by `make_exports.py`), picked per case by manifest rules. |
 
 `pyproject.toml` turns the endpoint on (`[tool.wardenbot.model]`) before any
 test module is imported, so the cached client in `llm.py` talks to it.
 `record_offline.py` regenerates the hash-matched recording with record mode
-against a local stand-in for the API.
+against a local stand-in for the API, and `make_exports.py` rebuilds the
+exported log from the hand-written replies.
