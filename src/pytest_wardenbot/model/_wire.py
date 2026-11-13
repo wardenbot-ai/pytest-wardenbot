@@ -256,7 +256,16 @@ def chat_events(body: Mapping[str, Any], *, include_usage: bool) -> bytes:
     for choice in body.get("choices") or ():
         index = choice.get("index", 0)
         message = choice.get("message") or {}
-        chunk(index, {"role": "assistant", "content": ""})
+        # Like the real API: an empty string starts a text reply, null a tool-call reply.
+        chunk(
+            index,
+            {
+                "role": "assistant",
+                "content": ""
+                if message.get("content") is not None or not message.get("tool_calls")
+                else None,
+            },
+        )
         for delta in _chunks(message.get("content") or ""):
             chunk(index, {"content": delta})
         for delta in _chunks(message.get("refusal") or ""):

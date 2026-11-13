@@ -136,8 +136,9 @@ class CapturedRequest:
         ids: set[str] = set()
         items = self.body.get("input")
         for item in items if isinstance(items, Sequence) and not isinstance(items, str) else ():
-            if isinstance(item, Mapping) and item.get("type") == "function_call_output":
-                ids.add(str(item.get("call_id")))
+            kind = item.get("type") if isinstance(item, Mapping) else None
+            if isinstance(kind, str) and kind.endswith("_output") and "call_id" in item:
+                ids.add(str(item["call_id"]))
         for message in self.body.get("messages") or ():
             if isinstance(message, Mapping) and message.get("role") == "tool":
                 ids.add(str(message.get("tool_call_id")))

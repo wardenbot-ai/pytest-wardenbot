@@ -6,6 +6,7 @@ import hashlib
 import json
 import threading
 from collections.abc import Callable, Mapping, Sequence
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Union, cast
 
@@ -81,6 +82,12 @@ class Script:
     fails, unless ``then`` is ``"repeat_last"``. A script made of a single
     callable answers every request. The same ``Script`` can be reused: each
     block starts again from the first reply.
+
+    A script is linear: replies go out one request at a time, in order. After a
+    tool call, the next request in the block must carry its result, even if the
+    application meant it for another conversation, so give independent
+    pipelines their own blocks. A script callable runs while the script is
+    held, so it must not make model requests itself.
     """
 
     def __init__(self, *replies: ReplyLike, then: str | None = None) -> None:
@@ -141,7 +148,8 @@ class Script:
         The search appears as a ``web_search_call`` item whose ``action.sources``
         lists ``sources``.
         """
-        return cls(Reply(web_search=WebSearch(query, tuple(sources)), text=text))
+        urls = (sources,) if isinstance(sources, str) else tuple(sources)
+        return cls(Reply(web_search=WebSearch(query, urls), text=text))
 
     @classmethod
     def file(cls, path: str | Path) -> Script:
@@ -186,49 +194,58 @@ class ScriptCursor:
         self._script = script
         self._case = case
         self._served = 0
+        self._requests = 0
         self._pending: tuple[ToolCall, ...] = ()
         self._lock = threading.Lock()
 
     def next(self, request: CapturedRequest) -> Reply:
+        """The next reply. Scripts are linear, so requests are answered one at a time.
+
+        After a reply with tool calls, the next request must carry their results.
+        A request that doesn't is refused without using up a reply, so the
+        application can retry with the results.
+        """
         with self._lock:
             index = self._served
+            self._requests += 1
+            number = self._requests
+            if self._pending:
+                results = request.tool_results
+                missing = [call for call in self._pending if call.call_id not in results]
+                if missing:
+                    names = ", ".join(f"{c.name!r} (call_id {c.call_id})" for c in missing)
+                    raise ModelEndpointError(
+                        f"The script for case {self._case!r} called {names}, so the next "
+                        "request must carry the result (a function_call_output item, or a "
+                        "Chat 'tool' message with that tool_call_id), but request "
+                        f"{number} to {request.path} doesn't."
+                    )
+            reply = self._reply_at(index, number, request)
             self._served += 1
-            pending, self._pending = self._pending, ()
-        missing = [call for call in pending if call.call_id not in request.tool_results]
-        if missing:
-            names = ", ".join(f"{call.name!r} (call_id {call.call_id})" for call in missing)
-            raise ModelEndpointError(
-                f"The script for case {self._case!r} called {names}, so the next request must "
-                "carry the result (a function_call_output item, or a Chat 'tool' message with "
-                f"that tool_call_id), but request {index + 1} to {request.path} doesn't."
-            )
-        reply = self._reply_at(index, request)
-        if reply.tool_calls:
-            calls = tuple(
-                call
-                if call.call_id is not None
-                else ToolCall(call.name, call.arguments, self._call_id(index, number))
-                for number, call in enumerate(reply.tool_calls)
-            )
-            reply = Reply(
-                text=reply.text, tool_calls=calls, web_search=reply.web_search, source=reply.source
-            )
-            with self._lock:
+            self._pending = ()
+            if reply.tool_calls:
+                calls = tuple(
+                    call
+                    if call.call_id is not None
+                    else replace(call, call_id=self._call_id(index, number))
+                    for number, call in enumerate(reply.tool_calls)
+                )
+                reply = replace(reply, tool_calls=calls)
                 self._pending = calls
-        return reply
+            return reply
 
     def _call_id(self, index: int, number: int) -> str:
         digest = hashlib.sha256(f"{self._case}\0{index}\0{number}".encode()).hexdigest()[:24]
         return f"call_{digest}"
 
-    def _reply_at(self, index: int, request: CapturedRequest) -> Reply:
+    def _reply_at(self, index: int, number: int, request: CapturedRequest) -> Reply:
         items = self._script._items
         if index >= len(items):
             if self._script.then != "repeat_last":
                 raise ModelEndpointError(
                     f"The script for case {self._case!r} has {len(items)} "
                     f"repl{'y' if len(items) == 1 else 'ies'}, and this was request "
-                    f"{index + 1} (to {request.path}). Add replies, or pass "
+                    f"{number} (to {request.path}). Add replies, or pass "
                     "Script.sequence(..., then='repeat_last')."
                 )
             index = len(items) - 1

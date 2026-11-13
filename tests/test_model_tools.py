@@ -167,3 +167,42 @@ def test_streamed_chat_tool_call(scripted_endpoint: Endpoint) -> None:
     assert calls[0]["function"]["name"] == "lookup" and calls[0]["id"].startswith("call_")
     assert json.loads("".join(c["function"]["arguments"] for c in calls)) == {"q": 1}
     assert chunks[-1]["choices"][0]["finish_reason"] == "tool_calls"
+
+
+def test_a_refused_request_can_retry_with_the_result(scripted_endpoint: Endpoint) -> None:
+    script = Script(Script.tool_call("lookup", call_id="call_r"), "Answer after the result.")
+    with (
+        pytest.raises(ModelEndpointError, match="must carry the result"),
+        model_endpoint("retry", script=script),
+    ):
+        post(scripted_endpoint, RESPONSES, {"input": "x"})
+        assert post(scripted_endpoint, RESPONSES, {"input": "no result"}).status_code == 500
+        # The refusal used up no reply: a retry with the result gets the answer.
+        retried = post(scripted_endpoint, RESPONSES, {"input": [_result("call_r")]})
+        assert retried.json()["output_text"] == "Answer after the result."
+
+
+def test_any_tool_output_item_counts_as_a_result(scripted_endpoint: Endpoint) -> None:
+    script = Script(Script.tool_call("custom", call_id="call_c"), "done")
+    custom = {"type": "custom_tool_call_output", "call_id": "call_c", "output": "ok"}
+    with model_endpoint("custom-output", script=script):
+        post(scripted_endpoint, RESPONSES, {"input": "x"})
+        assert (
+            post(scripted_endpoint, RESPONSES, {"input": [custom]}).json()["output_text"] == "done"
+        )
+
+
+def test_tool_call_and_web_search_arguments_are_normalized() -> None:
+    assert ToolCall("f", {"x": 1}).arguments == '{"x": 1}'  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="JSON string or a mapping"):
+        ToolCall("f", 3)  # type: ignore[arg-type]
+    script = Script.web_search("q", "https://one.example")  # type: ignore[arg-type]
+    (reply,) = script._items
+    assert reply.web_search.sources == ("https://one.example",)
+
+
+def test_streamed_tool_call_starts_with_null_content(scripted_endpoint: Endpoint) -> None:
+    with model_endpoint("null-content", script=Script.tool_call("lookup")):
+        streamed = post(scripted_endpoint, CHAT, {"messages": [], "stream": True})
+    first = sse_events(streamed.content)[0][1]
+    assert first["choices"][0]["delta"] == {"role": "assistant", "content": None}

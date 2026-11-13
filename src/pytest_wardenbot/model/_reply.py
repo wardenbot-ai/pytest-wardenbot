@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
@@ -11,12 +12,19 @@ from typing import Any
 class ToolCall:
     """A function-tool call the model makes: the tool's name and its JSON arguments.
 
-    ``call_id`` defaults to a stable id assigned when the reply is served.
+    ``arguments`` is a JSON string; a mapping is serialized for you. ``call_id``
+    defaults to a stable id assigned when the reply is served.
     """
 
     name: str
     arguments: str = "{}"
     call_id: str | None = None
+
+    def __post_init__(self) -> None:
+        if isinstance(self.arguments, Mapping):
+            object.__setattr__(self, "arguments", json.dumps(dict(self.arguments)))
+        elif not isinstance(self.arguments, str):
+            raise TypeError("ToolCall arguments must be a JSON string or a mapping.")
 
 
 @dataclass(frozen=True)
@@ -25,6 +33,10 @@ class WebSearch:
 
     query: str
     sources: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if isinstance(self.sources, str):
+            object.__setattr__(self, "sources", (self.sources,))
 
 
 @dataclass(frozen=True)
